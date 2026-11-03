@@ -9,6 +9,7 @@ Web frontend for **TicketFlow**, an IT helpdesk / ticketing system.
 - [React Router](https://reactrouter.com/) – client-side routing
 - [Axios](https://axios-http.com/) – HTTP client for the backend API
 - [Recharts](https://recharts.org/) – dashboard charts
+- [Lucide](https://lucide.dev/) – icons
 
 ## Getting started
 
@@ -46,10 +47,11 @@ The app runs at http://localhost:5173.
 
 ```
 src/
-  api/         API client and request helpers
-  context/     React context providers (e.g. auth)
-  components/  Reusable UI components
+  api/         Axios client (token header, 401 handling, errorMessage)
+  context/     Login state (AuthProvider + useAuth)
+  components/  Layout, route guard, badges and other shared UI
   pages/       Route-level pages
+  utils/       Display helpers (status labels, dates, initials)
   App.jsx      Root component
   main.jsx     Entry point (mounts App inside BrowserRouter)
 ```
