@@ -94,19 +94,19 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 
 ## Phase 9 – Admin dashboard
 
-- [ ] Stat cards: total tickets, still open, overdue (red), average resolution time
-- [ ] Bar chart: tickets by status
-- [ ] Horizontal bar chart: most common categories
-- [ ] Line chart: created vs resolved per week
-- [ ] Table: agent performance (assigned, resolved, average time)
-- [ ] Table: resolution time by priority (average shown red when above target)
+- [x] Stat cards: total tickets, still open, overdue (red), average resolution time
+- [x] Bar chart: tickets by status
+- [x] Horizontal bar chart: most common categories
+- [x] Line chart: created vs resolved per week
+- [x] Table: agent performance (assigned, resolved, average time)
+- [x] Table: resolution time by priority (average shown red when above target)
 
 ## Phase 10 – User management (admin)
 
-- [ ] Table: name, email, department, role, status
-- [ ] Role dropdown (Employee / IT Staff / Admin)
-- [ ] Activate / Deactivate button
-- [ ] The admin's own row can't be changed
+- [x] Table: name, email, department, role, status
+- [x] Role dropdown (Employee / IT Staff / Admin)
+- [x] Activate / Deactivate button
+- [x] The admin's own row can't be changed
 
 ## Phase 11 – Finish
 
