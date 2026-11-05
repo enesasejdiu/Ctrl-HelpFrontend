@@ -2,6 +2,23 @@
 
 React + Vite web app that talks to the `ticketflow-backend` API. Tick each box when it is done and tested.
 
+## Team split
+
+| Area | Teammate | Aulona |
+| ---- | -------- | ------ |
+| **Code** | Phase 7: New ticket page | Phase 9: Admin dashboard (stat cards + charts) |
+| | Phase 8: Ticket detail (comments, status, assign, history) | Phase 10: User management page |
+| | Phase 11: Final testing, responsive fixes, merging everything | Help with Phase 11 testing (each role, start to finish) |
+| **Documentation** | README checks, Postman collection demo | **Project report**: problem, goals, ERD diagram, architecture, screenshots, conclusion |
+| **Presentation** | Live demo: employee → agent → admin flow | Slides: problem, solution, tech stack, database design, statistics |
+| **Learning** | Explain the dashboard + users pages | Explain the backend (auth, tickets, roles) |
+
+**Why this works:**
+
+- **Same amount of work:** Phase 8 is the biggest page, so the teammate takes that; Aulona gets two pages plus the report.
+- **No conflicts:** the teammate's files (`NewTicket.jsx`, `TicketDetail.jsx`) and Aulona's (`AdminDashboard.jsx`, `Users.jsx`) are separate. Both pages are already placeholders in `App.jsx`.
+- **The "Learning" row matters:** evaluators often ask either person about any part. Spend 30 minutes walking each other through your code before the presentation.
+
 ## Phase 1 – Project setup
 
 Note: created with create-vite 9.3 (React 19, Vite 8, React Router 7, Recharts 3, oxlint). Demo assets removed; favicon.svg kept.
