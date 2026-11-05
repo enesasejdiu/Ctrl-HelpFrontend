@@ -49,6 +49,14 @@ export function timeAgo(value) {
   return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Durations given in hours: 0.5 → "30 min", 5.2 → "5.2 h", 72 → "3 d"
+export function formatHours(hours) {
+  if (hours === null || hours === undefined) return '—'
+  if (hours < 1) return `${Math.round(hours * 60)} min`
+  if (hours < 48) return `${Number(hours.toFixed(1))} h`
+  return `${Number((hours / 24).toFixed(1))} d`
+}
+
 // "Arben Krasniqi" → "AK"
 export function initials(name = '') {
   return name
