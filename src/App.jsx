@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import ComingSoon from './pages/ComingSoon'
 import Login from './pages/Login'
+import NewTicket from './pages/NewTicket'
 import Register from './pages/Register'
 import TicketList from './pages/TicketList'
 
@@ -17,7 +18,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/tickets" element={<TicketList />} />
-          <Route path="/tickets/new" element={<ComingSoon title="New ticket" />} />
+          <Route path="/tickets/new" element={<NewTicket />} />
           <Route path="/tickets/:id" element={<ComingSoon title="Ticket details" />} />
 
           <Route element={<ProtectedRoute roles={['admin']} />}>

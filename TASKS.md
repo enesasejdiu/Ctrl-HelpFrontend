@@ -58,9 +58,9 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 
 ## Phase 7 – New ticket
 
-- [ ] Form: title, category, priority (default Medium), description
-- [ ] Categories and priorities loaded from `GET /meta`
-- [ ] After saving, go to the new ticket's page
+- [x] Form: title, category, priority (default Medium), description
+- [x] Categories and priorities loaded from `GET /meta`
+- [x] After saving, go to the new ticket's page
 
 ## Phase 8 – Ticket detail
 

@@ -518,7 +518,7 @@ textarea {
   gap: 6px;
 }
 
-.field label {
+.field > label {
   display: flex;
   justify-content: space-between;
   font-weight: 500;
@@ -755,6 +755,115 @@ textarea {
   outline-offset: 2px;
 }
 
+.field legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-weight: 500;
+  font-size: 13px;
+  color: #374151;
+}
+
+fieldset.field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field__counter {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+/* Radio buttons shown as selectable cards (e.g. priority on the new ticket form) */
+.option-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.option-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.option-card:hover {
+  border-color: #9ca3af;
+}
+
+.option-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.option-card.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.option-card:has(input:focus-visible) {
+  box-shadow: 0 0 0 4px var(--primary-ring);
+}
+
+.option-card__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.back-link:hover {
+  color: var(--text);
+}
+
+/* Main column + fixed-width sidebar; one column on small screens */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+.tips h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tips ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
 /* ---------- Cards ---------- */
 .card {
   background: var(--surface);
@@ -762,6 +871,10 @@ textarea {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+}
+
+.card--padded {
+  padding: 24px;
 }
 
 .card__section {
@@ -1146,7 +1259,21 @@ textarea {
   }
 }
 
+@media (max-width: 960px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
+  .option-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .card--padded {
+    padding: 18px;
+  }
+
   /* Top bar wraps: brand + user on the first row, scrollable nav on the second */
   .topbar__inner {
     height: auto;
