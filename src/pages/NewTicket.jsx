@@ -1,33 +1,34 @@
-// NewTicket.jsx – report a problem at /tickets/new.
-// Categories and priorities come from GET /meta; the ticket is saved with POST /tickets,
-// then we go straight to the new ticket's page.
+// NewTicket.jsx – the "report a problem" form at /tickets/new.
+// Categories and priorities come from GET /meta; priority defaults to Medium.
+// After saving, the user lands on the new ticket's page.
 import { ArrowLeft, LoaderCircle, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import client, { errorMessage } from '../api/client'
+import { PriorityBadge } from '../components/Badges'
 import { Alert, PageHeader, Spinner } from '../components/Ui'
-import { formatHours } from '../utils/format'
+import { targetLabel } from '../utils/format'
 
 const TITLE_MAX = 150 // same limit as the backend
-const DEFAULT_PRIORITY = 'Medium'
 
 export default function NewTicket() {
   const navigate = useNavigate()
-  const [meta, setMeta] = useState(null) // { categories, priorities } once loaded
+  const [meta, setMeta] = useState(null)
+  const [loadError, setLoadError] = useState('')
   const [form, setForm] = useState({ title: '', category_id: '', priority_id: '', description: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // Load the dropdown options and preselect the default priority
+  // Load the dropdown data; preselect Medium as the default priority
   useEffect(() => {
     client
       .get('/meta')
       .then(({ data }) => {
         setMeta(data)
-        const medium = data.priorities.find((p) => p.name === DEFAULT_PRIORITY)
+        const medium = data.priorities.find((p) => p.name === 'Medium')
         if (medium) setForm((current) => ({ ...current, priority_id: String(medium.id) }))
       })
-      .catch((err) => setError(errorMessage(err)))
+      .catch((err) => setLoadError(errorMessage(err)))
   }, [])
 
   function update(field) {
@@ -37,9 +38,8 @@ export default function NewTicket() {
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
-    // Same rules as the backend, checked first for an instant message
-    if (!form.title.trim() || !form.description.trim() || !form.category_id || !form.priority_id) {
-      setError('Please fill in the title, category, priority and description.')
+    if (!form.title.trim() || !form.category_id || !form.priority_id || !form.description.trim()) {
+      setError('Please fill in the title, category, priority and description')
       return
     }
     setSubmitting(true)
@@ -50,7 +50,7 @@ export default function NewTicket() {
         category_id: Number(form.category_id),
         priority_id: Number(form.priority_id),
       })
-      navigate(`/tickets/${data.id}`, { replace: true })
+      navigate(`/tickets/${data.id}`)
     } catch (err) {
       setError(errorMessage(err))
       setSubmitting(false)
@@ -58,74 +58,78 @@ export default function NewTicket() {
   }
 
   const category = meta?.categories.find((c) => String(c.id) === form.category_id)
-  const priority = meta?.priorities.find((p) => String(p.id) === form.priority_id)
 
   return (
     <>
-      <PageHeader
-        title="New ticket"
-        subtitle="Tell IT what's wrong. The more detail you give, the faster it gets fixed."
-        actions={
-          <Link to="/tickets" className="btn btn--secondary">
-            <ArrowLeft size={16} aria-hidden="true" />
-            Back to tickets
-          </Link>
-        }
-      />
+      <Link to="/tickets" className="back-link">
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back to tickets
+      </Link>
+      <PageHeader title="New ticket" subtitle="Describe the problem and IT will pick it up as soon as possible." />
 
-      <section className="card form-card">
-        {meta === null && !error ? (
+      {loadError && <Alert>{loadError}</Alert>}
+      {!meta && !loadError && (
+        <div className="card">
           <Spinner label="Loading form…" />
-        ) : (
-          <form className="form" onSubmit={handleSubmit} noValidate>
+        </div>
+      )}
+
+      {meta && (
+        <div className="split">
+          <form className="card card--padded form" onSubmit={handleSubmit} noValidate>
             {error && <Alert>{error}</Alert>}
 
             <div className="field">
               <label htmlFor="title">
                 Title
-                <span className="field__optional">
+                <span className={`field__counter${form.title.length > TITLE_MAX ? ' field__hint--error' : ''}`}>
                   {form.title.length}/{TITLE_MAX}
                 </span>
               </label>
               <input
                 id="title"
                 className="input"
-                placeholder="e.g. Laptop won't connect to the office Wi-Fi"
+                placeholder="e.g. Laptop does not turn on"
+                maxLength={TITLE_MAX}
                 value={form.title}
                 onChange={update('title')}
-                maxLength={TITLE_MAX}
                 required
                 autoFocus
               />
             </div>
 
-            <div className="form-row">
-              <div className="field">
-                <label htmlFor="category">Category</label>
-                <select id="category" className="select" value={form.category_id} onChange={update('category_id')} required>
-                  <option value="">Choose a category…</option>
-                  {meta?.categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                {category?.description && <span className="field__hint">{category.description}</span>}
-              </div>
-
-              <div className="field">
-                <label htmlFor="priority">Priority</label>
-                <select id="priority" className="select" value={form.priority_id} onChange={update('priority_id')} required>
-                  {!form.priority_id && <option value="">Choose a priority…</option>}
-                  {meta?.priorities.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                {priority && <span className="field__hint">IT aims to resolve it within {formatHours(priority.target_hours)}.</span>}
-              </div>
+            <div className="field">
+              <label htmlFor="category">Category</label>
+              <select id="category" className="select" value={form.category_id} onChange={update('category_id')} required>
+                <option value="">Choose a category…</option>
+                {meta.categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {category?.description && <span className="field__hint">{category.description}</span>}
             </div>
+
+            {/* Priority as selectable cards, so the target time is visible before choosing */}
+            <fieldset className="field">
+              <legend>Priority</legend>
+              <div className="option-cards">
+                {meta.priorities.map((p) => (
+                  <label key={p.id} className={`option-card${form.priority_id === String(p.id) ? ' is-selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="priority"
+                      value={p.id}
+                      checked={form.priority_id === String(p.id)}
+                      onChange={update('priority_id')}
+                    />
+                    <PriorityBadge priority={p.name} />
+                    <span className="option-card__hint">Target: {targetLabel(p.target_hours)}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
             <div className="field">
               <label htmlFor="description">Description</label>
@@ -133,25 +137,39 @@ export default function NewTicket() {
                 id="description"
                 className="textarea"
                 rows={7}
-                placeholder="What happened? When did it start? What have you already tried? Include any error messages."
+                placeholder="What happened? When did it start? What have you already tried?"
                 value={form.description}
                 onChange={update('description')}
                 required
               />
             </div>
 
-            <div className="form-actions">
+            <div className="form__actions">
               <Link to="/tickets" className="btn btn--secondary">
                 Cancel
               </Link>
-              <button type="submit" className="btn btn--primary" disabled={submitting || !meta}>
-                {submitting ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}
-                {submitting ? 'Creating…' : 'Create ticket'}
+              <button type="submit" className="btn btn--primary" disabled={submitting}>
+                {submitting ? (
+                  <LoaderCircle size={16} className="spin" aria-hidden="true" />
+                ) : (
+                  <Send size={16} aria-hidden="true" />
+                )}
+                {submitting ? 'Submitting…' : 'Submit ticket'}
               </button>
             </div>
           </form>
-        )}
-      </section>
+
+          <aside className="card card--padded tips">
+            <h2>Tips for a quick fix</h2>
+            <ul>
+              <li>Use a short title that says what is broken.</li>
+              <li>Include any error message exactly as it appears.</li>
+              <li>Say where you are and which device you use.</li>
+              <li>Pick <strong>Critical</strong> only when work is blocked for many people.</li>
+            </ul>
+          </aside>
+        </div>
+      )}
     </>
   )
 }

@@ -57,6 +57,13 @@ export function formatHours(hours) {
   return `${Number((hours / 24).toFixed(1))} d`
 }
 
+// Target time of a priority: "4 hours", "3 days"
+export function targetLabel(hours) {
+  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`
+  const days = hours / 24
+  return `${days} ${days === 1 ? 'day' : 'days'}`
+}
+
 // "Arben Krasniqi" → "AK"
 export function initials(name = '') {
   return name
