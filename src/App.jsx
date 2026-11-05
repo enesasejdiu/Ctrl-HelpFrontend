@@ -7,6 +7,7 @@ import ComingSoon from './pages/ComingSoon'
 import Login from './pages/Login'
 import NewTicket from './pages/NewTicket'
 import Register from './pages/Register'
+import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 
 function App() {
@@ -19,7 +20,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/tickets" element={<TicketList />} />
           <Route path="/tickets/new" element={<NewTicket />} />
-          <Route path="/tickets/:id" element={<ComingSoon title="Ticket details" />} />
+          <Route path="/tickets/:id" element={<TicketDetail />} />
 
           <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route path="/admin" element={<ComingSoon title="Dashboard" />} />

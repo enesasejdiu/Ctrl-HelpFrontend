@@ -1,5 +1,5 @@
 /* index.css – TicketFlow's design system: tokens, base elements and every shared component style.
-   Sections: tokens · base · layout · auth · buttons · forms · cards · tables · badges · feedback · utilities */
+   Sections: tokens · base · layout · auth · buttons · forms · cards · tables · badges · feedback · ticket detail · utilities */
 
 /* ---------- Tokens ---------- */
 :root {
@@ -188,6 +188,7 @@ textarea {
 .page-header h1 {
   font-size: 24px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .page-header__subtitle {
@@ -1233,6 +1234,175 @@ fieldset.field {
   to {
     background-position: -200% 0;
   }
+}
+
+/* ---------- Ticket detail ---------- */
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.ticket-id {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.ticket-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.panel-title {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form > .panel-title {
+  margin-bottom: 0;
+}
+
+/* User-written text: keep their line breaks, and never let a long URL widen the page */
+.user-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.card--resolution {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.comments {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.comments__empty {
+  margin-bottom: 20px;
+  color: var(--text-muted);
+}
+
+.comment {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.comment--internal {
+  border-color: #fde68a;
+  background: #fefce8;
+}
+
+.comment__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+
+.comment__author {
+  font-weight: 600;
+}
+
+.comment__time {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.internal-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #854d0e;
+}
+
+.comment-form {
+  display: grid;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.comment-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Keeps the button on the right when employees have no "Internal note" switch */
+.comment-form__actions .btn {
+  margin-left: auto;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.button-row .btn {
+  flex: 1;
+}
+
+.info-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.info-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.info-list dt {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.info-list dd {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.history {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history li {
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.history time {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* ---------- Utilities ---------- */

@@ -64,16 +64,16 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 
 ## Phase 8 – Ticket detail
 
-- [ ] Header: #id, title, status, priority, overdue badges
-- [ ] Description and resolution note
-- [ ] Comments list; internal notes shown in yellow with an "Internal note" label
-- [ ] Add-comment form; "Internal note" checkbox for staff only
-- [ ] Info box: requester, assignee, category, created, resolved, target time
-- [ ] Staff "Manage" box: status dropdown, resolution note (required before resolving), priority dropdown,
+- [x] Header: #id, title, status, priority, overdue badges
+- [x] Description and resolution note
+- [x] Comments list; internal notes shown in yellow with an "Internal note" label
+- [x] Add-comment form; "Internal note" checkbox for staff only
+- [x] Info box: requester, assignee, category, created, resolved, target time
+- [x] Staff "Manage" box: status dropdown, resolution note (required before resolving), priority dropdown,
       admin "Assign to" dropdown (from `/users/agents`), agent "Take this ticket" button
-- [ ] Employee box "Is your problem fixed?" with Close / Reopen buttons when allowed
-- [ ] History list: who changed what, from → to, when
-- [ ] Page reloads its data after every action
+- [x] Employee box "Is your problem fixed?" with Close / Reopen buttons when allowed
+- [x] History list: who changed what, from → to, when
+- [x] Page reloads its data after every action
 
 ## Phase 9 – Admin dashboard
 

@@ -7,15 +7,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import client, { errorMessage } from '../api/client'
 import { PriorityBadge } from '../components/Badges'
 import { Alert, PageHeader, Spinner } from '../components/Ui'
+import { targetLabel } from '../utils/format'
 
 const TITLE_MAX = 150 // same limit as the backend
-
-// "4 hours", "3 days"
-function targetLabel(hours) {
-  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`
-  const days = hours / 24
-  return `${days} ${days === 1 ? 'day' : 'days'}`
-}
 
 export default function NewTicket() {
   const navigate = useNavigate()
