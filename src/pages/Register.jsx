@@ -17,8 +17,10 @@ export default function Register() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Already logged in: this also sends the user on right after a successful sign-up
   if (user) return <Navigate to="/tickets" replace />
 
+  // One change handler for every field: update('email') returns the handler for the email input
   function update(field) {
     return (event) => setForm((current) => ({ ...current, [field]: event.target.value }))
   }
@@ -37,6 +39,7 @@ export default function Register() {
     }
     setSubmitting(true)
     try {
+      // The backend returns a token too, so the new user is logged in straight away
       await register(form)
       navigate('/tickets', { replace: true })
     } catch (err) {

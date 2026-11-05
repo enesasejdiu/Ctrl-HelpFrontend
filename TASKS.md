@@ -110,9 +110,9 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 
 ## Phase 11 – Finish
 
-- [ ] Responsive: works on a phone-sized screen
-- [ ] Loading and error messages on every page
-- [ ] Test each role from start to finish (employee creates → admin assigns → agent resolves → employee closes)
-- [ ] README: setup steps, demo logins, pages table
-- [ ] Comments in the code explaining the important parts
-- [ ] Final commit and push
+- [x] Responsive: works on a phone-sized screen
+- [x] Loading and error messages on every page
+- [x] Test each role from start to finish (employee creates → admin assigns → agent resolves → employee closes)
+- [x] README: setup steps, demo logins, pages table
+- [x] Comments in the code explaining the important parts
+- [x] Final commit and push

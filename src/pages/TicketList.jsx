@@ -20,6 +20,7 @@ const ASSIGNED_OPTIONS = [
 export default function TicketList() {
   const { isStaff } = useAuth()
   const navigate = useNavigate()
+  // The URL's query string is the single source of truth for the filters
   const [params, setParams] = useSearchParams()
 
   // The last finished request: which query it was for, and its tickets or error.
@@ -38,9 +39,11 @@ export default function TicketList() {
   const hasFilters = queryString !== ''
 
   const { tickets } = result
+  // Still loading while the last finished request was for different filters than the ones in the URL
   const loading = result.query !== queryString
   const error = metaError || (loading ? '' : result.error)
 
+  // replace: changing a filter shouldn't add a step to the Back button
   function setFilter(key, value) {
     setParams(
       (current) => {
@@ -91,6 +94,7 @@ export default function TicketList() {
     return () => controller.abort()
   }, [queryString])
 
+  // Counted from the loaded tickets, so it follows the active filters
   const overdueCount = tickets?.filter((t) => t.is_overdue).length || 0
 
   return (
@@ -188,7 +192,11 @@ export default function TicketList() {
 
         <div className="results-bar">
           <span>
-            {tickets === null ? 'Loading tickets…' : `${tickets.length} ${tickets.length === 1 ? 'ticket' : 'tickets'}`}
+            {tickets === null
+              ? result.error
+                ? 'Tickets could not be loaded'
+                : 'Loading tickets…'
+              : `${tickets.length} ${tickets.length === 1 ? 'ticket' : 'tickets'}`}
             {overdueCount > 0 && <span className="results-bar__overdue"> · {overdueCount} overdue</span>}
           </span>
           {hasFilters && (
@@ -229,7 +237,7 @@ export default function TicketList() {
         ) : (
           tickets && (
             <div className={`table-wrap${loading ? ' is-refreshing' : ''}`}>
-              <table className="table">
+              <table className="table table--stack">
                 <thead>
                   <tr>
                     <th className="table__id">#</th>
@@ -257,22 +265,24 @@ export default function TicketList() {
                         <Link to={`/tickets/${ticket.id}`}>{ticket.title}</Link>
                         {ticket.is_overdue && <OverdueBadge />}
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <StatusBadge status={ticket.status} />
                       </td>
-                      <td>
+                      <td data-label="Priority">
                         <PriorityBadge priority={ticket.priority_name} />
                       </td>
-                      <td className="text-muted">{ticket.category_name}</td>
+                      <td className="text-muted" data-label="Category">
+                        {ticket.category_name}
+                      </td>
                       {isStaff && (
-                        <td>
+                        <td data-label="Requester">
                           <span className="person">
                             <Avatar name={ticket.requester_name} size="sm" />
                             {ticket.requester_name}
                           </span>
                         </td>
                       )}
-                      <td>
+                      <td data-label="Assigned to">
                         {ticket.assignee_name ? (
                           <span className="person">
                             <Avatar name={ticket.assignee_name} size="sm" />
@@ -282,7 +292,7 @@ export default function TicketList() {
                           <span className="text-faint">Unassigned</span>
                         )}
                       </td>
-                      <td className="text-muted table__date" title={formatDate(ticket.created_at)}>
+                      <td className="text-muted table__date" data-label="Created" title={formatDate(ticket.created_at)}>
                         {timeAgo(ticket.created_at)}
                       </td>
                     </tr>

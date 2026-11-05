@@ -189,6 +189,7 @@ function CommentForm({ ticketId, reload }) {
       return
     }
     const saved = await run(() =>
+      // Employees never see the switch, and the backend ignores is_internal from them anyway
       client.post(`/tickets/${ticketId}/comments`, { content: content.trim(), is_internal: isInternal }),
     )
     // The draft is kept after a failure, so nothing typed gets lost
@@ -229,6 +230,7 @@ function CommentForm({ ticketId, reload }) {
 // Employees can confirm a resolved ticket (close) or reject it (reopen); a closed one can only be reopened
 function EmployeeBox({ ticket, reload }) {
   const { busy, error, run } = useAction(reload)
+  // This box is only shown for resolved or closed tickets (see TicketPage)
   const isResolved = ticket.status === 'resolved'
 
   function setStatus(status) {
@@ -261,6 +263,7 @@ function EmployeeBox({ ticket, reload }) {
 }
 
 function ManageBox({ ticket, reload }) {
+  // Admins assign to anyone; agents can only assign to themselves, so they get a button instead of a dropdown
   const { user, isAdmin } = useAuth()
   const { busy, error, run } = useAction(reload)
   const [options, setOptions] = useState({ priorities: [], agents: [] })
@@ -283,6 +286,7 @@ function ManageBox({ ticket, reload }) {
       ? [...options.agents, { id: ticket.assigned_to, name: ticket.assignee_name }]
       : options.agents
 
+  // Priority and assignee save as soon as they are picked; only status has a button, because it may need a note
   function changePriority(event) {
     const priorityId = Number(event.target.value)
     run(() => client.patch(`/tickets/${ticket.id}/priority`, { priority_id: priorityId }))
@@ -352,8 +356,10 @@ function ManageBox({ ticket, reload }) {
 function StatusForm({ ticket, reload }) {
   const { busy, error, setError, run } = useAction(reload)
   const [status, setStatus] = useState(ticket.status)
+  // Starts with the old note when a reopened ticket is resolved again
   const [resolution, setResolution] = useState(ticket.resolution || '')
 
+  // The note is only needed when this update actually moves the ticket to "resolved"
   const changed = status !== ticket.status
   const resolving = changed && status === 'resolved'
 

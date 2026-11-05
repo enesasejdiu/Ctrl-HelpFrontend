@@ -21,6 +21,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
+      {/* Routes without a path are wrappers: login check first, then the Layout around each page */}
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/tickets" element={<TicketList />} />

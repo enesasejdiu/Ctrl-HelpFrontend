@@ -18,7 +18,7 @@ import {
 } from 'recharts'
 import client, { errorMessage } from '../api/client'
 import { PriorityBadge } from '../components/Badges'
-import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
+import { Alert, Avatar, EmptyState, PageHeader, Spinner } from '../components/Ui'
 import { STATUSES, formatHours, statusLabel } from '../utils/format'
 
 // Chart colors (validated for color-blind readers and contrast): one hue for single-series charts,
@@ -41,6 +41,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   // Fetches the stats; state is only set once the request finishes
+  // useCallback keeps the same function between renders, so the effect below only runs once
   const fetchStats = useCallback(
     () =>
       client
@@ -77,6 +78,7 @@ export default function AdminDashboard() {
     />
   )
 
+  // First load only: after a failed refresh the old numbers stay on screen with an error above them
   if (!stats) {
     return (
       <>
@@ -86,11 +88,28 @@ export default function AdminDashboard() {
     )
   }
 
+  // Nothing to chart yet
+  if (stats.total === 0) {
+    return (
+      <>
+        {header}
+        {error && <Alert>{error}</Alert>}
+        <section className="card">
+          <EmptyState icon={Inbox} title="No tickets yet.">
+            The statistics appear here once the first ticket is reported.
+          </EmptyState>
+        </section>
+      </>
+    )
+  }
+
   // The API only lists statuses that occur; show all of them in workflow order, with 0 for the missing ones
   const countByStatus = Object.fromEntries(stats.byStatus.map((s) => [s.status, s.count]))
   const statusData = STATUSES.map((status) => ({ name: statusLabel(status), count: countByStatus[status] || 0 }))
+  // "Still open" = everything except resolved and closed, including reopened tickets
   const openCount = stats.byStatus.filter((s) => !FINISHED.includes(s.status)).reduce((sum, s) => sum + s.count, 0)
 
+  // The API sorts categories by count, so this keeps the most common ones
   const categoryData = stats.byCategory.slice(0, TOP_CATEGORIES)
   // "2026-W44" → "W44" for the x-axis; the tooltip shows the full week
   const trendData = stats.trend.map((w) => ({ ...w, label: w.week.split('-')[1] }))
@@ -213,6 +232,7 @@ export default function AdminDashboard() {
               </thead>
               <tbody>
                 {stats.byPriority.map((p) => {
+                  // No average yet (null) never counts as too slow
                   const tooSlow = p.avg_hours !== null && p.avg_hours > p.target_hours
                   return (
                     <tr key={p.name}>

@@ -7,8 +7,10 @@ export const TOKEN_KEY = 'ticketflow.token'
 export const USER_KEY = 'ticketflow.user'
 
 // Fired on window when the backend rejects our token; AuthContext listens and logs the user out
+// An event, because this file is plain JavaScript outside React and can't change React state itself
 export const SESSION_EXPIRED_EVENT = 'ticketflow:session-expired'
 
+// VITE_API_URL comes from the .env file; Vite puts it into the code at build time
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
 })
@@ -40,6 +42,7 @@ client.interceptors.response.use(
 // Human-readable message for a failed request: the backend's { message }, or a fallback
 export function errorMessage(err) {
   if (err?.response?.data?.message) return err.response.data.message
+  // A request without a response means the server never answered (it's down or unreachable)
   if (err?.request && !err.response) return 'Cannot reach the server. Check that the API is running.'
   return err?.message || 'Something went wrong'
 }

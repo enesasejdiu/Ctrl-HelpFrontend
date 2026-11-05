@@ -24,7 +24,8 @@ export default function Users() {
       .catch((err) => setLoadError(errorMessage(err)))
   }, [])
 
-  // Sends the change and swaps the returned user into the list
+  // Sends the change and swaps the returned user into the list.
+  // If it fails the list stays as it was, so the role dropdown jumps back to the saved value.
   async function updateUser(id, changes) {
     setSavingId(id)
     setActionError('')
@@ -38,6 +39,7 @@ export default function Users() {
     }
   }
 
+  // The backend also unassigns unfinished tickets when a staff member is deactivated or made an employee
   function toggleActive(u) {
     // Deactivating locks someone out, so ask first
     if (u.is_active && !window.confirm(`Deactivate ${u.name}? They will no longer be able to log in.`)) return
@@ -54,7 +56,9 @@ export default function Users() {
         <div className="results-bar">
           <span>
             {users === null
-              ? 'Loading users…'
+              ? loadError
+                ? 'Users could not be loaded'
+                : 'Loading users…'
               : `${users.length} ${users.length === 1 ? 'user' : 'users'} · ${activeCount} active`}
           </span>
         </div>
@@ -72,7 +76,7 @@ export default function Users() {
         ) : (
           users && (
             <div className="table-wrap">
-              <table className="table">
+              <table className="table table--stack">
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -88,6 +92,7 @@ export default function Users() {
                 </thead>
                 <tbody>
                   {users.map((u) => {
+                    // Your own row is read-only, and only the row being saved is disabled
                     const isMe = u.id === me?.id
                     const saving = savingId === u.id
                     return (
@@ -99,9 +104,13 @@ export default function Users() {
                             {isMe && <span className="you-tag">You</span>}
                           </span>
                         </td>
-                        <td className="text-muted">{u.email}</td>
-                        <td className="text-muted">{u.department || '—'}</td>
-                        <td>
+                        <td className="text-muted" data-label="Email">
+                          {u.email}
+                        </td>
+                        <td className="text-muted" data-label="Department">
+                          {u.department || '—'}
+                        </td>
+                        <td data-label="Role">
                           {isMe ? (
                             <span className={`role-tag role-tag--${u.role}`}>{ROLE_LABELS[u.role]}</span>
                           ) : (
@@ -120,13 +129,15 @@ export default function Users() {
                             </select>
                           )}
                         </td>
-                        <td>
+                        <td data-label="Status">
                           <span className={`badge badge--${u.is_active ? 'active' : 'inactive'}`}>
                             <span className="badge__dot" aria-hidden="true" />
                             {u.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td className="text-muted table__date">{formatDate(u.created_at)}</td>
+                        <td className="text-muted table__date" data-label="Joined">
+                          {formatDate(u.created_at)}
+                        </td>
                         <td className="table__actions">
                           {isMe ? (
                             <span className="text-faint">—</span>

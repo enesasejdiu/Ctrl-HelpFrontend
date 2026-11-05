@@ -19,9 +19,9 @@ export function Spinner({ label = 'Loading…' }) {
   )
 }
 
-export function Alert({ children, tone = 'error' }) {
+export function Alert({ children }) {
   return (
-    <div className={`alert alert--${tone}`} role="alert">
+    <div className="alert alert--error" role="alert">
       <CircleAlert size={18} aria-hidden="true" />
       <div>{children}</div>
     </div>

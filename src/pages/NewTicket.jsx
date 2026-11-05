@@ -31,6 +31,7 @@ export default function NewTicket() {
       .catch((err) => setLoadError(errorMessage(err)))
   }, [])
 
+  // One change handler for every field: update('title') returns the handler for the title input
   function update(field) {
     return (event) => setForm((current) => ({ ...current, [field]: event.target.value }))
   }
@@ -47,6 +48,7 @@ export default function NewTicket() {
       const { data } = await client.post('/tickets', {
         title: form.title.trim(),
         description: form.description.trim(),
+        // Dropdown values are always strings, but the API expects numeric ids
         category_id: Number(form.category_id),
         priority_id: Number(form.priority_id),
       })
@@ -57,6 +59,7 @@ export default function NewTicket() {
     }
   }
 
+  // The category currently picked, to show its description under the dropdown
   const category = meta?.categories.find((c) => String(c.id) === form.category_id)
 
   return (
@@ -68,6 +71,9 @@ export default function NewTicket() {
       <PageHeader title="New ticket" subtitle="Describe the problem and IT will pick it up as soon as possible." />
 
       {loadError && <Alert>{loadError}</Alert>}
+      {meta && (meta.categories.length === 0 || meta.priorities.length === 0) && (
+        <Alert>No categories or priorities are set up yet, so tickets can't be created. Please contact IT.</Alert>
+      )}
       {!meta && !loadError && (
         <div className="card">
           <Spinner label="Loading form…" />

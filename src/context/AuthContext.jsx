@@ -15,6 +15,7 @@ function loadUser() {
 }
 
 export function AuthProvider({ children }) {
+  // Passing the function means localStorage is only read once, on the first render
   const [user, setUser] = useState(loadUser)
 
   const saveSession = useCallback(({ token, user: nextUser }) => {
@@ -23,6 +24,7 @@ export function AuthProvider({ children }) {
     setUser(nextUser)
   }, [])
 
+  // Logging out only forgets the token in this browser; the token itself expires on the backend
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
@@ -65,6 +67,7 @@ export function AuthProvider({ children }) {
       .catch(() => {}) // a 401 is already handled by the client; network errors keep the saved user
   }, [])
 
+  // useMemo keeps the same object between renders, so components using useAuth() only re-render when it changes
   const value = useMemo(
     () => ({
       user,

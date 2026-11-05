@@ -28,6 +28,7 @@ export default function Login() {
   // Already logged in: nothing to do here
   if (user) return <Navigate to="/tickets" replace />
 
+  // ProtectedRoute saved the page the user wanted before it sent them here
   const from = location.state?.from?.pathname || '/tickets'
 
   async function handleSubmit(event) {
@@ -36,13 +37,16 @@ export default function Login() {
     setSubmitting(true)
     try {
       await login(email, password)
+      // replace: the Back button shouldn't return to the login form
       navigate(from, { replace: true })
     } catch (err) {
       setError(errorMessage(err))
+      // Only on failure: after a success we leave this page anyway
       setSubmitting(false)
     }
   }
 
+  // Fills the form but doesn't submit it, so you can see which account is being used
   function fillDemo(demoEmail) {
     setEmail(demoEmail)
     setPassword(DEMO_PASSWORD)

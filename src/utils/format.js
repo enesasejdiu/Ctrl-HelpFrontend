@@ -2,7 +2,7 @@
 // Kept out of Badges.jsx so that component file only exports components.
 
 // Backend status values in workflow order, with their display labels
-export const STATUS_LABELS = {
+const STATUS_LABELS = {
   open: 'Open',
   assigned: 'Assigned',
   in_progress: 'In Progress',

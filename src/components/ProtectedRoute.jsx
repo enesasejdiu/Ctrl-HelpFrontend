@@ -10,6 +10,7 @@ export default function ProtectedRoute({ roles, children }) {
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
+  // This only hides pages; the backend checks the role again on every request
   if (roles && !roles.includes(user.role)) {
     return <Navigate to="/tickets" replace />
   }
