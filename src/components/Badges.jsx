@@ -3,7 +3,9 @@
 import { Clock } from 'lucide-react'
 import { statusLabel } from '../utils/format'
 
+// Unknown statuses show their raw value; a missing one renders nothing rather than an empty pill
 export function StatusBadge({ status }) {
+  if (!status) return null
   return (
     <span className={`badge badge--status-${status}`}>
       <span className="badge__dot" aria-hidden="true" />
@@ -14,7 +16,8 @@ export function StatusBadge({ status }) {
 
 // `priority` is the display name from the API ("Low", "Medium", "High", "Critical")
 export function PriorityBadge({ priority }) {
-  const level = String(priority || '').toLowerCase()
+  if (!priority) return null
+  const level = String(priority).toLowerCase()
   return (
     <span className={`badge badge--priority badge--priority-${level}`}>
       <span className="priority-bars" aria-hidden="true">

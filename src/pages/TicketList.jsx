@@ -191,7 +191,8 @@ export default function TicketList() {
         )}
 
         <div className="results-bar">
-          <span>
+          {/* Live region: screen readers announce the new count after a filter changes the list */}
+          <span aria-live="polite">
             {tickets === null
               ? result.error
                 ? 'Tickets could not be loaded'
@@ -199,7 +200,8 @@ export default function TicketList() {
               : `${tickets.length} ${tickets.length === 1 ? 'ticket' : 'tickets'}`}
             {overdueCount > 0 && <span className="results-bar__overdue"> · {overdueCount} overdue</span>}
           </span>
-          {hasFilters && (
+          {/* With no results the empty state shows its own "Clear filters" button; don't show two */}
+          {hasFilters && tickets?.length !== 0 && (
             <button type="button" className="link-button" onClick={clearFilters}>
               <FilterX size={14} aria-hidden="true" />
               Clear filters

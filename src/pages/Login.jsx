@@ -10,6 +10,8 @@ import { Alert } from '../components/Ui'
 import { useAuth } from '../context/auth'
 
 const DEMO_PASSWORD = 'password123'
+// Loose "something@something.tld" check; the backend does the strict validation
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DEMO_ACCOUNTS = [
   { label: 'Admin', email: 'admin@ticketflow.local' },
   { label: 'IT Staff', email: 'agent1@ticketflow.local' },
@@ -24,19 +26,38 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [invalidField, setInvalidField] = useState(null)
 
-  // Already logged in: nothing to do here
-  if (user) return <Navigate to="/tickets" replace />
+  // Where to go after signing in: ProtectedRoute saved the page the user wanted (with its filters) before it
+  // sent them here; otherwise the ticket list
+  const fromLocation = location.state?.from
+  const from = fromLocation ? `${fromLocation.pathname}${fromLocation.search || ''}${fromLocation.hash || ''}` : '/tickets'
 
-  // ProtectedRoute saved the page the user wanted before it sent them here
-  const from = location.state?.from?.pathname || '/tickets'
+  // Logged in (already, or just now: login() sets the user before navigate() below runs, so this redirect
+  // usually renders first). Both must go to the same place.
+  if (user) return <Navigate to={from} replace />
+
+  // Same rules and messages as the backend, checked here first to save a round trip
+  function validate() {
+    if (!email.trim()) return ['email', 'Email is required']
+    if (!EMAIL_PATTERN.test(email.trim())) return ['email', 'Enter a valid email']
+    if (!password) return ['password', 'Password is required']
+    return null
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
+    const problem = validate()
+    setInvalidField(problem?.[0] ?? null)
+    if (problem) {
+      setError(problem[1])
+      document.getElementById(problem[0])?.focus()
+      return
+    }
     setSubmitting(true)
     try {
-      await login(email, password)
+      await login(email.trim(), password)
       // replace: the Back button shouldn't return to the login form
       navigate(from, { replace: true })
     } catch (err) {
@@ -51,6 +72,7 @@ export default function Login() {
     setEmail(demoEmail)
     setPassword(DEMO_PASSWORD)
     setError('')
+    setInvalidField(null)
   }
 
   return (
@@ -76,6 +98,7 @@ export default function Login() {
             placeholder="name@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={invalidField === 'email' || undefined}
             required
             autoFocus
           />
@@ -89,6 +112,7 @@ export default function Login() {
             placeholder="Your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            aria-invalid={invalidField === 'password' || undefined}
             required
           />
         </div>
