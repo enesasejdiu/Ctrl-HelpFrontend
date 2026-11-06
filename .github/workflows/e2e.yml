@@ -1,0 +1,81 @@
+# End-to-end tests: frontend + backend + a throwaway MariaDB, driven by Playwright.
+# The backend lives in its own repo and is checked out next to the frontend.
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Test database only: same port and settings as e2e/.env.test, data kept in memory (tmpfs)
+      mariadb:
+        image: mariadb:10.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+        ports:
+          - 3307:3306
+        options: >-
+          --tmpfs /var/lib/mysql
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      CI: 'true'
+      # The DB is the service container above, so the script doesn't start its own
+      E2E_DB_EXTERNAL: '1'
+      BACKEND_DIR: backend
+
+    steps:
+      - name: Check out the frontend
+        uses: actions/checkout@v5
+
+      - name: Check out the backend
+        uses: actions/checkout@v5
+        with:
+          repository: enesasejdiu/Ctrl-HelpBackend
+          path: backend
+          # Needed only if the backend repo is private: a token with read access, saved as a repo secret
+          token: ${{ secrets.BACKEND_REPO_TOKEN || github.token }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox
+
+      - name: Run e2e tests
+        run: npm run e2e
+
+      - name: Upload HTML report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload traces, screenshots and videos
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 14
