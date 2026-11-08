@@ -1,6 +1,6 @@
 // Layout.jsx – the frame around every logged-in page: top bar with logo, navigation and user menu.
 // The Dashboard link is only shown to admins; Users to admins and HR.
-import { LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
+import { KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS } from '../utils/format'
@@ -47,6 +47,9 @@ export default function Layout() {
               <span className="topbar__user-name">{user.name}</span>
               <span className={`role-tag role-tag--${user.role}`}>{ROLE_LABELS[user.role] || user.role}</span>
             </div>
+            <Link to="/change-password" className="icon-button" title="Change password" aria-label="Change password">
+              <KeyRound size={17} aria-hidden="true" />
+            </Link>
             <button type="button" className="icon-button" onClick={handleLogout} title="Log out" aria-label="Log out">
               <LogOut size={17} aria-hidden="true" />
             </button>

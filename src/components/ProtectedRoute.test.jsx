@@ -1,8 +1,8 @@
 // ProtectedRoute.test.jsx – logged-out users go to /login (and come back after signing in), roles are enforced.
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { useLocation } from 'react-router-dom'
-import { TOKEN_KEY, USER_KEY } from '../api/client'
+import client, { TOKEN_KEY, USER_KEY } from '../api/client'
 import Login from '../pages/Login'
 import { buildUser } from '../test/factories'
 import { renderWithProviders, stubRoutes } from '../test/render'
@@ -15,6 +15,12 @@ function LoginWithOrigin() {
   return <p>Sign in to continue to {state?.from?.pathname}</p>
 }
 
+// Stand-in change-password page that shows where the user will go once it's done
+function ChangePasswordWithOrigin() {
+  const { state } = useLocation()
+  return <h1>Change password page (then {state?.from?.pathname || 'tickets'})</h1>
+}
+
 // Mirrors App.jsx: a protected layout route with an admin-only branch inside it
 function appRoutes({ loginElement = <h1>Login page</h1> } = {}) {
   return [
@@ -23,6 +29,7 @@ function appRoutes({ loginElement = <h1>Login page</h1> } = {}) {
       element: <ProtectedRoute />,
       children: [
         ...stubRoutes.filter((r) => r.path !== '/login'),
+        { path: '/change-password', element: <ChangePasswordWithOrigin /> },
         {
           element: <ProtectedRoute roles={['admin']} />,
           children: [{ path: '/admin', element: <h1>Admin dashboard</h1> }],
@@ -66,7 +73,7 @@ describe('ProtectedRoute', () => {
   })
 
   describe('roles', () => {
-    it.each(['employee', 'agent'])('sends a %s away from an admin-only page to /tickets', async (role) => {
+    it.each(['employee', 'agent', 'hr'])('sends a %s away from an admin-only page to /tickets', async (role) => {
       const { router } = renderWithProviders(null, { route: '/admin', routes: appRoutes(), user: buildUser({ role }) })
 
       expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
@@ -105,6 +112,54 @@ describe('ProtectedRoute', () => {
       renderWithProviders(null, { route: '/tickets', routes: appRoutes() })
 
       expect(await screen.findByRole('heading', { name: 'Login page' })).toBeInTheDocument()
+    })
+  })
+
+  describe('temporary password', () => {
+    it('sends a user who must change their password to /change-password, remembering the page', async () => {
+      const { router } = renderWithProviders(null, {
+        route: '/tickets/42',
+        routes: appRoutes(),
+        user: buildUser({ must_change_password: true }),
+      })
+
+      expect(await screen.findByRole('heading', { name: 'Change password page (then /tickets/42)' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/change-password')
+    })
+
+    it('also keeps them out of role-protected pages', async () => {
+      const { router } = renderWithProviders(null, {
+        route: '/admin',
+        routes: appRoutes(),
+        user: buildUser({ role: 'admin', must_change_password: true }),
+      })
+
+      expect(await screen.findByRole('heading', { name: /Change password page/ })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/change-password')
+    })
+
+    it('redirects when the backend says the password was reset during the session', async () => {
+      server.use(
+        // The profile refresh on load fails (network), so only the 403 below can flag the user
+        http.get(`${API}/auth/me`, () => HttpResponse.error()),
+        http.get(`${API}/tickets`, () =>
+          HttpResponse.json(
+            { message: 'You must change your password before continuing', code: 'PASSWORD_CHANGE_REQUIRED' },
+            { status: 403 },
+          ),
+        ),
+      )
+      renderWithProviders(null, { route: '/tickets', routes: appRoutes(), user: buildUser() })
+      expect(screen.getByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+
+      // Any page's request; act() because the refusal updates the logged-in user
+      await act(async () => {
+        await expect(client.get('/tickets')).rejects.toThrow()
+      })
+
+      expect(await screen.findByRole('heading', { name: /Change password page/ })).toBeInTheDocument()
+      expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(true)
+      expect(localStorage.getItem(TOKEN_KEY)).toBe('test-token') // still logged in
     })
   })
 
