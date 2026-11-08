@@ -82,6 +82,7 @@ These accounts come from the backend's demo data. They all use the password `pas
 | -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
 | `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
 | `/change-password` | Logged-in users | Choose a new password. Required after signing in with a temporary password: nothing else opens until then |
+| `/set-password` | Users with a temporary password | Choose your own password after the first login (or a reset); every other page redirects here until it's done |
 | `/tickets`     | Logged-in users | Ticket list with search and filters; employees see their own tickets, staff see all of them     |
 | `/tickets/new` | Logged-in users | Report a problem                                                                                |
 | `/tickets/:id` | Logged-in users | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs |
@@ -118,6 +119,7 @@ src/
     ChangePassword.jsx   Choose a new password (forced after a temporary password)
     Login.jsx            Sign-in page
     NewTicket.jsx        New ticket form
+    SetPassword.jsx      "Set your password" after logging in with a temporary password
     TicketDetail.jsx     One ticket: comments, management boxes, info and history
     TicketList.jsx       Ticket list with filters
     Users.jsx            User management at /admin/users

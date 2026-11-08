@@ -15,11 +15,6 @@ function LoginWithOrigin() {
   return <p>Sign in to continue to {state?.from?.pathname}</p>
 }
 
-// Stand-in change-password page that shows where the user will go once it's done
-function ChangePasswordWithOrigin() {
-  const { state } = useLocation()
-  return <h1>Change password page (then {state?.from?.pathname || 'tickets'})</h1>
-}
 
 // Mirrors App.jsx: a protected layout route with an admin-only branch inside it
 function appRoutes({ loginElement = <h1>Login page</h1> } = {}) {
@@ -29,7 +24,7 @@ function appRoutes({ loginElement = <h1>Login page</h1> } = {}) {
       element: <ProtectedRoute />,
       children: [
         ...stubRoutes.filter((r) => r.path !== '/login'),
-        { path: '/change-password', element: <ChangePasswordWithOrigin /> },
+        { path: '/set-password', element: <h1>Set password page</h1> },
         {
           element: <ProtectedRoute roles={['admin']} />,
           children: [{ path: '/admin', element: <h1>Admin dashboard</h1> }],
@@ -116,15 +111,15 @@ describe('ProtectedRoute', () => {
   })
 
   describe('temporary password', () => {
-    it('sends a user who must change their password to /change-password, remembering the page', async () => {
+    it('sends a user who must change their password to /set-password', async () => {
       const { router } = renderWithProviders(null, {
         route: '/tickets/42',
         routes: appRoutes(),
         user: buildUser({ must_change_password: true }),
       })
 
-      expect(await screen.findByRole('heading', { name: 'Change password page (then /tickets/42)' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/change-password')
+      expect(await screen.findByRole('heading', { name: 'Set password page' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/set-password')
     })
 
     it('also keeps them out of role-protected pages', async () => {
@@ -134,8 +129,8 @@ describe('ProtectedRoute', () => {
         user: buildUser({ role: 'admin', must_change_password: true }),
       })
 
-      expect(await screen.findByRole('heading', { name: /Change password page/ })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/change-password')
+      expect(await screen.findByRole('heading', { name: 'Set password page' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/set-password')
     })
 
     it('redirects when the backend says the password was reset during the session', async () => {
@@ -157,7 +152,7 @@ describe('ProtectedRoute', () => {
         await expect(client.get('/tickets')).rejects.toThrow()
       })
 
-      expect(await screen.findByRole('heading', { name: /Change password page/ })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Set password page' })).toBeInTheDocument()
       expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(true)
       expect(localStorage.getItem(TOKEN_KEY)).toBe('test-token') // still logged in
     })

@@ -1,7 +1,9 @@
 // Layout.jsx – the frame around every logged-in page: top bar with logo, navigation and user menu.
-// The Dashboard link is only shown to admins; Users to admins and HR.
-import { KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+// The Dashboard link is only shown to admins; Users to admins and HR. While the user still has a temporary password,
+// the bar shows only the logo and Log out (every page but /set-password is closed to them anyway).
+// A one-off message passed in the navigation state ({ flash }) is shown above the page, e.g. "Password changed".
+import { Check, KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS } from '../utils/format'
 import Logo from './Logo'
@@ -10,14 +12,18 @@ import { Avatar } from './Ui'
 export default function Layout() {
   const { user, isAdmin, canManageUsers, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const mustSetPassword = Boolean(user.must_change_password)
 
-  const links = [
-    // `end` keeps "Tickets" from staying active on /tickets/new
-    { to: '/tickets', label: 'Tickets', icon: Ticket, end: true },
-    { to: '/tickets/new', label: 'New ticket', icon: TicketPlus },
-    ...(isAdmin ? [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }] : []),
-    ...(canManageUsers ? [{ to: '/admin/users', label: 'Users', icon: Users }] : []),
-  ]
+  const links = mustSetPassword
+    ? []
+    : [
+        // `end` keeps "Tickets" from staying active on /tickets/new
+        { to: '/tickets', label: 'Tickets', icon: Ticket, end: true },
+        { to: '/tickets/new', label: 'New ticket', icon: TicketPlus },
+        ...(isAdmin ? [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }] : []),
+        ...(canManageUsers ? [{ to: '/admin/users', label: 'Users', icon: Users }] : []),
+      ]
 
   function handleLogout() {
     logout()
@@ -47,9 +53,11 @@ export default function Layout() {
               <span className="topbar__user-name">{user.name}</span>
               <span className={`role-tag role-tag--${user.role}`}>{ROLE_LABELS[user.role] || user.role}</span>
             </div>
-            <Link to="/change-password" className="icon-button" title="Change password" aria-label="Change password">
-              <KeyRound size={17} aria-hidden="true" />
-            </Link>
+            {!mustSetPassword && (
+              <Link to="/change-password" className="icon-button" title="Change password" aria-label="Change password">
+                <KeyRound size={17} aria-hidden="true" />
+              </Link>
+            )}
             <button type="button" className="icon-button" onClick={handleLogout} title="Log out" aria-label="Log out">
               <LogOut size={17} aria-hidden="true" />
             </button>
@@ -58,6 +66,12 @@ export default function Layout() {
       </header>
 
       <main className="page">
+        {location.state?.flash && (
+          <div className="notice notice--success page-notice" role="status">
+            <Check size={18} aria-hidden="true" />
+            <p>{location.state.flash}</p>
+          </div>
+        )}
         <Outlet />
       </main>
     </div>
