@@ -49,7 +49,7 @@ Note: created with create-vite 9.3 (React 19, Vite 8, React Router 7, Recharts 3
 ## Phase 4 – Login and register
 
 - [x] Login page: email, password, error message, link to register
-- [x] Register page: name, email, department, password (min 6), link to login
+- [x] ~~Register page~~: removed in v1.0. Admins and HR create accounts
 - [x] Logged-in users visiting these pages are redirected to /tickets
 - [x] Test with all demo accounts
 
@@ -121,4 +121,5 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 
 - [x] Vitest + React Testing Library (MSW for API mocking)
 - [x] Component tests: Login, TicketList, NewTicket, Badges, ProtectedRoute
+- [x] Self-registration removed: no /register page or sign-up link (the backend endpoint is gone)
 - [x] Users page: Add user form (admin and HR). Job title comes later.

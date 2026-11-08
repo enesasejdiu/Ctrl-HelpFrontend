@@ -1,5 +1,5 @@
 // App.jsx – all routes of TicketFlow.
-// Public: /login, /register. Everything else needs a login and renders inside <Layout>.
+// Public: /login. Everything else needs a login and renders inside <Layout>.
 // /admin is admin-only; /admin/users is for admins and HR.
 import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
@@ -8,7 +8,6 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { Spinner } from './components/Ui'
 import Login from './pages/Login'
 import NewTicket from './pages/NewTicket'
-import Register from './pages/Register'
 import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 import Users from './pages/Users'
@@ -20,7 +19,6 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
 
       {/* Routes without a path are wrappers: login check first, then the Layout around each page */}
       <Route element={<ProtectedRoute />}>

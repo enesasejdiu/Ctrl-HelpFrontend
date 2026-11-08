@@ -39,6 +39,13 @@ describe('Login', () => {
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
   })
 
+  it('offers no sign-up: accounts are created by an admin or HR', () => {
+    renderLogin()
+
+    expect(screen.queryByRole('link', { name: /create an account|sign up|register/i })).not.toBeInTheDocument()
+    expect(screen.getByText('No account yet? Ask your IT admin or HR to create one.')).toBeInTheDocument()
+  })
+
   it('hides the password as it is typed', () => {
     renderLogin()
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')

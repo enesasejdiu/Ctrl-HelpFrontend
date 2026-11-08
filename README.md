@@ -80,7 +80,6 @@ These accounts come from the backend's demo data. They all use the password `pas
 | Route          | Who can open it | What it does                                                                                    |
 | -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
 | `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
-| `/register`    | Everyone        | Create an employee account                                                                      |
 | `/tickets`     | Logged-in users | Ticket list with search and filters; employees see their own tickets, staff see all of them     |
 | `/tickets/new` | Logged-in users | Report a problem                                                                                |
 | `/tickets/:id` | Logged-in users | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs |
@@ -99,7 +98,7 @@ src/
     client.js            Axios instance: adds the token, handles expired sessions, reads error messages
   components/
     AddUserDialog.jsx    "Add user" form on the Users page (HR can only create employees)
-    AuthShell.jsx        Split-screen frame for the login and register pages
+    AuthShell.jsx        Split-screen frame for the login page
     Badges.jsx           Status, priority and overdue badges
     Layout.jsx           Top bar and navigation around every logged-in page
     Logo.jsx             TicketFlow logo
@@ -110,12 +109,11 @@ src/
     Ui.jsx               Avatar, spinner, alert, empty state and page header
   context/
     auth.js              Auth context object and the useAuth() hook
-    AuthContext.jsx      Holds the logged-in user; login, register and logout
+    AuthContext.jsx      Holds the logged-in user; login and logout
   pages/
     AdminDashboard.jsx   Statistics, charts and tables at /admin
     Login.jsx            Sign-in page
     NewTicket.jsx        New ticket form
-    Register.jsx         Sign-up page
     TicketDetail.jsx     One ticket: comments, management boxes, info and history
     TicketList.jsx       Ticket list with filters
     Users.jsx            User management at /admin/users

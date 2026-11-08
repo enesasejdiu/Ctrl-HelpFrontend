@@ -2,7 +2,7 @@
 // Includes one-click demo accounts (seeded by the backend) to make testing each role quick.
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { errorMessage } from '../api/client'
 import AuthShell from '../components/AuthShell'
 import PasswordInput from '../components/PasswordInput'
@@ -79,11 +79,7 @@ export default function Login() {
     <AuthShell
       title="Welcome back"
       subtitle="Sign in to report and follow your IT tickets."
-      footer={
-        <>
-          New to TicketFlow? <Link to="/register">Create an account</Link>
-        </>
-      }
+      footer="No account yet? Ask your IT admin or HR to create one."
     >
       <form className="form" onSubmit={handleSubmit} noValidate>
         {error && <Alert>{error}</Alert>}

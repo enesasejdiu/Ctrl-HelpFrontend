@@ -40,15 +40,6 @@ export function AuthProvider({ children }) {
     [saveSession],
   )
 
-  const register = useCallback(
-    async (fields) => {
-      const { data } = await client.post('/auth/register', fields)
-      saveSession(data)
-      return data.user
-    },
-    [saveSession],
-  )
-
   // The API client fires this event on a 401; dropping the user makes ProtectedRoute redirect to /login
   useEffect(() => {
     window.addEventListener(SESSION_EXPIRED_EVENT, logout)
@@ -77,10 +68,9 @@ export function AuthProvider({ children }) {
       // Admins and HR manage accounts on the Users page. HR is not staff: for tickets, HR is an employee.
       canManageUsers: user?.role === 'admin' || user?.role === 'hr',
       login,
-      register,
       logout,
     }),
-    [user, login, register, logout],
+    [user, login, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
