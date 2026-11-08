@@ -13,12 +13,11 @@ dist-ssr
 coverage
 *.local
 
-# Playwright e2e output, saved logins and the throwaway test database
+# Playwright e2e output and saved logins (the e2e database is created and dropped on the server per run)
 test-results/
 playwright-report/
 blob-report/
 e2e/.auth/
-e2e/.db/
 
 # Editor directories and files
 .vscode/*

@@ -1,5 +1,6 @@
-# End-to-end tests: frontend + backend + a throwaway MariaDB, driven by Playwright.
-# The backend lives in its own repo and is checked out next to the frontend.
+# End-to-end tests: frontend + backend on a throwaway database, driven by Playwright.
+# The backend lives in its own repo and is checked out next to the frontend. Each run creates its own
+# ticketflow_e2e_* database on the MySQL service below and drops it afterwards (see scripts/e2e-env.mjs).
 name: E2E
 
 on:
@@ -13,25 +14,29 @@ jobs:
     timeout-minutes: 20
 
     services:
-      # Test database only: same port and settings as e2e/.env.test, data kept in memory (tmpfs)
-      mariadb:
-        image: mariadb:10.4
+      # MySQL 8.4 with its defaults (ONLY_FULL_GROUP_BY on), data kept in memory (tmpfs). Locally the tests run on
+      # whatever server the backend's .env points at, e.g. MariaDB from XAMPP.
+      mysql:
+        image: mysql:8.4
         env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_ROOT_PASSWORD: e2e-root
         ports:
-          - 3307:3306
+          - 3306:3306
         options: >-
           --tmpfs /var/lib/mysql
-          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pe2e-root"
           --health-interval=5s
           --health-timeout=5s
-          --health-retries=20
+          --health-retries=30
 
     env:
       CI: 'true'
-      # The DB is the service container above, so the script doesn't start its own
-      E2E_DB_EXTERNAL: '1'
       BACKEND_DIR: backend
+      # The database server for the e2e databases (the name is always ticketflow_e2e_*, chosen per run)
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: '3306'
+      E2E_DB_USER: root
+      E2E_DB_PASSWORD: e2e-root
 
     steps:
       - name: Check out the frontend
@@ -63,6 +68,11 @@ jobs:
 
       - name: Run e2e tests
         run: npm run e2e
+
+      # The run must drop its database, also when tests failed
+      - name: Check no e2e database is left
+        if: always()
+        run: E2E_DB_NAME=ticketflow_e2e_check node scripts/e2e-backend.mjs check-clean
 
       - name: Upload HTML report
         if: failure()
