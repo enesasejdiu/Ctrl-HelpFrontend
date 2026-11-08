@@ -81,7 +81,7 @@ These accounts come from the backend's demo data. They all use the password `pas
 | Route          | Who can open it | What it does                                                                                    |
 | -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
 | `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
-| `/change-password` | Logged-in users | Choose a new password. Required after signing in with a temporary password: nothing else opens until then |
+| `/change-password` | Logged-in users | Change your own password (key button in the top bar) |
 | `/set-password` | Users with a temporary password | Choose your own password after the first login (or a reset); every other page redirects here until it's done |
 | `/tickets`     | Logged-in users | Ticket list with search and filters; employees see their own tickets, staff see all of them     |
 | `/tickets/new` | Logged-in users | Report a problem                                                                                |
@@ -106,7 +106,7 @@ src/
     Logo.jsx             TicketFlow logo
     Modal.jsx            Dialog shell: focus trap, Escape to close, focus returns to the opener
     PasswordInput.jsx    Password field with a show/hide button
-    ProtectedRoute.jsx   Sends logged-out users to /login, temporary passwords to /change-password, and checks roles
+    ProtectedRoute.jsx   Sends logged-out users to /login, temporary passwords to /set-password, and checks roles
     ResetPasswordDialog.jsx  Asks before resetting a user's password
     TemporaryPasswordDialog.jsx  Shows a new temporary password once, with Copy and a warning
     Ui.jsx               Avatar, spinner, alert, empty state and page header
@@ -116,7 +116,7 @@ src/
     AuthContext.jsx      Holds the logged-in user; login, change password and logout
   pages/
     AdminDashboard.jsx   Statistics, charts and tables at /admin
-    ChangePassword.jsx   Choose a new password (forced after a temporary password)
+    ChangePassword.jsx   Change your own password (from the top bar)
     Login.jsx            Sign-in page
     NewTicket.jsx        New ticket form
     SetPassword.jsx      "Set your password" after logging in with a temporary password
