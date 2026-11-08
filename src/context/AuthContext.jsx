@@ -25,6 +25,12 @@ export function AuthProvider({ children }) {
   }, [])
 
   // Logging out only forgets the token in this browser; the token itself expires on the backend
+  // Replaces the saved user's details (e.g. after an admin edits their own name), keeping the same token
+  const updateUser = useCallback((nextUser) => {
+    localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+    setUser(nextUser)
+  }, [])
+
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
@@ -69,8 +75,9 @@ export function AuthProvider({ children }) {
       canManageUsers: user?.role === 'admin' || user?.role === 'hr',
       login,
       logout,
+      updateUser,
     }),
-    [user, login, logout],
+    [user, login, logout, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

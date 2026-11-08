@@ -1,7 +1,9 @@
-// AddUserDialog.jsx – the "Add user" form on the Users page (POST /api/users).
-// Admins pick any role; HR can only create employees, so for HR the role is fixed text instead of a dropdown.
-// On success it hands { user, temporaryPassword } to onCreated; the page then shows the password once.
-import { LoaderCircle, UserPlus } from 'lucide-react'
+// UserDialog.jsx – the "Add user" and "Edit user" form on the Users page.
+// Add (no `user`): POST /users, then onSaved({ user, temporaryPassword }) so the page can show the password once.
+// Edit (`user` given): prefilled; PATCH /users/:id with only the fields that changed, then onSaved({ user }).
+// The role is a dropdown only for admins, and never on their own account; otherwise it is shown as fixed text
+// (HR can only create employees and can never change roles).
+import { LoaderCircle, Save, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import client, { errorMessage } from '../api/client'
 import { useAuth } from '../context/auth'
@@ -23,13 +25,35 @@ function validate(form) {
   return errors
 }
 
-export default function AddUserDialog({ onCreated, onCancel, returnFocusRef }) {
+// What the form would save, cleaned up the way the backend stores it
+function cleaned(form) {
+  return { name: form.name.trim(), email: form.email.trim(), department: form.department.trim() || null, role: form.role }
+}
+
+export default function UserDialog({ user = null, onSaved, onCancel, returnFocusRef }) {
   const { user: me } = useAuth()
-  const isHr = me?.role === 'hr'
-  const [form, setForm] = useState({ name: '', email: '', department: '', role: 'employee' })
+  const isEdit = user !== null
+  const canPickRole = me?.role === 'admin' && !(isEdit && user.id === me.id)
+  const [form, setForm] = useState(() => ({
+    name: user?.name ?? '',
+    email: user?.email ?? '',
+    department: user?.department ?? '',
+    role: user?.role ?? 'employee',
+  }))
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('') // anything that doesn't belong to one field
   const [saving, setSaving] = useState(false)
+
+  // Edit: only the fields that differ from the saved user. Add: everything (HR always creates employees).
+  function changes() {
+    const next = cleaned(form)
+    if (!isEdit) return { ...next, role: canPickRole ? next.role : 'employee' }
+    const saved = { name: user.name, email: user.email, department: user.department || null, role: user.role }
+    return Object.fromEntries(
+      Object.entries(next).filter(([field, value]) => (field !== 'role' || canPickRole) && value !== saved[field]),
+    )
+  }
+  const unchanged = isEdit && Object.keys(changes()).length === 0
 
   function update(field) {
     return (event) => {
@@ -44,17 +68,17 @@ export default function AddUserDialog({ onCreated, onCancel, returnFocusRef }) {
     setError('')
     const errors = validate(form)
     setFieldErrors(errors)
-    if (Object.keys(errors).length > 0) return
+    if (Object.keys(errors).length > 0 || unchanged) return
 
     setSaving(true)
     try {
-      const { data } = await client.post('/users', {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        role: isHr ? 'employee' : form.role,
-        department: form.department.trim() || null,
-      })
-      onCreated(data)
+      if (isEdit) {
+        const { data } = await client.patch(`/users/${user.id}`, changes())
+        onSaved({ user: data })
+      } else {
+        const { data } = await client.post('/users', changes())
+        onSaved(data)
+      }
     } catch (err) {
       const status = err.response?.status
       const backendErrors = err.response?.data?.errors || []
@@ -78,44 +102,54 @@ export default function AddUserDialog({ onCreated, onCancel, returnFocusRef }) {
 
   // Props that link an input to its message, so screen readers read the error with the field
   function errorProps(field) {
-    return fieldErrors[field] ? { 'aria-invalid': true, 'aria-describedby': `new-user-${field}-error` } : {}
+    return fieldErrors[field] ? { 'aria-invalid': true, 'aria-describedby': `user-${field}-error` } : {}
   }
   function fieldError(field) {
     return fieldErrors[field] ? (
-      <span id={`new-user-${field}-error`} className="field__hint field__hint--error">
+      <span id={`user-${field}-error`} className="field__hint field__hint--error">
         {fieldErrors[field]}
       </span>
     ) : null
   }
 
+  const SubmitIcon = isEdit ? Save : UserPlus
+  const savingLabel = isEdit ? 'Saving…' : 'Creating…'
+  const submitLabel = isEdit ? 'Save changes' : 'Create user'
+  let roleNote = null
+  if (!canPickRole) {
+    if (!isEdit) roleNote = 'HR can only create employee accounts.'
+    else if (user.id === me?.id) roleNote = "You can't change your own role."
+    else roleNote = 'Only admins can change roles.'
+  }
+
   return (
     <Modal
-      title="Add user"
-      returnFocusRef={returnFocusRef}
-      // No Escape while saving: closing then would lose the one-time password when the request succeeds
+      title={isEdit ? `Edit ${user.name}` : 'Add user'}
+      // No Escape while saving: when adding, closing then would lose the one-time password
       onClose={saving ? undefined : onCancel}
+      returnFocusRef={returnFocusRef}
       footer={
         <>
           <button type="button" className="btn btn--secondary" onClick={onCancel} disabled={saving}>
             Cancel
           </button>
-          <button type="submit" form="add-user-form" className="btn btn--primary" disabled={saving}>
-            {saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <UserPlus size={16} aria-hidden="true" />}
-            {saving ? 'Creating…' : 'Create user'}
+          <button type="submit" form="user-form" className="btn btn--primary" disabled={saving || unchanged}>
+            {saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <SubmitIcon size={16} aria-hidden="true" />}
+            {saving ? savingLabel : submitLabel}
           </button>
         </>
       }
     >
-      <form id="add-user-form" className="form" onSubmit={handleSubmit} noValidate>
+      <form id="user-form" className="form" onSubmit={handleSubmit} noValidate>
         {error && <Alert>{error}</Alert>}
-        <p className="text-muted">
-          The new user gets a temporary password, shown once after you create the account.
-        </p>
+        {!isEdit && (
+          <p className="text-muted">The new user gets a temporary password, shown once after you create the account.</p>
+        )}
 
         <div className="field">
-          <label htmlFor="new-user-name">Full name</label>
+          <label htmlFor="user-name">Full name</label>
           <input
-            id="new-user-name"
+            id="user-name"
             className="input"
             value={form.name}
             onChange={update('name')}
@@ -129,9 +163,9 @@ export default function AddUserDialog({ onCreated, onCancel, returnFocusRef }) {
         </div>
 
         <div className="field">
-          <label htmlFor="new-user-email">Email</label>
+          <label htmlFor="user-email">Email</label>
           <input
-            id="new-user-email"
+            id="user-email"
             type="email"
             className="input"
             placeholder="name@company.com"
@@ -146,11 +180,11 @@ export default function AddUserDialog({ onCreated, onCancel, returnFocusRef }) {
         </div>
 
         <div className="field">
-          <label htmlFor="new-user-department">
+          <label htmlFor="user-department">
             Department <span className="field__optional">Optional</span>
           </label>
           <input
-            id="new-user-department"
+            id="user-department"
             className="input"
             value={form.department}
             onChange={update('department')}
@@ -160,16 +194,10 @@ export default function AddUserDialog({ onCreated, onCancel, returnFocusRef }) {
           {fieldError('department')}
         </div>
 
-        {isHr ? (
+        {canPickRole ? (
           <div className="field">
-            <span className="field__label">Role</span>
-            <span className="static-value">{ROLE_LABELS.employee}</span>
-            <span className="field__hint">HR can only create employee accounts.</span>
-          </div>
-        ) : (
-          <div className="field">
-            <label htmlFor="new-user-role">Role</label>
-            <select id="new-user-role" className="select" value={form.role} onChange={update('role')} {...errorProps('role')}>
+            <label htmlFor="user-role">Role</label>
+            <select id="user-role" className="select" value={form.role} onChange={update('role')} {...errorProps('role')}>
               {ROLES.map((role) => (
                 <option key={role} value={role}>
                   {ROLE_LABELS[role]}
@@ -177,6 +205,12 @@ export default function AddUserDialog({ onCreated, onCancel, returnFocusRef }) {
               ))}
             </select>
             {fieldError('role')}
+          </div>
+        ) : (
+          <div className="field">
+            <span className="field__label">Role</span>
+            <span className="static-value">{ROLE_LABELS[form.role] || form.role}</span>
+            <span className="field__hint">{roleNote}</span>
           </div>
         )}
       </form>

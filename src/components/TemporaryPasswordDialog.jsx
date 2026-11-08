@@ -1,4 +1,4 @@
-// TemporaryPasswordDialog.jsx – shows a new account's temporary password, the only time it is ever available.
+// TemporaryPasswordDialog.jsx – shows a temporary password (new account or reset), the only time it is ever available.
 // It closes only with its button (not Escape), so the password isn't lost by an accidental key press.
 // The parent clears the password from its state in onClose.
 import { Check, Copy, TriangleAlert } from 'lucide-react'
@@ -7,7 +7,8 @@ import Modal from './Modal'
 
 const COPIED_MS = 2000
 
-export default function TemporaryPasswordDialog({ name, email, password, onClose, returnFocusRef }) {
+// `title` defaults to "<name>'s account is ready" (after Add user); a reset passes "New password for <name>"
+export default function TemporaryPasswordDialog({ name, email, password, title, onClose, returnFocusRef }) {
   const [copyState, setCopyState] = useState('idle') // 'idle' | 'copied' | 'failed'
   const timer = useRef(null)
 
@@ -28,7 +29,7 @@ export default function TemporaryPasswordDialog({ name, email, password, onClose
 
   return (
     <Modal
-      title={`${name}'s account is ready`}
+      title={title ?? `${name}'s account is ready`}
       role="alertdialog"
       returnFocusRef={returnFocusRef}
       footer={

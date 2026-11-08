@@ -1469,6 +1469,28 @@ fieldset.field {
   text-align: right;
 }
 
+/* Edit / Reset password / Deactivate in one row of the Users table: icon buttons on one line on desktop */
+.row-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.btn--icon {
+  width: 30px;
+  padding: 0;
+}
+
+/* Their text labels only show on phones (below); on desktop the aria-label and tooltip name them */
+.row-actions__text {
+  display: none;
+}
+
+/* Names in the Users table don't need the wide minimum that ticket titles have */
+.person .table__title {
+  min-width: 0;
+}
+
 .table__num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1885,6 +1907,25 @@ fieldset.field {
 
   .table--stack .table__actions .btn {
     width: 100%;
+  }
+
+  /* Phones: the row's buttons share the card's width */
+  .table--stack .row-actions {
+    display: flex;
+    width: 100%;
+  }
+
+  .table--stack .row-actions .btn {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .table--stack .row-actions .btn--icon {
+    padding: 0 12px;
+  }
+
+  .table--stack .row-actions__text {
+    display: inline;
   }
 
   .table--stack .table__actions .text-faint {

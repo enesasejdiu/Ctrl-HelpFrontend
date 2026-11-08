@@ -1,7 +1,9 @@
-// Users.test.jsx – the Users page: who can open it, what HR may do, the "Add user" form, and the one-time
-// temporary password dialog. The API is mocked with MSW; POST /users answers like the backend (PR #5).
+// Users.test.jsx – the Users page: who can open it, what HR may do, the "Add user" and "Edit user" forms,
+// "Reset password", and the one-time temporary password dialog. The API is mocked with MSW and answers like the
+// backend (POST /users, PATCH /users/:id, POST /users/:id/reset-password).
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
+import { USER_KEY } from '../api/client'
 import App from '../App'
 import { buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
@@ -348,5 +350,270 @@ describe('temporary password dialog', () => {
     expect(within(dialog).getByLabelText('Full name')).toHaveValue('')
     expect(screen.queryByText(TEMP_PASSWORD)).not.toBeInTheDocument()
     expect(rowFor(NEW_USER.name)).toBeInTheDocument()
+  })
+})
+
+// PATCH /users/:id and POST /users/:id/reset-password, answering like the backend. Returns what they received.
+function mockEditAndReset({ patch, reset } = {}) {
+  const calls = { patches: [], resets: [] }
+  server.use(
+    http.patch(`${API}/users/:id`, async ({ request, params }) => {
+      const body = await request.json()
+      calls.patches.push({ id: Number(params.id), body })
+      if (patch) return patch(body)
+      const current = USERS.find((u) => u.id === Number(params.id))
+      return HttpResponse.json({ ...current, ...body, email: (body.email ?? current.email).toLowerCase() })
+    }),
+    http.post(`${API}/users/:id/reset-password`, ({ params }) => {
+      calls.resets.push(Number(params.id))
+      if (reset) return reset()
+      const current = USERS.find((u) => u.id === Number(params.id))
+      return HttpResponse.json({ user: { ...current, must_change_password: true }, temporaryPassword: 'NewTemp42pass' })
+    }),
+  )
+  return calls
+}
+
+async function openEdit(user, name) {
+  await screen.findByRole('table')
+  await user.click(within(rowFor(name)).getByRole('button', { name: `Edit ${name}` }))
+  return screen.findByRole('dialog', { name: `Edit ${name}` })
+}
+
+describe('Edit and Reset password buttons', () => {
+  it('admin: Edit on every row (own included), Reset on every row but their own', async () => {
+    mockApi()
+    renderUsers(admin)
+    await screen.findByRole('table')
+
+    for (const u of USERS) {
+      const row = rowFor(u.name)
+      expect(within(row).getByRole('button', { name: `Edit ${u.name}` })).toBeInTheDocument()
+      const reset = within(row).queryByRole('button', { name: `Reset password for ${u.name}` })
+      if (u.id === admin.id) expect(reset).not.toBeInTheDocument()
+      else expect(reset).toBeInTheDocument()
+    }
+  })
+
+  it('HR: Edit and Reset only on employee rows', async () => {
+    mockApi()
+    renderUsers(hr)
+    await screen.findByRole('table')
+
+    for (const u of USERS) {
+      const row = rowFor(u.name)
+      const isEmployee = u.role === 'employee'
+      expect(Boolean(within(row).queryByRole('button', { name: `Edit ${u.name}` }))).toBe(isEmployee)
+      expect(Boolean(within(row).queryByRole('button', { name: `Reset password for ${u.name}` }))).toBe(isEmployee)
+    }
+  })
+})
+
+describe('Edit user form', () => {
+  it('admin: prefilled with name, email, department and role; focus on the name', async () => {
+    mockApi()
+    mockEditAndReset()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, agent.name)
+
+    expect(within(dialog).getByLabelText('Full name')).toHaveValue(agent.name)
+    expect(within(dialog).getByLabelText('Full name')).toHaveFocus()
+    expect(within(dialog).getByLabelText('Email')).toHaveValue(agent.email)
+    expect(within(dialog).getByLabelText(/Department/)).toHaveValue(agent.department)
+    expect(within(dialog).getByLabelText('Role')).toHaveValue('agent')
+    // Nothing changed yet, so there's nothing to save
+    expect(within(dialog).getByRole('button', { name: 'Save changes' })).toBeDisabled()
+  })
+
+  it('sends only the fields that changed and updates the row without a reload', async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, agent.name)
+
+    await user.clear(within(dialog).getByLabelText(/Department/))
+    await user.type(within(dialog).getByLabelText(/Department/), '  Network Team ')
+    await user.selectOptions(within(dialog).getByLabelText('Role'), 'HR')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(calls.patches).toEqual([{ id: agent.id, body: { department: 'Network Team', role: 'hr' } }])
+    expect(within(rowFor(agent.name)).getByText('Network Team')).toBeInTheDocument()
+    expect(within(rowFor(agent.name)).getByRole('combobox')).toHaveValue('hr')
+    // Focus goes back to the row's Edit button
+    expect(within(rowFor(agent.name)).getByRole('button', { name: `Edit ${agent.name}` })).toHaveFocus()
+  })
+
+  it('clearing the department sends null', async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, employee.name)
+
+    await user.clear(within(dialog).getByLabelText(/Department/))
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(calls.patches).toEqual([{ id: employee.id, body: { department: null } }]))
+  })
+
+  it('HR edits an employee without a role field', async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    const { user } = renderUsers(hr)
+    const dialog = await openEdit(user, employee.name)
+
+    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(dialog).getByText('Only admins can change roles.')).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText('Full name'))
+    await user.type(within(dialog).getByLabelText('Full name'), 'Liridon G.')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(calls.patches).toEqual([{ id: employee.id, body: { name: 'Liridon G.' } }]))
+    expect(await screen.findByRole('cell', { name: /Liridon G\./ })).toBeInTheDocument()
+  })
+
+  it('admin editing their own row: no role dropdown, and the saved session gets the new name', async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, admin.name)
+
+    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(dialog).getByText("You can't change your own role.")).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText('Full name'))
+    await user.type(within(dialog).getByLabelText('Full name'), 'Head Admin')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(calls.patches).toEqual([{ id: admin.id, body: { name: 'Head Admin' } }]))
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(USER_KEY)).name).toBe('Head Admin'))
+  })
+
+  it("shows the backend's 400 field errors under the fields and a 409 under Email", async () => {
+    mockApi()
+    let answer = () =>
+      HttpResponse.json(
+        { message: 'Name must be 100 characters or less', errors: [{ field: 'name', message: 'Name must be 100 characters or less' }] },
+        { status: 400 },
+      )
+    mockEditAndReset({ patch: () => answer() })
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, employee.name)
+
+    await user.type(within(dialog).getByLabelText('Full name'), ' Jr')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText('Full name')).toHaveAccessibleDescription('Name must be 100 characters or less'),
+    )
+
+    answer = () => HttpResponse.json({ message: 'An account with this email already exists' }, { status: 409 })
+    await user.clear(within(dialog).getByLabelText('Email'))
+    await user.type(within(dialog).getByLabelText('Email'), agent.email)
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText('Email')).toHaveAccessibleDescription('An account with this email already exists'),
+    )
+    // The row keeps its saved values
+    expect(within(rowFor(employee.name)).getByText(employee.email)).toBeInTheDocument()
+  })
+
+  it('shows other failures (e.g. 403) in an alert', async () => {
+    mockApi()
+    mockEditAndReset({ patch: () => HttpResponse.json({ message: 'HR can only change employee accounts' }, { status: 403 }) })
+    const { user } = renderUsers(hr)
+    const dialog = await openEdit(user, employee.name)
+    await user.type(within(dialog).getByLabelText(/Department/), ' 2')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('HR can only change employee accounts')
+  })
+
+  it('Cancel and Escape close it without saving', async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    const { user } = renderUsers(admin)
+    let dialog = await openEdit(user, agent.name)
+    await user.type(within(dialog).getByLabelText('Full name'), ' changed')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    dialog = await openEdit(user, agent.name)
+    // Reopening starts from the saved values again
+    expect(within(dialog).getByLabelText('Full name')).toHaveValue(agent.name)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(calls.patches).toEqual([])
+  })
+})
+
+describe('Reset password', () => {
+  async function openReset(user, name) {
+    await screen.findByRole('table')
+    await user.click(within(rowFor(name)).getByRole('button', { name: `Reset password for ${name}` }))
+    return screen.findByRole('alertdialog', { name: 'Reset password' })
+  }
+
+  it('asks first; Cancel (or Escape) resets nothing', async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    const { user } = renderUsers(admin)
+    let confirm = await openReset(user, agent.name)
+
+    expect(confirm).toHaveTextContent(`Reset ${agent.name}'s password? Their current password stops working immediately.`)
+    // Cancel has focus first, so Enter alone can't reset by accident
+    expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    confirm = await openReset(user, agent.name)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(calls.resets).toEqual([])
+  })
+
+  it('confirming shows "New password for <name>" with the email, password and Copy; Done clears it', async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    const { user } = renderUsers(hr)
+    const confirm = await openReset(user, employee.name)
+    await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
+
+    const dialog = await screen.findByRole('alertdialog', { name: `New password for ${employee.name}` })
+    expect(calls.resets).toEqual([employee.id])
+    expect(within(dialog).getByText(employee.email)).toBeInTheDocument()
+    expect(within(dialog).getByText('NewTemp42pass').tagName).toBe('CODE')
+    expect(dialog).toHaveTextContent('This password is shown only once.')
+
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText')
+    await user.click(within(dialog).getByRole('button', { name: 'Copy' }))
+    expect(writeText).toHaveBeenCalledWith('NewTemp42pass')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('NewTemp42pass')).not.toBeInTheDocument()
+    expect(within(rowFor(employee.name)).getByRole('button', { name: `Reset password for ${employee.name}` })).toHaveFocus()
+  })
+
+  it('shows "Resetting…" and blocks closing while the request runs', async () => {
+    mockApi()
+    const pending = deferred()
+    mockEditAndReset({
+      reset: async () => (await pending.promise, HttpResponse.json({ user: { ...agent, must_change_password: true }, temporaryPassword: 'Abc123def456' })),
+    })
+    const { user } = renderUsers(admin)
+    const confirm = await openReset(user, agent.name)
+    await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
+
+    expect(await within(confirm).findByRole('button', { name: 'Resetting…' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('alertdialog', { name: 'Reset password' })).toBeInTheDocument()
+    pending.resolve()
+    expect(await screen.findByRole('alertdialog', { name: `New password for ${agent.name}` })).toBeInTheDocument()
+  })
+
+  it('shows a failed reset in the confirm dialog', async () => {
+    mockApi()
+    mockEditAndReset({ reset: () => HttpResponse.json({ message: 'HR can only reset passwords of employee accounts' }, { status: 403 }) })
+    const { user } = renderUsers(hr)
+    const confirm = await openReset(user, employee.name)
+    await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent('HR can only reset passwords of employee accounts')
   })
 })
