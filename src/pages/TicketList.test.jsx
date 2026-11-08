@@ -9,6 +9,7 @@ import TicketList from './TicketList'
 
 const agent = buildUser({ name: 'Arben Krasniqi', role: 'agent' })
 const employee = buildUser({ role: 'employee' })
+const hr = buildUser({ name: 'Hana Rexhepi', role: 'hr' })
 
 const TICKETS = [
   buildTicket({ title: 'Printer jammed on 3rd floor', status: 'open', priority: 'High', category: 'Hardware', is_overdue: true }),
@@ -283,6 +284,18 @@ describe('TicketList', () => {
       renderList({ user: employee })
 
       expect(screen.getByRole('heading', { name: 'My tickets' })).toBeInTheDocument()
+      await expectTitles(['Printer jammed on 3rd floor'])
+      expect(screen.queryByRole('group', { name: 'Assigned to' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('checkbox', { name: 'Overdue only' })).not.toBeInTheDocument()
+    })
+
+    // HR is not staff: for tickets HR is an employee and only sees their own
+    it('HR also gets "My tickets" without the staff-only filters', async () => {
+      mockTickets([TICKETS[0]], { currentUser: hr })
+      renderList({ user: hr })
+
+      expect(screen.getByRole('heading', { name: 'My tickets' })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'All tickets' })).not.toBeInTheDocument()
       await expectTitles(['Printer jammed on 3rd floor'])
       expect(screen.queryByRole('group', { name: 'Assigned to' })).not.toBeInTheDocument()
       expect(screen.queryByRole('checkbox', { name: 'Overdue only' })).not.toBeInTheDocument()
