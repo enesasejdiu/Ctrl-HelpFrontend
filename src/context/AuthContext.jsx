@@ -74,6 +74,8 @@ export function AuthProvider({ children }) {
       // Staff = agents and admins: they see and work on all tickets
       isStaff: user?.role === 'agent' || user?.role === 'admin',
       isAdmin: user?.role === 'admin',
+      // Admins and HR manage accounts on the Users page. HR is not staff: for tickets, HR is an employee.
+      canManageUsers: user?.role === 'admin' || user?.role === 'hr',
       login,
       register,
       logout,

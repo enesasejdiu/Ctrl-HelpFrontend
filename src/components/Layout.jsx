@@ -1,5 +1,5 @@
 // Layout.jsx – the frame around every logged-in page: top bar with logo, navigation and user menu.
-// Dashboard and Users links are only shown to admins.
+// The Dashboard link is only shown to admins; Users to admins and HR.
 import { LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/auth'
@@ -8,19 +8,15 @@ import Logo from './Logo'
 import { Avatar } from './Ui'
 
 export default function Layout() {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, isAdmin, canManageUsers, logout } = useAuth()
   const navigate = useNavigate()
 
   const links = [
     // `end` keeps "Tickets" from staying active on /tickets/new
     { to: '/tickets', label: 'Tickets', icon: Ticket, end: true },
     { to: '/tickets/new', label: 'New ticket', icon: TicketPlus },
-    ...(isAdmin
-      ? [
-          { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-          { to: '/admin/users', label: 'Users', icon: Users },
-        ]
-      : []),
+    ...(isAdmin ? [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }] : []),
+    ...(canManageUsers ? [{ to: '/admin/users', label: 'Users', icon: Users }] : []),
   ]
 
   function handleLogout() {

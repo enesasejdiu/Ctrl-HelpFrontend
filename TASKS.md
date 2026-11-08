@@ -121,3 +121,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 
 - [x] Vitest + React Testing Library (MSW for API mocking)
 - [x] Component tests: Login, TicketList, NewTicket, Badges, ProtectedRoute
+- [x] Users page: Add user form (admin and HR). Job title comes later.
