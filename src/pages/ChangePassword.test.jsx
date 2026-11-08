@@ -32,10 +32,17 @@ function renderPage({ user = buildUser({ must_change_password: true }), from } =
   })
 }
 
+// Pastes each value instead of typing it key by key: typing a 70+ character password could pass the 5s test limit on
+// a busy machine, and the unfinished typing then spilled into the next test's form
+async function enter(user, field, value) {
+  await user.click(field)
+  await user.paste(value)
+}
+
 async function fill(user, { current = 'Temp1234abcd', next = GOOD_PASSWORD, confirm = next } = {}) {
-  if (current) await user.type(screen.getByLabelText(/Temporary password|Current password/), current)
-  if (next) await user.type(screen.getByLabelText('New password'), next)
-  if (confirm) await user.type(screen.getByLabelText('Repeat new password'), confirm)
+  if (current) await enter(user, screen.getByLabelText(/Temporary password|Current password/), current)
+  if (next) await enter(user, screen.getByLabelText('New password'), next)
+  if (confirm) await enter(user, screen.getByLabelText('Repeat new password'), confirm)
   await user.click(screen.getByRole('button', { name: 'Save new password' }))
 }
 
