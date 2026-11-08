@@ -463,6 +463,15 @@ a.topbar__profile:hover {
   color: #fff;
 }
 
+.btn--danger {
+  color: #fff;
+  background: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
 .btn--secondary {
   background: var(--surface);
   border-color: var(--border-strong);
@@ -1546,6 +1555,11 @@ fieldset.field {
   padding: 0;
 }
 
+/* Holds a button that may be disabled, so its tooltip still shows on hover */
+.row-actions__wrap {
+  display: inline-flex;
+}
+
 /* Their text labels only show on phones (below); on desktop the aria-label and tooltip name them */
 .row-actions__text {
   display: none;
@@ -1556,9 +1570,19 @@ fieldset.field {
   min-width: 0;
 }
 
-.table__num {
+.table__num,
+.table th.table__num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Departments: the name takes the spare width, so the user count sits next to the row's buttons */
+.table--departments td:first-child {
+  width: 100%;
+}
+
+.table--departments .table__title {
+  min-width: 0;
 }
 
 /* ---------- Dashboard ---------- */
@@ -1887,12 +1911,12 @@ fieldset.field {
     display: none;
   }
 
+  /* Wraps to a second row when the links don't fit (an admin has five), so none is hidden off the edge */
   .topbar__nav {
     order: 3;
     flex-basis: 100%;
-    overflow-x: auto;
+    flex-wrap: wrap;
     padding-bottom: 8px;
-    scrollbar-width: none;
   }
 
   .page {
@@ -1924,7 +1948,7 @@ fieldset.field {
 /* Phones: a table marked .table--stack becomes one card per row. The header row is hidden,
    so each cell shows its column name from its data-label attribute. */
 @media (max-width: 760px) {
-  /* Text-only links, so all four admin links fit next to each other */
+  /* Text-only links, so more of them fit on one row */
   .nav-link {
     padding: 0 10px;
   }
@@ -2024,6 +2048,14 @@ fieldset.field {
 
   .table--stack .row-actions .btn--icon {
     padding: 0 12px;
+  }
+
+  .table--stack .row-actions__wrap {
+    flex: 1 1 auto;
+  }
+
+  .table--stack .row-actions .row-actions__wrap .btn {
+    width: 100%;
   }
 
   .table--stack .row-actions__text {

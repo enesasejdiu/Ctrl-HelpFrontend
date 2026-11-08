@@ -129,3 +129,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Department picker in the Add/Edit user dialog (department_id); Users table shows the department name
 - [x] Set your password page after first login, blocking everything else
 - [x] Profile page: own details and Change password
+- [x] Departments page (Admin, HR)
