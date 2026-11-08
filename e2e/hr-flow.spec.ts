@@ -1,7 +1,7 @@
 // hr-flow.spec.ts – the HR flow from start to finish, against the real backend on this run's throwaway database:
 // an admin creates an HR account → HR sets their own password → HR's navigation → HR adds an employee (Employee only)
 // and can't touch agents or admins → the employee sets a password and creates a ticket → HR can't open /admin and
-// can't see that ticket.
+// can't see that ticket, while the employee finds it in "My tickets" and the admin can see and open it.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './support/fixtures'
 import { authFile } from './support/users'
@@ -109,6 +109,10 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   await expect(employee).toHaveURL(/\/tickets\/\d+$/)
   await expect(employee.getByRole('heading', { name: ticketTitle })).toBeVisible()
   const ticketPath = new URL(employee.url()).pathname
+  // …and it's in the employee's own "My tickets" list
+  await employee.goto('/tickets')
+  await expect(employee.getByRole('heading', { name: 'My tickets' })).toBeVisible()
+  await expect(employee.getByRole('link', { name: ticketTitle })).toBeVisible()
   await employeeContext.close()
 
   // 6. HR can't open the admin dashboard, and can't see the employee's ticket (not listed, not openable)
@@ -120,4 +124,11 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   await expect(hr.getByText('You can only view your own tickets')).toBeVisible()
   await expect(hr.getByRole('heading', { name: ticketTitle })).toHaveCount(0)
   await hrContext.close()
+
+  // 7. The admin sees the ticket in "All tickets" and can open it
+  await admin.goto('/tickets')
+  await expect(admin.getByRole('heading', { name: 'All tickets' })).toBeVisible()
+  await admin.getByRole('link', { name: ticketTitle }).click()
+  await expect(admin).toHaveURL(ticketPath)
+  await expect(admin.getByRole('heading', { name: ticketTitle })).toBeVisible()
 })
