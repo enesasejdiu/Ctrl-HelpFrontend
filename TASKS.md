@@ -123,3 +123,5 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Component tests: Login, TicketList, NewTicket, Badges, ProtectedRoute
 - [x] Self-registration removed: no /register page or sign-up link (the backend endpoint is gone)
 - [x] Users page: Add user form (admin and HR). Job title comes later.
+- [x] Edit-user form and Reset password button
+- [x] Temporary password shown once after creating or resetting

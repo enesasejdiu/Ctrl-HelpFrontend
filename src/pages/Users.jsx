@@ -1,13 +1,14 @@
 // Users.jsx – user management at /admin/users (admins and HR).
-// Lists every account (GET /users). Admins can change a role or activate/deactivate an account (PATCH /users/:id).
-// HR sees everyone but can only activate/deactivate employees, and never changes roles (the backend enforces both).
-// Your own row is read-only: the backend refuses changes to your own account, so we don't offer them.
-// "Add user" creates an account (POST /users) and then shows its temporary password once.
-import { UserPlus, Users as UsersIcon } from 'lucide-react'
+// Lists every account (GET /users). Admins can add, edit and reset anyone, change roles and activate/deactivate
+// accounts. HR sees everyone but can only do this for employees, and never changes roles (the backend enforces both).
+// On your own row you can edit your details, but not your role, active status or password (use Change password).
+// "Add user" (POST /users) and "Reset password" (POST /users/:id/reset-password) show a temporary password once.
+import { KeyRound, Pencil, UserPlus, Users as UsersIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import client, { errorMessage } from '../api/client'
-import AddUserDialog from '../components/AddUserDialog'
+import ResetPasswordDialog from '../components/ResetPasswordDialog'
 import TemporaryPasswordDialog from '../components/TemporaryPasswordDialog'
+import UserDialog from '../components/UserDialog'
 import { Alert, Avatar, EmptyState, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS, formatDate } from '../utils/format'
@@ -15,18 +16,24 @@ import { ROLE_LABELS, formatDate } from '../utils/format'
 const ROLES = Object.keys(ROLE_LABELS)
 
 export default function Users() {
-  const { user: me } = useAuth()
+  const { user: me, updateUser: updateSession } = useAuth()
   const [users, setUsers] = useState(null) // null until the first load finishes
   const [loadError, setLoadError] = useState('')
   const [actionError, setActionError] = useState('')
   const [savingId, setSavingId] = useState(null) // the row being saved, so its controls are disabled
-  const [adding, setAdding] = useState(false) // the "Add user" form is open
-  // { name, email, password } of the account just created. Only kept while its dialog is open, then cleared.
-  const [created, setCreated] = useState(null)
+  // The open form or confirm dialog: { type: 'add' } | { type: 'edit', user } | { type: 'reset', user } | null
+  const [dialog, setDialog] = useState(null)
+  // { title?, name, email, password } after a create or reset. Only kept while its dialog is open, then cleared.
+  const [shownPassword, setShownPassword] = useState(null)
   const isHr = me?.role === 'hr'
-  // Both dialogs send focus back to "Add user" when they close. The password dialog opens as the form closes,
-  // so it can't use "whatever had focus when I opened", which is the form's own (now removed) button.
-  const addButton = useRef(null)
+  // The button that opened the current dialog. Every dialog sends focus back to it when it closes, even when one
+  // dialog replaces another (form → password dialog), where "what had focus when I opened" is already gone.
+  const trigger = useRef(null)
+
+  function openDialog(event, next) {
+    trigger.current = event.currentTarget
+    setDialog(next)
+  }
 
   useEffect(() => {
     client
@@ -57,11 +64,25 @@ export default function Users() {
     updateUser(u.id, { is_active: !u.is_active })
   }
 
-  // The new account goes to the top of the list (newest first, like GET /users), then its password is shown
-  function handleCreated({ user, temporaryPassword }) {
-    setUsers((current) => [user, ...(current || [])])
-    setAdding(false)
-    setCreated({ name: user.name, email: user.email, password: temporaryPassword })
+  const replaceUser = (user) => setUsers((current) => current.map((u) => (u.id === user.id ? user : u)))
+
+  // Add: the new account goes to the top of the list (newest first, like GET /users), then its password is shown.
+  // Edit: the row is updated in place; if you edited yourself, the top bar shows the new name too.
+  function handleSaved({ user, temporaryPassword }) {
+    if (dialog.type === 'add') {
+      setUsers((current) => [user, ...(current || [])])
+      setShownPassword({ name: user.name, email: user.email, password: temporaryPassword })
+    } else {
+      replaceUser(user)
+      if (user.id === me.id) updateSession({ ...me, name: user.name, email: user.email, department: user.department })
+    }
+    setDialog(null)
+  }
+
+  function handleReset({ user, temporaryPassword }) {
+    replaceUser(user)
+    setDialog(null)
+    setShownPassword({ title: `New password for ${user.name}`, name: user.name, email: user.email, password: temporaryPassword })
   }
 
   const activeCount = users?.filter((u) => u.is_active).length || 0
@@ -72,25 +93,31 @@ export default function Users() {
         title="Users"
         subtitle={
           isHr
-            ? 'Everyone with a TicketFlow account. Add employees and turn their accounts on and off.'
-            : 'Everyone with a TicketFlow account. Change roles or turn accounts on and off.'
+            ? 'Everyone with a TicketFlow account. Add and edit employees, reset their passwords, and turn their accounts on and off.'
+            : 'Everyone with a TicketFlow account. Add and edit users, reset passwords, change roles, and turn accounts on and off.'
         }
         actions={
-          <button ref={addButton} type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
+          <button type="button" className="btn btn--primary" onClick={(e) => openDialog(e, { type: 'add' })}>
             <UserPlus size={16} aria-hidden="true" />
             Add user
           </button>
         }
       />
 
-      {adding && <AddUserDialog onCreated={handleCreated} onCancel={() => setAdding(false)} returnFocusRef={addButton} />}
-      {created && (
+      {(dialog?.type === 'add' || dialog?.type === 'edit') && (
+        <UserDialog user={dialog.user ?? null} onSaved={handleSaved} onCancel={() => setDialog(null)} returnFocusRef={trigger} />
+      )}
+      {dialog?.type === 'reset' && (
+        <ResetPasswordDialog user={dialog.user} onReset={handleReset} onCancel={() => setDialog(null)} returnFocusRef={trigger} />
+      )}
+      {shownPassword && (
         <TemporaryPasswordDialog
-          name={created.name}
-          email={created.email}
-          password={created.password}
-          onClose={() => setCreated(null)}
-          returnFocusRef={addButton}
+          title={shownPassword.title}
+          name={shownPassword.name}
+          email={shownPassword.email}
+          password={shownPassword.password}
+          onClose={() => setShownPassword(null)}
+          returnFocusRef={trigger}
         />
       )}
 
@@ -137,8 +164,12 @@ export default function Users() {
                     // Your own row is read-only, and only the row being saved is disabled
                     const isMe = u.id === me?.id
                     const saving = savingId === u.id
-                    // HR may only change employee accounts, and never anyone's role
-                    const canToggle = !isMe && (!isHr || u.role === 'employee')
+                    // HR may only change employee accounts, and never anyone's role.
+                    // Your own details can be edited, but not your role, active status or (here) your password.
+                    const canManage = !isHr || u.role === 'employee'
+                    const canEdit = canManage
+                    const canReset = canManage && !isMe
+                    const canToggle = canManage && !isMe
                     const canChangeRole = !isMe && !isHr
                     return (
                       <tr key={u.id} className={u.is_active ? undefined : 'is-inactive'}>
@@ -184,17 +215,47 @@ export default function Users() {
                           {formatDate(u.created_at)}
                         </td>
                         <td className="table__actions">
-                          {!canToggle ? (
+                          {!canEdit ? (
                             <span className="text-faint">—</span>
                           ) : (
-                            <button
-                              type="button"
-                              className={`btn btn--sm ${u.is_active ? 'btn--secondary' : 'btn--primary'}`}
-                              disabled={saving}
-                              onClick={() => toggleActive(u)}
-                            >
-                              {u.is_active ? 'Deactivate' : 'Activate'}
-                            </button>
+                            <div className="row-actions">
+                              {/* Icon buttons on desktop (with a tooltip), labelled buttons on phones. The aria-labels name
+                                  the user, so screen readers can tell the rows' buttons apart. */}
+                              <button
+                                type="button"
+                                className="btn btn--sm btn--secondary btn--icon"
+                                disabled={saving}
+                                onClick={(e) => openDialog(e, { type: 'edit', user: u })}
+                                aria-label={`Edit ${u.name}`}
+                                title="Edit"
+                              >
+                                <Pencil size={14} aria-hidden="true" />
+                                <span className="row-actions__text">Edit</span>
+                              </button>
+                              {canReset && (
+                                <button
+                                  type="button"
+                                  className="btn btn--sm btn--secondary btn--icon"
+                                  disabled={saving}
+                                  onClick={(e) => openDialog(e, { type: 'reset', user: u })}
+                                  aria-label={`Reset password for ${u.name}`}
+                                  title="Reset password"
+                                >
+                                  <KeyRound size={14} aria-hidden="true" />
+                                  <span className="row-actions__text">Reset password</span>
+                                </button>
+                              )}
+                              {canToggle && (
+                                <button
+                                  type="button"
+                                  className={`btn btn--sm ${u.is_active ? 'btn--secondary' : 'btn--primary'}`}
+                                  disabled={saving}
+                                  onClick={() => toggleActive(u)}
+                                >
+                                  {u.is_active ? 'Deactivate' : 'Activate'}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
