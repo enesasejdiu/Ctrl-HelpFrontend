@@ -3,7 +3,7 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { USER_KEY } from '../api/client'
-import { buildMeta } from './factories'
+import { DEPARTMENTS, buildMeta } from './factories'
 
 // The same base URL the axios client uses (set for tests in vite.config.js)
 export const API = import.meta.env.VITE_API_URL
@@ -20,6 +20,7 @@ export const handlers = [
     return HttpResponse.json({ message: 'Please log in' }, { status: 401 })
   }),
   http.get(`${API}/meta`, () => HttpResponse.json(buildMeta())),
+  http.get(`${API}/departments`, () => HttpResponse.json(DEPARTMENTS)),
 ]
 
 export const server = setupServer(...handlers)

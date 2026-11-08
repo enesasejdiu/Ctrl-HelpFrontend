@@ -74,7 +74,13 @@ export default function Users() {
       setShownPassword({ name: user.name, email: user.email, password: temporaryPassword })
     } else {
       replaceUser(user)
-      if (user.id === me.id) updateSession({ ...me, name: user.name, email: user.email, department: user.department })
+      if (user.id === me.id) updateSession({
+          ...me,
+          name: user.name,
+          email: user.email,
+          department_id: user.department_id,
+          department_name: user.department_name,
+        })
     }
     setDialog(null)
   }
@@ -184,7 +190,7 @@ export default function Users() {
                           {u.email}
                         </td>
                         <td className="text-muted" data-label="Department">
-                          {u.department || '—'}
+                          {u.department_name || '—'}
                         </td>
                         <td data-label="Role">
                           {!canChangeRole ? (

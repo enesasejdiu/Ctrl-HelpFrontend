@@ -15,6 +15,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DEMO_ACCOUNTS = [
   { label: 'Admin', email: 'admin@ticketflow.local' },
   { label: 'IT Staff', email: 'agent1@ticketflow.local' },
+  { label: 'HR', email: 'hr@ticketflow.local' },
   { label: 'Employee', email: 'employee1@ticketflow.local' },
 ]
 

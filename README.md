@@ -73,6 +73,7 @@ These accounts come from the backend's demo data. They all use the password `pas
 | -------- | ---------------------------- |
 | Admin    | `admin@ticketflow.local`     |
 | IT Staff | `agent1@ticketflow.local`    |
+| HR       | `hr@ticketflow.local`        |
 | Employee | `employee1@ticketflow.local` |
 
 ## Pages
