@@ -9,11 +9,19 @@ export function buildUser(overrides = {}) {
     name: 'Liridon Gashi',
     email: `${role}@ticketflow.local`,
     role,
-    department: 'Finance',
+    department_id: 1,
+    department_name: 'Finance',
     is_active: 1,
     ...overrides,
   }
 }
+
+// GET /departments: the departments users can be put in (ids match department_id above)
+export const DEPARTMENTS = [
+  { id: 1, name: 'Finance', user_count: 1 },
+  { id: 2, name: 'IT', user_count: 2 },
+  { id: 3, name: 'Sales', user_count: 0 },
+]
 
 // Same categories and priorities as the backend seed
 export const CATEGORIES = [

@@ -3,8 +3,9 @@
 // Edit (`user` given): prefilled; PATCH /users/:id with only the fields that changed, then onSaved({ user }).
 // The role is a dropdown only for admins, and never on their own account; otherwise it is shown as fixed text
 // (HR can only create employees and can never change roles).
+// The department is picked from GET /departments and saved as department_id (null = no department).
 import { LoaderCircle, Save, UserPlus } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import client, { errorMessage } from '../api/client'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS } from '../utils/format'
@@ -12,7 +13,7 @@ import Modal from './Modal'
 import { Alert } from './Ui'
 
 const ROLES = Object.keys(ROLE_LABELS)
-const FIELDS = ['name', 'email', 'department', 'role'] // fields the backend can report errors for
+const FIELDS = ['name', 'email', 'department_id', 'role'] // fields the backend can report errors for
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DUPLICATE_EMAIL = 'An account with this email already exists'
 
@@ -25,9 +26,14 @@ function validate(form) {
   return errors
 }
 
-// What the form would save, cleaned up the way the backend stores it
+// What the form would save, cleaned up the way the backend stores it. The department select holds the id as text.
 function cleaned(form) {
-  return { name: form.name.trim(), email: form.email.trim(), department: form.department.trim() || null, role: form.role }
+  return {
+    name: form.name.trim(),
+    email: form.email.trim(),
+    department_id: form.department_id ? Number(form.department_id) : null,
+    role: form.role,
+  }
 }
 
 export default function UserDialog({ user = null, onSaved, onCancel, returnFocusRef }) {
@@ -37,18 +43,34 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
   const [form, setForm] = useState(() => ({
     name: user?.name ?? '',
     email: user?.email ?? '',
-    department: user?.department ?? '',
+    department_id: user?.department_id ? String(user.department_id) : '',
     role: user?.role ?? 'employee',
   }))
+  // null while loading; if loading fails, only the user's current department is offered, so saving can't clear it
+  const [departments, setDepartments] = useState(null)
+  const [departmentsError, setDepartmentsError] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('') // anything that doesn't belong to one field
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let current = true
+    client
+      .get('/departments')
+      .then(({ data }) => current && setDepartments(data))
+      .catch(() => current && setDepartmentsError(true))
+    return () => {
+      current = false
+    }
+  }, [])
+  const currentDepartment = user?.department_id ? [{ id: user.department_id, name: user.department_name }] : []
+  const departmentOptions = departments ?? currentDepartment
 
   // Edit: only the fields that differ from the saved user. Add: everything (HR always creates employees).
   function changes() {
     const next = cleaned(form)
     if (!isEdit) return { ...next, role: canPickRole ? next.role : 'employee' }
-    const saved = { name: user.name, email: user.email, department: user.department || null, role: user.role }
+    const saved = { name: user.name, email: user.email, department_id: user.department_id ?? null, role: user.role }
     return Object.fromEntries(
       Object.entries(next).filter(([field, value]) => (field !== 'role' || canPickRole) && value !== saved[field]),
     )
@@ -180,18 +202,28 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
         </div>
 
         <div className="field">
-          <label htmlFor="user-department">
+          <label htmlFor="user-department_id">
             Department <span className="field__optional">Optional</span>
           </label>
-          <input
-            id="user-department"
-            className="input"
-            value={form.department}
-            onChange={update('department')}
-            maxLength={100}
-            {...errorProps('department')}
-          />
-          {fieldError('department')}
+          <select
+            id="user-department_id"
+            className="select"
+            value={form.department_id}
+            onChange={update('department_id')}
+            disabled={departments === null && !departmentsError}
+            {...errorProps('department_id')}
+          >
+            <option value="">{departments === null && !departmentsError ? 'Loading departments…' : 'No department'}</option>
+            {departmentOptions.map((d) => (
+              <option key={d.id} value={String(d.id)}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          {fieldError('department_id')}
+          {departmentsError && !fieldErrors.department_id && (
+            <span className="field__hint">Departments could not be loaded, so only the current one is shown.</span>
+          )}
         </div>
 
         {canPickRole ? (

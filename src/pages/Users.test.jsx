@@ -5,7 +5,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { USER_KEY } from '../api/client'
 import App from '../App'
-import { buildUser } from '../test/factories'
+import { DEPARTMENTS, buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
 import { API, deferred, server } from '../test/server'
 import Users from './Users'
@@ -17,7 +17,10 @@ const employee = buildUser({ name: 'Liridon Gashi', role: 'employee', email: 'em
 const inactiveEmployee = buildUser({ name: 'Vjosa Hoxha', role: 'employee', email: 'employee2@ticketflow.local', is_active: false })
 const USERS = [admin, hr, agent, employee, inactiveEmployee]
 
-const NEW_USER = { name: 'Besa Morina', email: 'besa.morina@ticketflow.local', department: 'Sales' }
+const NEW_USER = { name: 'Besa Morina', email: 'besa.morina@ticketflow.local', department: 'Sales' } // picked by name
+
+// The department name the backend joins in for an id
+const departmentName = (id) => DEPARTMENTS.find((d) => d.id === id)?.name ?? null
 const TEMP_PASSWORD = 'Xq7mK2pRt9wLzA'
 
 // GET /users plus a POST /users that answers like the backend. Returns the request bodies it received.
@@ -31,7 +34,14 @@ function mockApi({ users = USERS, create } = {}) {
       if (create) return create(body)
       return HttpResponse.json(
         {
-          user: { id: 9001, ...body, is_active: true, must_change_password: true, created_at: new Date().toISOString() },
+          user: {
+            id: 9001,
+            ...body,
+            department_name: departmentName(body.department_id),
+            is_active: true,
+            must_change_password: true,
+            created_at: new Date().toISOString(),
+          },
           temporaryPassword: TEMP_PASSWORD,
         },
         { status: 201 },
@@ -56,7 +66,11 @@ async function fillForm(user, dialog, values = NEW_USER) {
   const field = (label) => within(dialog).getByLabelText(label)
   if (values.name) await user.type(field('Full name'), values.name)
   if (values.email) await user.type(field('Email'), values.email)
-  if (values.department) await user.type(field(/Department/), values.department)
+  if (values.department) {
+    // The options arrive from GET /departments after the dialog opens
+    await within(dialog).findByRole('option', { name: values.department })
+    await user.selectOptions(field(/Department/), values.department)
+  }
 }
 
 const rowFor = (name) => screen.getByRole('cell', { name: new RegExp(name) }).closest('tr')
@@ -152,7 +166,7 @@ describe('Add user form', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
 
     await screen.findByRole('alertdialog')
-    expect(posted).toEqual([{ ...NEW_USER, role: 'agent' }])
+    expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, department_id: 3, role: 'agent' }])
   })
 
   it('HR sees only "Employee" as fixed text, and creates an employee', async () => {
@@ -160,14 +174,14 @@ describe('Add user form', () => {
     const { user } = renderUsers(hr)
     const dialog = await openForm(user)
 
-    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('combobox', { name: 'Role' })).not.toBeInTheDocument()
     expect(within(dialog).getByText('Employee')).toBeInTheDocument()
     expect(within(dialog).getByText('HR can only create employee accounts.')).toBeInTheDocument()
 
     await fillForm(user, dialog, { name: NEW_USER.name, email: NEW_USER.email })
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
     await screen.findByRole('alertdialog')
-    expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, role: 'employee', department: null }])
+    expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, role: 'employee', department_id: null }])
   })
 
   it('checks the required fields and the email format before sending', async () => {
@@ -192,9 +206,9 @@ describe('Add user form', () => {
       create: () =>
         HttpResponse.json(
           {
-            message: 'Department must be 100 characters or less',
+            message: 'Department not found',
             errors: [
-              { field: 'department', message: 'Department must be 100 characters or less' },
+              { field: 'department_id', message: 'Department not found' },
               { field: 'name', message: 'Name must be 100 characters or less' },
               { field: 'nickname', message: 'nickname is not allowed' },
             ],
@@ -207,8 +221,8 @@ describe('Add user form', () => {
     await fillForm(user, dialog)
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
 
-    expect(await within(dialog).findByText('Department must be 100 characters or less')).toBeInTheDocument()
-    expect(within(dialog).getByLabelText(/Department/)).toHaveAccessibleDescription('Department must be 100 characters or less')
+    expect(await within(dialog).findByText('Department not found')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Department/)).toHaveAccessibleDescription('Department not found')
     expect(within(dialog).getByLabelText('Full name')).toHaveAccessibleDescription('Name must be 100 characters or less')
     expect(within(dialog).getByRole('alert')).toHaveTextContent('nickname is not allowed')
     // Nothing was created, so the form stays open with what was typed
@@ -362,7 +376,8 @@ function mockEditAndReset({ patch, reset } = {}) {
       calls.patches.push({ id: Number(params.id), body })
       if (patch) return patch(body)
       const current = USERS.find((u) => u.id === Number(params.id))
-      return HttpResponse.json({ ...current, ...body, email: (body.email ?? current.email).toLowerCase() })
+      const updated = { ...current, ...body, email: (body.email ?? current.email).toLowerCase() }
+      return HttpResponse.json({ ...updated, department_name: departmentName(updated.department_id) })
     }),
     http.post(`${API}/users/:id/reset-password`, ({ params }) => {
       calls.resets.push(Number(params.id))
@@ -419,7 +434,7 @@ describe('Edit user form', () => {
     expect(within(dialog).getByLabelText('Full name')).toHaveValue(agent.name)
     expect(within(dialog).getByLabelText('Full name')).toHaveFocus()
     expect(within(dialog).getByLabelText('Email')).toHaveValue(agent.email)
-    expect(within(dialog).getByLabelText(/Department/)).toHaveValue(agent.department)
+    expect(within(dialog).getByLabelText(/Department/)).toHaveDisplayValue(agent.department_name)
     expect(within(dialog).getByLabelText('Role')).toHaveValue('agent')
     // Nothing changed yet, so there's nothing to save
     expect(within(dialog).getByRole('button', { name: 'Save changes' })).toBeDisabled()
@@ -431,28 +446,55 @@ describe('Edit user form', () => {
     const { user } = renderUsers(admin)
     const dialog = await openEdit(user, agent.name)
 
-    await user.clear(within(dialog).getByLabelText(/Department/))
-    await user.type(within(dialog).getByLabelText(/Department/), '  Network Team ')
+    await within(dialog).findByRole('option', { name: 'IT' })
+    await user.selectOptions(within(dialog).getByLabelText(/Department/), 'IT')
     await user.selectOptions(within(dialog).getByLabelText('Role'), 'HR')
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(calls.patches).toEqual([{ id: agent.id, body: { department: 'Network Team', role: 'hr' } }])
-    expect(within(rowFor(agent.name)).getByText('Network Team')).toBeInTheDocument()
+    expect(calls.patches).toEqual([{ id: agent.id, body: { department_id: 2, role: 'hr' } }])
+    expect(within(rowFor(agent.name)).getByText('IT')).toBeInTheDocument()
     expect(within(rowFor(agent.name)).getByRole('combobox')).toHaveValue('hr')
     // Focus goes back to the row's Edit button
     expect(within(rowFor(agent.name)).getByRole('button', { name: `Edit ${agent.name}` })).toHaveFocus()
   })
 
-  it('clearing the department sends null', async () => {
+  it('offers every department from GET /departments, plus No department', async () => {
+    mockApi()
+    mockEditAndReset()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, agent.name)
+
+    await within(dialog).findByRole('option', { name: 'Sales' })
+    const options = within(within(dialog).getByLabelText(/Department/)).getAllByRole('option').map((o) => o.textContent)
+    expect(options).toEqual(['No department', ...DEPARTMENTS.map((d) => d.name)])
+  })
+
+  it("if departments can't be loaded, keeps the current one and doesn't clear it on save", async () => {
+    mockApi()
+    const calls = mockEditAndReset()
+    server.use(http.get(`${API}/departments`, () => HttpResponse.json({ message: 'Down' }, { status: 500 })))
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, agent.name)
+
+    expect(await within(dialog).findByText(/Departments could not be loaded/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Department/)).toHaveDisplayValue(agent.department_name)
+
+    await user.type(within(dialog).getByLabelText('Full name'), ' Jr')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(calls.patches).toEqual([{ id: agent.id, body: { name: `${agent.name} Jr` } }]))
+  })
+
+  it('choosing No department sends null', async () => {
     mockApi()
     const calls = mockEditAndReset()
     const { user } = renderUsers(admin)
     const dialog = await openEdit(user, employee.name)
 
-    await user.clear(within(dialog).getByLabelText(/Department/))
+    await within(dialog).findByRole('option', { name: 'IT' }) // loaded
+    await user.selectOptions(within(dialog).getByLabelText(/Department/), 'No department')
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
-    await waitFor(() => expect(calls.patches).toEqual([{ id: employee.id, body: { department: null } }]))
+    await waitFor(() => expect(calls.patches).toEqual([{ id: employee.id, body: { department_id: null } }]))
   })
 
   it('HR edits an employee without a role field', async () => {
@@ -461,7 +503,7 @@ describe('Edit user form', () => {
     const { user } = renderUsers(hr)
     const dialog = await openEdit(user, employee.name)
 
-    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('combobox', { name: 'Role' })).not.toBeInTheDocument()
     expect(within(dialog).getByText('Only admins can change roles.')).toBeInTheDocument()
     await user.clear(within(dialog).getByLabelText('Full name'))
     await user.type(within(dialog).getByLabelText('Full name'), 'Liridon G.')
@@ -477,7 +519,7 @@ describe('Edit user form', () => {
     const { user } = renderUsers(admin)
     const dialog = await openEdit(user, admin.name)
 
-    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('combobox', { name: 'Role' })).not.toBeInTheDocument()
     expect(within(dialog).getByText("You can't change your own role.")).toBeInTheDocument()
     await user.clear(within(dialog).getByLabelText('Full name'))
     await user.type(within(dialog).getByLabelText('Full name'), 'Head Admin')
@@ -520,7 +562,8 @@ describe('Edit user form', () => {
     mockEditAndReset({ patch: () => HttpResponse.json({ message: 'HR can only change employee accounts' }, { status: 403 }) })
     const { user } = renderUsers(hr)
     const dialog = await openEdit(user, employee.name)
-    await user.type(within(dialog).getByLabelText(/Department/), ' 2')
+    await within(dialog).findByRole('option', { name: 'Sales' })
+    await user.selectOptions(within(dialog).getByLabelText(/Department/), 'Sales')
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('HR can only change employee accounts')
   })
