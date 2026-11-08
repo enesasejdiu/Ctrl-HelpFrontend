@@ -128,3 +128,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Forced password change after a temporary password, and Change password in the top bar
 - [x] Department picker in the Add/Edit user dialog (department_id); Users table shows the department name
 - [x] Set your password page after first login, blocking everything else
+- [x] Profile page: own details and Change password
