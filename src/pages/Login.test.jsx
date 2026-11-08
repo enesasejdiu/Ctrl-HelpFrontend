@@ -1,5 +1,5 @@
 // Login.test.jsx – signing in: fields, success redirect, error messages and the pending state.
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { TOKEN_KEY, USER_KEY } from '../api/client'
 import { buildUser } from '../test/factories'
@@ -180,5 +180,105 @@ describe('Login', () => {
 
     expect(screen.getByLabelText('Work email')).toHaveValue('admin@ticketflow.local')
     expect(screen.getByLabelText('Password')).toHaveValue('password123')
+  })
+
+  // The backend's login limits (backend README, "Login limits"): 423 ACCOUNT_LOCKED and 429 RATE_LIMITED
+  describe('login limits', () => {
+    const locked = (minutes) =>
+      HttpResponse.json(
+        { message: `Too many wrong passwords. Try again in ${minutes} minutes.`, code: 'ACCOUNT_LOCKED', retryAfterMinutes: minutes },
+        { status: 423 },
+      )
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('423: says the account is locked for N minutes, and disables the button with a countdown', async () => {
+      const requests = mockLogin(() => locked(15))
+      const { user } = renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Too many wrong passwords. Your account is locked for 15 minutes.',
+      )
+      const button = screen.getByRole('button', { name: /Try again in 1[45]:\d\d/ })
+      expect(button).toBeDisabled()
+      // Enter in the form doesn't send either
+      await user.type(screen.getByLabelText('Password'), '{Enter}')
+      expect(requests).toHaveLength(1)
+    })
+
+    it('423 with 1 minute left says "1 minute"', async () => {
+      mockLogin(() => locked(1))
+      const { user } = renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        /^Too many wrong passwords\. Your account is locked for 1 minute\.$/,
+      )
+    })
+
+    it('counts down, and gives the button back when the lock runs out', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+      mockLogin(() => locked(1))
+      const { user } = renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+      expect(await screen.findByRole('button', { name: 'Try again in 1:00' })).toBeDisabled()
+
+      act(() => vi.advanceTimersByTime(30_000))
+      expect(screen.getByRole('button', { name: 'Try again in 0:30' })).toBeDisabled()
+
+      act(() => vi.advanceTimersByTime(30_000))
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('the lock belongs to that account: another email can still sign in', async () => {
+      mockLogin(() => locked(15))
+      const { user } = renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+      await screen.findByRole('button', { name: /Try again in/ })
+
+      const emailField = screen.getByLabelText('Work email')
+      await user.clear(emailField)
+      await user.type(emailField, 'employee2@ticketflow.local')
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+      // Back to the locked email (any letter case): disabled again
+      await user.clear(emailField)
+      await user.type(emailField, 'Employee1@ticketflow.local')
+      expect(screen.getByRole('button', { name: /Try again in/ })).toBeDisabled()
+    })
+
+    it('429: asks to wait a few minutes, and keeps the button enabled', async () => {
+      mockLogin(() =>
+        HttpResponse.json(
+          { message: 'Too many login attempts. Wait a few minutes and try again.', code: 'RATE_LIMITED' },
+          { status: 429 },
+        ),
+      )
+      const { user } = renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Too many login attempts. Wait a few minutes and try again.',
+      )
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    })
+
+    it('401 still says "Wrong email or password"', async () => {
+      mockLogin(() => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }))
+      const { user } = renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'wrong-password1')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/^Wrong email or password$/)
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    })
   })
 })
