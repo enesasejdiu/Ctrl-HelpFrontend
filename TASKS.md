@@ -116,3 +116,8 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] README: setup steps, demo logins, pages table
 - [x] Comments in the code explaining the important parts
 - [x] Final commit and push
+
+## v1.0
+
+- [x] Vitest + React Testing Library (MSW for API mocking)
+- [x] Component tests: Login, TicketList, NewTicket, Badges, ProtectedRoute
