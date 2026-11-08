@@ -4,6 +4,7 @@
 // The role is a dropdown only for admins, and never on their own account; otherwise it is shown as fixed text
 // (HR can only create employees and can never change roles).
 // The department is picked from GET /departments and saved as department_id (null = no department).
+// The job title is optional free text; clearing it on edit sends "" (the backend stores that as no job title).
 import { LoaderCircle, Save, UserPlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import client, { errorMessage } from '../api/client'
@@ -13,7 +14,8 @@ import Modal from './Modal'
 import { Alert } from './Ui'
 
 const ROLES = Object.keys(ROLE_LABELS)
-const FIELDS = ['name', 'email', 'department_id', 'role'] // fields the backend can report errors for
+const FIELDS = ['name', 'email', 'department_id', 'job_title', 'role'] // fields the backend can report errors for
+const JOB_TITLE_MAX = 100
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DUPLICATE_EMAIL = 'An account with this email already exists'
 
@@ -23,6 +25,7 @@ function validate(form) {
   if (!form.name.trim()) errors.name = 'Name is required'
   if (!form.email.trim()) errors.email = 'Email is required'
   else if (!EMAIL_FORMAT.test(form.email.trim())) errors.email = 'Enter a valid email'
+  if (form.job_title.trim().length > JOB_TITLE_MAX) errors.job_title = `Job title must be ${JOB_TITLE_MAX} characters or less`
   return errors
 }
 
@@ -32,6 +35,7 @@ function cleaned(form) {
     name: form.name.trim(),
     email: form.email.trim(),
     department_id: form.department_id ? Number(form.department_id) : null,
+    job_title: form.job_title.trim(),
     role: form.role,
   }
 }
@@ -44,6 +48,7 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
     name: user?.name ?? '',
     email: user?.email ?? '',
     department_id: user?.department_id ? String(user.department_id) : '',
+    job_title: user?.job_title ?? '',
     role: user?.role ?? 'employee',
   }))
   // null while loading; if loading fails, only the user's current department is offered, so saving can't clear it
@@ -66,11 +71,19 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
   const currentDepartment = user?.department_id ? [{ id: user.department_id, name: user.department_name }] : []
   const departmentOptions = departments ?? currentDepartment
 
-  // Edit: only the fields that differ from the saved user. Add: everything (HR always creates employees).
+  // Edit: only the fields that differ from the saved user. Add: everything (HR always creates employees), leaving
+  // out an empty job title.
   function changes() {
-    const next = cleaned(form)
-    if (!isEdit) return { ...next, role: canPickRole ? next.role : 'employee' }
-    const saved = { name: user.name, email: user.email, department_id: user.department_id ?? null, role: user.role }
+    const { job_title: jobTitle, ...next } = cleaned(form)
+    if (!isEdit) return { ...next, ...(jobTitle && { job_title: jobTitle }), role: canPickRole ? next.role : 'employee' }
+    next.job_title = jobTitle
+    const saved = {
+      name: user.name,
+      email: user.email,
+      department_id: user.department_id ?? null,
+      job_title: user.job_title ?? '',
+      role: user.role,
+    }
     return Object.fromEntries(
       Object.entries(next).filter(([field, value]) => (field !== 'role' || canPickRole) && value !== saved[field]),
     )
@@ -224,6 +237,23 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
           {departmentsError && !fieldErrors.department_id && (
             <span className="field__hint">Departments could not be loaded, so only the current one is shown.</span>
           )}
+        </div>
+
+        <div className="field">
+          <label htmlFor="user-job_title">
+            Job title <span className="field__optional">Optional</span>
+          </label>
+          <input
+            id="user-job_title"
+            className="input"
+            placeholder="e.g. Accountant"
+            value={form.job_title}
+            onChange={update('job_title')}
+            maxLength={JOB_TITLE_MAX}
+            autoComplete="off"
+            {...errorProps('job_title')}
+          />
+          {fieldError('job_title')}
         </div>
 
         {canPickRole ? (
