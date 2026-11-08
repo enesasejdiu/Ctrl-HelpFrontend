@@ -40,15 +40,6 @@ export function AuthProvider({ children }) {
     [saveSession],
   )
 
-  const register = useCallback(
-    async (fields) => {
-      const { data } = await client.post('/auth/register', fields)
-      saveSession(data)
-      return data.user
-    },
-    [saveSession],
-  )
-
   // The API client fires this event on a 401; dropping the user makes ProtectedRoute redirect to /login
   useEffect(() => {
     window.addEventListener(SESSION_EXPIRED_EVENT, logout)
@@ -75,10 +66,9 @@ export function AuthProvider({ children }) {
       isStaff: user?.role === 'agent' || user?.role === 'admin',
       isAdmin: user?.role === 'admin',
       login,
-      register,
       logout,
     }),
-    [user, login, register, logout],
+    [user, login, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

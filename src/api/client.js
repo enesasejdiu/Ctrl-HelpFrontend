@@ -24,13 +24,13 @@ client.interceptors.request.use((config) => {
   return config
 })
 
-// A 401 from login/register just means wrong credentials, so only other 401s end the session
+// A 401 from login just means wrong credentials, so only other 401s end the session
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     const url = error.config?.url || ''
-    const isAuthForm = url.startsWith('/auth/login') || url.startsWith('/auth/register')
-    if (error.response?.status === 401 && !isAuthForm) {
+    const isLogin = url.startsWith('/auth/login')
+    if (error.response?.status === 401 && !isLogin) {
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
