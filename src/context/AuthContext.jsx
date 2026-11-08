@@ -1,7 +1,7 @@
 // AuthContext.jsx – holds the logged-in user for the whole app.
 // The token and user are saved in localStorage so a page reload keeps you logged in.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import client, { SESSION_EXPIRED_EVENT, TOKEN_KEY, USER_KEY } from '../api/client'
+import client, { PASSWORD_CHANGE_REQUIRED_EVENT, SESSION_EXPIRED_EVENT, TOKEN_KEY, USER_KEY } from '../api/client'
 import { AuthContext } from './auth'
 
 // Reads the saved user; a corrupted value counts as logged out
@@ -46,11 +46,31 @@ export function AuthProvider({ children }) {
     [saveSession],
   )
 
+  // Also the way out of a temporary password: the backend clears must_change_password and returns the user
+  const changePassword = useCallback(
+    async (currentPassword, newPassword) => {
+      const { data } = await client.post('/auth/change-password', { currentPassword, newPassword })
+      updateUser(data.user)
+      return data.user
+    },
+    [updateUser],
+  )
+
   // The API client fires this event on a 401; dropping the user makes ProtectedRoute redirect to /login
   useEffect(() => {
     window.addEventListener(SESSION_EXPIRED_EVENT, logout)
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, logout)
   }, [logout])
+
+  // The password was reset while this user was logged in: flag them so ProtectedRoute sends them to /change-password
+  useEffect(() => {
+    function requirePasswordChange() {
+      const current = loadUser()
+      if (current && !current.must_change_password) updateUser({ ...current, must_change_password: true })
+    }
+    window.addEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, requirePasswordChange)
+    return () => window.removeEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, requirePasswordChange)
+  }, [updateUser])
 
   // Refresh the saved profile once on load, so a role changed by an admin shows up without logging in again
   useEffect(() => {
@@ -74,10 +94,11 @@ export function AuthProvider({ children }) {
       // Admins and HR manage accounts on the Users page. HR is not staff: for tickets, HR is an employee.
       canManageUsers: user?.role === 'admin' || user?.role === 'hr',
       login,
+      changePassword,
       logout,
       updateUser,
     }),
-    [user, login, logout, updateUser],
+    [user, login, changePassword, logout, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

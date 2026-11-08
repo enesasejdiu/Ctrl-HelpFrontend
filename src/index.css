@@ -361,7 +361,8 @@ textarea {
   color: var(--text-muted);
 }
 
-.auth__footer a {
+.auth__footer a,
+.auth__footer .link-button {
   font-weight: 600;
 }
 

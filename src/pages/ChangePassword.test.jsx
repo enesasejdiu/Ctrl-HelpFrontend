@@ -1,0 +1,113 @@
+// ChangePassword.test.jsx – choosing a new password: the forced version after a temporary password, the voluntary
+// version from the top bar, the client-side rules, and a wrong current password (which must not log the user out).
+import { screen } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import { TOKEN_KEY, USER_KEY } from '../api/client'
+import { buildUser } from '../test/factories'
+import { renderWithProviders } from '../test/render'
+import { API, server } from '../test/server'
+import ChangePassword from './ChangePassword'
+
+const GOOD_PASSWORD = 'NewPassword42'
+
+// Records each request body; answers like the backend unless `respond` is given
+function mockChangePassword(respond) {
+  const requests = []
+  server.use(
+    http.post(`${API}/auth/change-password`, async ({ request }) => {
+      const body = await request.json()
+      requests.push(body)
+      if (respond) return respond(body)
+      const saved = JSON.parse(localStorage.getItem(USER_KEY))
+      return HttpResponse.json({ user: { ...saved, must_change_password: false } })
+    }),
+  )
+  return requests
+}
+
+function renderPage({ user = buildUser({ must_change_password: true }), from } = {}) {
+  return renderWithProviders(<ChangePassword />, {
+    route: { pathname: '/change-password', state: from ? { from: { pathname: from } } : undefined },
+    user,
+  })
+}
+
+async function fill(user, { current = 'Temp1234abcd', next = GOOD_PASSWORD, confirm = next } = {}) {
+  if (current) await user.type(screen.getByLabelText(/Temporary password|Current password/), current)
+  if (next) await user.type(screen.getByLabelText('New password'), next)
+  if (confirm) await user.type(screen.getByLabelText('Repeat new password'), confirm)
+  await user.click(screen.getByRole('button', { name: 'Save new password' }))
+}
+
+describe('ChangePassword', () => {
+  it('after a temporary password: explains why, saves, clears the flag and goes to the page the user wanted', async () => {
+    const requests = mockChangePassword()
+    const { user, router } = renderPage({ from: '/tickets/42' })
+
+    expect(screen.getByRole('heading', { name: 'Choose your own password' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
+
+    await fill(user)
+
+    expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/tickets/42')
+    expect(requests).toEqual([{ currentPassword: 'Temp1234abcd', newPassword: GOOD_PASSWORD }])
+    expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(false)
+  })
+
+  it('goes to the ticket list when there is no page to return to', async () => {
+    mockChangePassword()
+    const { user } = renderPage()
+    await fill(user)
+    expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+  })
+
+  it('opened from the top bar: asks for the current password and can be cancelled', async () => {
+    const { user } = renderPage({ user: buildUser({ must_change_password: false }), from: '/tickets' })
+
+    expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Current password')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('link', { name: 'Cancel' }))
+    expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['no current password', { current: '' }, 'Temporary password is required'],
+    ['too short', { next: 'Short1' }, 'New password must be at least 10 characters'],
+    ['no number', { next: 'OnlyLettersHere' }, 'New password must contain at least one number'],
+    ['no letter', { next: '1234567890' }, 'New password must contain at least one letter'],
+    ['too long', { next: `a1${'x'.repeat(71)}` }, 'New password must be 72 characters or less'],
+    ['same as current', { current: GOOD_PASSWORD }, 'New password must be different from the current one'],
+    ['repeat does not match', { confirm: 'NewPassword43' }, 'The new passwords do not match'],
+  ])('refuses %s without calling the server', async (_, values, message) => {
+    const requests = mockChangePassword()
+    const { user } = renderPage()
+
+    await fill(user, values)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(message)
+    expect(requests).toHaveLength(0)
+  })
+
+  it('shows a wrong current password and stays logged in', async () => {
+    mockChangePassword(() => HttpResponse.json({ message: 'Current password is wrong' }, { status: 401 }))
+    const { user, router } = renderPage()
+
+    await fill(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Current password is wrong')
+    expect(router.state.location.pathname).toBe('/change-password')
+    expect(localStorage.getItem(TOKEN_KEY)).toBe('test-token')
+    expect(screen.getByRole('button', { name: 'Save new password' })).toBeEnabled()
+  })
+
+  it('lets a user with a temporary password log out instead', async () => {
+    const { user } = renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
+
+    expect(await screen.findByRole('heading', { name: 'Login page' })).toBeInTheDocument()
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+  })
+})

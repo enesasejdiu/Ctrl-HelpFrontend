@@ -125,3 +125,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Users page: Add user form (admin and HR). Job title comes later.
 - [x] Edit-user form and Reset password button
 - [x] Temporary password shown once after creating or resetting
+- [x] Forced password change after a temporary password, and Change password in the top bar
