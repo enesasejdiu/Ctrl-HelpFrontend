@@ -131,3 +131,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Profile page: own details and Change password
 - [x] Departments page (Admin, HR)
 - [x] Job title in the Add/Edit user forms and the Users list
+- [x] Navigation for HR: Tickets (own), New ticket, Users, Departments
