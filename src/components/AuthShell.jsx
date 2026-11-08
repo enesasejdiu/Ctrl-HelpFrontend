@@ -1,4 +1,4 @@
-// AuthShell.jsx – split-screen frame for the login and register pages:
+// AuthShell.jsx – split-screen frame for the login page:
 // a brand panel on the left (hidden on small screens) and the form card on the right.
 import { ChartColumn, Clock, ShieldCheck } from 'lucide-react'
 import Logo from './Logo'
