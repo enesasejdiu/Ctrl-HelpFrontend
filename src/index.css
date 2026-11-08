@@ -534,6 +534,13 @@ textarea {
   color: var(--danger);
 }
 
+/* Fields flagged by form validation */
+.input[aria-invalid='true'],
+.select[aria-invalid='true'],
+.textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
 .input,
 .select,
 .textarea {

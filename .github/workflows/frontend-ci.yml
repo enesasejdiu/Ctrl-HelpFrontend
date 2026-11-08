@@ -1,0 +1,109 @@
+# Frontend CI: lint, unit tests and production build, as three parallel jobs.
+# Branch protection: require only the "ci-ok" check, which passes when all three do.
+# (End-to-end tests run separately in e2e.yml.)
+name: Frontend CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A new push to the same PR cancels its older, still-running run; runs on main always finish
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # oxlint (the project's linter); any warning fails the job
+      - run: npm run lint -- --max-warnings=0 --format=github
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Single run (no watch). The github-actions reporter annotates failures on the PR's changed lines.
+      # Only src/**/*.test.* is included (vite.config.js), so the Playwright specs in e2e/ are not picked up.
+      - name: Run unit tests with coverage
+        run: >-
+          npx vitest run --coverage
+          --reporter=default --reporter=github-actions
+          --coverage.reporter=text --coverage.reporter=html --coverage.reporter=json-summary
+      - name: Coverage summary
+        if: always() && hashFiles('coverage/coverage-summary.json') != ''
+        run: |
+          node -e "
+            const total = require('./coverage/coverage-summary.json').total;
+            const rows = ['statements', 'branches', 'functions', 'lines']
+              .map((k) => '| ' + k + ' | ' + total[k].pct + '% | ' + total[k].covered + ' / ' + total[k].total + ' |');
+            console.log(['### Unit test coverage', '', '| Metric | Coverage | Covered |', '| --- | --- | --- |', ...rows].join('\n'));
+          " >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload coverage report
+        if: always() && hashFiles('coverage/index.html') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # VITE_API_URL is public (it ends up in the bundle), not a secret; this placeholder only proves the build works.
+      # Deployments build with their real API URL.
+      - name: Production build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.example.invalid/api
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+  # The one check to require in branch protection: green only when every job above succeeded
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [lint, test, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All jobs passed
+        if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
+        run: echo "lint, test and build all passed"
+      - name: A job did not pass
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "Results: lint=${{ needs.lint.result }}, test=${{ needs.test.result }}, build=${{ needs.build.result }}"
+          exit 1

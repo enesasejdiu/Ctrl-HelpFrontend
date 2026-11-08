@@ -18,6 +18,8 @@ export default function NewTicket() {
   const [form, setForm] = useState({ title: '', category_id: '', priority_id: '', description: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Set by a submit with missing fields, so they get marked invalid until filled in
+  const [triedSubmit, setTriedSubmit] = useState(false)
 
   // Load the dropdown data; preselect Medium as the default priority
   useEffect(() => {
@@ -40,6 +42,7 @@ export default function NewTicket() {
     event.preventDefault()
     setError('')
     if (!form.title.trim() || !form.category_id || !form.priority_id || !form.description.trim()) {
+      setTriedSubmit(true)
       setError('Please fill in the title, category, priority and description')
       return
     }
@@ -61,6 +64,8 @@ export default function NewTicket() {
 
   // The category currently picked, to show its description under the dropdown
   const category = meta?.categories.find((c) => String(c.id) === form.category_id)
+  // aria-invalid for a required field that was left empty on submit (undefined = attribute left out)
+  const missing = (value) => (triedSubmit && !value.trim()) || undefined
 
   return (
     <>
@@ -88,7 +93,9 @@ export default function NewTicket() {
             <div className="field">
               <label htmlFor="title">
                 Title
-                <span className={`field__counter${form.title.length > TITLE_MAX ? ' field__hint--error' : ''}`}>
+                {/* Visual counter only: inside the label it would become part of the field's name and be
+                    re-read on every keystroke; screen readers get the limit from the hint below instead */}
+                <span className="field__counter" aria-hidden="true">
                   {form.title.length}/{TITLE_MAX}
                 </span>
               </label>
@@ -99,14 +106,26 @@ export default function NewTicket() {
                 maxLength={TITLE_MAX}
                 value={form.title}
                 onChange={update('title')}
+                aria-describedby="title-limit"
+                aria-invalid={missing(form.title)}
                 required
                 autoFocus
               />
+              <span id="title-limit" className="sr-only">
+                Up to {TITLE_MAX} characters
+              </span>
             </div>
 
             <div className="field">
               <label htmlFor="category">Category</label>
-              <select id="category" className="select" value={form.category_id} onChange={update('category_id')} required>
+              <select
+                id="category"
+                className="select"
+                value={form.category_id}
+                onChange={update('category_id')}
+                aria-invalid={missing(form.category_id)}
+                required
+              >
                 <option value="">Choose a category…</option>
                 {meta.categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -146,6 +165,7 @@ export default function NewTicket() {
                 placeholder="What happened? When did it start? What have you already tried?"
                 value={form.description}
                 onChange={update('description')}
+                aria-invalid={missing(form.description)}
                 required
               />
             </div>
