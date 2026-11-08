@@ -1,5 +1,5 @@
 // Layout.jsx – the frame around every logged-in page: top bar with logo, navigation and user menu.
-// The Dashboard link is only shown to admins; Users to admins and HR. While the user still has a temporary password,
+// The Dashboard link is only shown to admins; Users to admins and HR. Your name opens your profile. While the user still has a temporary password,
 // the bar shows only the logo and Log out (every page but /set-password is closed to them anyway).
 // A one-off message passed in the navigation state ({ flash }) is shown above the page, e.g. "Password changed".
 import { Check, KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
@@ -25,6 +25,17 @@ export default function Layout() {
         ...(canManageUsers ? [{ to: '/admin/users', label: 'Users', icon: Users }] : []),
       ]
 
+  // Avatar, name and role; a link to /profile, except while the user must first set a password
+  const who = (
+    <>
+      <Avatar name={user.name} />
+      <span className="topbar__user-text">
+        <span className="topbar__user-name">{user.name}</span>
+        <span className={`role-tag role-tag--${user.role}`}>{ROLE_LABELS[user.role] || user.role}</span>
+      </span>
+    </>
+  )
+
   function handleLogout() {
     logout()
     navigate('/login', { replace: true })
@@ -48,11 +59,13 @@ export default function Layout() {
           </nav>
 
           <div className="topbar__user">
-            <Avatar name={user.name} />
-            <div className="topbar__user-text">
-              <span className="topbar__user-name">{user.name}</span>
-              <span className={`role-tag role-tag--${user.role}`}>{ROLE_LABELS[user.role] || user.role}</span>
-            </div>
+            {mustSetPassword ? (
+              <span className="topbar__profile">{who}</span>
+            ) : (
+              <Link to="/profile" className="topbar__profile" title="My profile" aria-label={`My profile (${user.name})`}>
+                {who}
+              </Link>
+            )}
             {!mustSetPassword && (
               <Link to="/change-password" className="icon-button" title="Change password" aria-label="Change password">
                 <KeyRound size={17} aria-hidden="true" />

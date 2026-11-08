@@ -10,6 +10,7 @@ import ChangePassword from './pages/ChangePassword'
 import SetPassword from './pages/SetPassword'
 import Login from './pages/Login'
 import NewTicket from './pages/NewTicket'
+import Profile from './pages/Profile'
 import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 import Users from './pages/Users'
@@ -33,6 +34,7 @@ function App() {
           <Route path="/tickets" element={<TicketList />} />
           <Route path="/tickets/new" element={<NewTicket />} />
           <Route path="/tickets/:id" element={<TicketDetail />} />
+          <Route path="/profile" element={<Profile />} />
 
           <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route
