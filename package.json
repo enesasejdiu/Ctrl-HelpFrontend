@@ -15,8 +15,7 @@
     "e2e:ui": "playwright test --ui",
     "e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report",
-    "e2e:db:up": "node scripts/e2e-backend.mjs db:up",
-    "e2e:db:down": "node scripts/e2e-backend.mjs db:down"
+    "e2e:cleanup": "node scripts/e2e-backend.mjs cleanup"
   },
   "dependencies": {
     "axios": "^1.21.0",

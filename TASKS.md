@@ -131,3 +131,6 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Profile page: own details and Change password
 - [x] Departments page (Admin, HR)
 - [x] Job title in the Add/Edit user forms and the Users list
+- [x] e2e tests use a throwaway database, never the real one
+- [x] e2e test: HR adds an employee → employee sets password → creates a ticket
+- [x] HR navigation checked

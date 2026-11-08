@@ -51,6 +51,8 @@ The app runs at http://localhost:5173.
 | `npm test`              | Run the unit and component tests once |
 | `npm run test:watch`    | Re-run the tests on every file change |
 | `npm run test:coverage` | Run the tests with a coverage report  |
+| `npm run e2e`           | Run the end-to-end tests (Playwright) on a throwaway database |
+| `npm run e2e:cleanup`   | Drop any `ticketflow_e2e_*` database a crashed run left behind |
 
 ### Running tests
 
@@ -64,6 +66,26 @@ The tests use Vitest and React Testing Library and live next to the code they te
 are answered by MSW (Mock Service Worker) with fake data, so the tests **never call the real backend** and don't
 need it running. Shared helpers are in `src/test/` (`renderWithProviders` in `render.jsx`, MSW handlers in
 `server.js`, test data in `factories.js`).
+
+### End-to-end tests
+
+```bash
+npm run e2e            # Chromium and Firefox, against the real backend
+npx playwright test e2e/hr-flow.spec.ts --project=chromium   # one file, one browser
+```
+
+**e2e tests use a throwaway database; the real one is never touched.** Each run:
+
+1. creates a new database named `ticketflow_e2e_<timestamp>_<pid>` and fills it with the backend's own
+   `db:migrate` and `db:seed --force`
+2. starts its own backend and frontend on free ports (never 5050 or 5173), and never reuses a server that is
+   already running, so a dev server can't be picked up by mistake
+3. drops the database at the end, also when tests fail (`e2e/global-teardown.ts`)
+
+Every step refuses to run unless the database name starts with `ticketflow_e2e_`. The database server is the one in
+the backend's `.env` (for example MariaDB from XAMPP); only the name is different. Set `E2E_DB_HOST`, `E2E_DB_PORT`,
+`E2E_DB_USER` and `E2E_DB_PASSWORD` to use another server, as CI does with MySQL 8.4. The backend must be checked out
+next to this folder (`../Ctrl-HelpBackend`), or set `BACKEND_DIR`.
 
 ## Demo logins
 
