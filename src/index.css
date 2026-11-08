@@ -361,7 +361,8 @@ textarea {
   color: var(--text-muted);
 }
 
-.auth__footer a {
+.auth__footer a,
+.auth__footer .link-button {
   font-weight: 600;
 }
 
@@ -1048,6 +1049,10 @@ fieldset.field {
   color: #0284c7;
 }
 
+.role-tag--hr {
+  color: #0f766e;
+}
+
 /* ---------- Badges ---------- */
 .badge {
   display: inline-flex;
@@ -1457,6 +1462,91 @@ fieldset.field {
   color: var(--text-faint);
 }
 
+.users__panel {
+  margin-bottom: 16px;
+}
+
+.create-user__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+}
+
+.status-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.temp-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fffbeb;
+  box-shadow: inset 0 0 0 1px #fde68a;
+  white-space: nowrap;
+}
+
+/* Stacked, so two buttons take no more width than one and the table still fits */
+.row-actions {
+  display: inline-grid;
+  gap: 6px;
+}
+
+/* The one-time temporary password after creating an account or resetting a password */
+.temp-password {
+  display: flex;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius);
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.temp-password__icon {
+  flex: none;
+  margin-top: 2px;
+  color: #b45309;
+}
+
+.temp-password__body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.temp-password__title {
+  font-weight: 600;
+}
+
+.temp-password__text {
+  font-size: 13px;
+}
+
+.temp-password__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.temp-password__value {
+  padding: 6px 10px;
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
 .table tbody tr.is-inactive .avatar {
   opacity: 0.5;
 }
@@ -1778,6 +1868,15 @@ fieldset.field {
 
   .table--stack .table__actions .btn {
     width: 100%;
+  }
+
+  .table--stack .row-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .create-user__grid {
+    grid-template-columns: 1fr;
   }
 
   .table--stack .table__actions .text-faint {

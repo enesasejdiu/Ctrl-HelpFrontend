@@ -122,3 +122,6 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Vitest + React Testing Library (MSW for API mocking)
 - [x] Component tests: Login, TicketList, NewTicket, Badges, ProtectedRoute
 - [x] Self-registration removed: no /register page or sign-up link (the backend endpoint is gone)
+- [x] HR role: label, Users page access (employees only, no role changes)
+- [x] Admins and HR create accounts and reset passwords; the temporary password is shown once
+- [x] Forced password change after a temporary password, and Change password in the top bar

@@ -10,6 +10,10 @@ export const USER_KEY = 'ticketflow.user'
 // An event, because this file is plain JavaScript outside React and can't change React state itself
 export const SESSION_EXPIRED_EVENT = 'ticketflow:session-expired'
 
+// Fired when the backend refuses a request because the user still has a temporary password (for example after
+// an admin reset it mid-session); AuthContext marks the user, and ProtectedRoute sends them to /change-password
+export const PASSWORD_CHANGE_REQUIRED_EVENT = 'ticketflow:password-change-required'
+
 // VITE_API_URL comes from the .env file; Vite puts it into the code at build time
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -24,16 +28,21 @@ client.interceptors.request.use((config) => {
   return config
 })
 
-// A 401 from login just means wrong credentials, so only other 401s end the session
+// A 401 from login or change-password just means a wrong password was typed, so only other 401s end the session
+const PASSWORD_CHECKS = ['/auth/login', '/auth/change-password']
+
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     const url = error.config?.url || ''
-    const isLogin = url.startsWith('/auth/login')
-    if (error.response?.status === 401 && !isLogin) {
+    const isPasswordCheck = PASSWORD_CHECKS.some((path) => url.startsWith(path))
+    if (error.response?.status === 401 && !isPasswordCheck) {
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+    }
+    if (error.response?.status === 403 && error.response.data?.code === 'PASSWORD_CHANGE_REQUIRED') {
+      window.dispatchEvent(new Event(PASSWORD_CHANGE_REQUIRED_EVENT))
     }
     return Promise.reject(error)
   },

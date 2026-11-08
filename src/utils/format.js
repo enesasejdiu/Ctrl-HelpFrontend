@@ -18,6 +18,7 @@ export const ROLE_LABELS = {
   employee: 'Employee',
   agent: 'IT Staff',
   admin: 'Admin',
+  hr: 'HR',
 }
 
 export function statusLabel(status) {

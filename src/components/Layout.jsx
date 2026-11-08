@@ -1,6 +1,6 @@
 // Layout.jsx – the frame around every logged-in page: top bar with logo, navigation and user menu.
-// Dashboard and Users links are only shown to admins.
-import { LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
+// The Dashboard link is only shown to admins, the Users link to admins and HR.
+import { KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS } from '../utils/format'
@@ -8,19 +8,15 @@ import Logo from './Logo'
 import { Avatar } from './Ui'
 
 export default function Layout() {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, isAdmin, canManageUsers, logout } = useAuth()
   const navigate = useNavigate()
 
   const links = [
     // `end` keeps "Tickets" from staying active on /tickets/new
     { to: '/tickets', label: 'Tickets', icon: Ticket, end: true },
     { to: '/tickets/new', label: 'New ticket', icon: TicketPlus },
-    ...(isAdmin
-      ? [
-          { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-          { to: '/admin/users', label: 'Users', icon: Users },
-        ]
-      : []),
+    ...(isAdmin ? [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }] : []),
+    ...(canManageUsers ? [{ to: '/admin/users', label: 'Users', icon: Users }] : []),
   ]
 
   function handleLogout() {
@@ -51,6 +47,9 @@ export default function Layout() {
               <span className="topbar__user-name">{user.name}</span>
               <span className={`role-tag role-tag--${user.role}`}>{ROLE_LABELS[user.role] || user.role}</span>
             </div>
+            <Link to="/change-password" className="icon-button" title="Change password" aria-label="Change password">
+              <KeyRound size={17} aria-hidden="true" />
+            </Link>
             <button type="button" className="icon-button" onClick={handleLogout} title="Log out" aria-label="Log out">
               <LogOut size={17} aria-hidden="true" />
             </button>

@@ -80,11 +80,12 @@ These accounts come from the backend's demo data. They all use the password `pas
 | Route          | Who can open it | What it does                                                                                    |
 | -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
 | `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
+| `/change-password` | Logged-in users | Choose a new password. Required after signing in with a temporary password (nothing else opens until then) |
 | `/tickets`     | Logged-in users | Ticket list with search and filters; employees see their own tickets, staff see all of them     |
 | `/tickets/new` | Logged-in users | Report a problem                                                                                |
 | `/tickets/:id` | Logged-in users | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs |
 | `/admin`       | Admins          | Dashboard with statistics, charts and performance tables                                        |
-| `/admin/users` | Admins          | Change user roles and activate or deactivate accounts                                           |
+| `/admin/users` | Admins and HR   | Create accounts, reset passwords, activate or deactivate; admins also change roles. HR: employees only |
 
 Employees can only open their own tickets. Any unknown address redirects to `/tickets`.
 
@@ -101,14 +102,17 @@ src/
     Badges.jsx           Status, priority and overdue badges
     Layout.jsx           Top bar and navigation around every logged-in page
     Logo.jsx             TicketFlow logo
+    CreateUserForm.jsx   The "New user" form on the Users page
     PasswordInput.jsx    Password field with a show/hide button
-    ProtectedRoute.jsx   Sends logged-out users to /login and checks roles
+    ProtectedRoute.jsx   Sends logged-out users to /login, temporary passwords to /change-password, and checks roles
+    TemporaryPassword.jsx  Shows a one-time temporary password with a copy button
     Ui.jsx               Avatar, spinner, alert, empty state and page header
   context/
     auth.js              Auth context object and the useAuth() hook
-    AuthContext.jsx      Holds the logged-in user; login and logout
+    AuthContext.jsx      Holds the logged-in user; login, change password and logout
   pages/
     AdminDashboard.jsx   Statistics, charts and tables at /admin
+    ChangePassword.jsx   Choose a new password
     Login.jsx            Sign-in page
     NewTicket.jsx        New ticket form
     TicketDetail.jsx     One ticket: comments, management boxes, info and history
