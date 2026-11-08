@@ -84,7 +84,7 @@ These accounts come from the backend's demo data. They all use the password `pas
 | `/tickets/new` | Logged-in users | Report a problem                                                                                |
 | `/tickets/:id` | Logged-in users | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs |
 | `/admin`       | Admins          | Dashboard with statistics, charts and performance tables                                        |
-| `/admin/users` | Admins          | Change user roles and activate or deactivate accounts                                           |
+| `/admin/users` | Admins and HR   | Add users (shows their temporary password once), change roles, activate or deactivate accounts; HR: employees only |
 
 Employees can only open their own tickets. Any unknown address redirects to `/tickets`.
 
@@ -97,12 +97,15 @@ src/
   api/
     client.js            Axios instance: adds the token, handles expired sessions, reads error messages
   components/
+    AddUserDialog.jsx    "Add user" form on the Users page (HR can only create employees)
     AuthShell.jsx        Split-screen frame for the login page
     Badges.jsx           Status, priority and overdue badges
     Layout.jsx           Top bar and navigation around every logged-in page
     Logo.jsx             TicketFlow logo
+    Modal.jsx            Dialog shell: focus trap, Escape to close, focus returns to the opener
     PasswordInput.jsx    Password field with a show/hide button
     ProtectedRoute.jsx   Sends logged-out users to /login and checks roles
+    TemporaryPasswordDialog.jsx  Shows a new temporary password once, with Copy and a warning
     Ui.jsx               Avatar, spinner, alert, empty state and page header
   context/
     auth.js              Auth context object and the useAuth() hook

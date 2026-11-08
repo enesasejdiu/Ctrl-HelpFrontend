@@ -14,9 +14,11 @@ const STATUS_LABELS = {
 
 export const STATUSES = Object.keys(STATUS_LABELS)
 
+// In the order they appear in role dropdowns
 export const ROLE_LABELS = {
   employee: 'Employee',
   agent: 'IT Staff',
+  hr: 'HR',
   admin: 'Admin',
 }
 

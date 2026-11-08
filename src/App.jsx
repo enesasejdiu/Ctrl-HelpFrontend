@@ -1,5 +1,6 @@
 // App.jsx – all routes of TicketFlow.
-// Public: /login. Everything else needs a login and renders inside <Layout>; /admin/* is admin-only.
+// Public: /login. Everything else needs a login and renders inside <Layout>.
+// /admin is admin-only; /admin/users is for admins and HR.
 import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
@@ -35,6 +36,9 @@ function App() {
                 </Suspense>
               }
             />
+          </Route>
+
+          <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>
             <Route path="/admin/users" element={<Users />} />
           </Route>
         </Route>

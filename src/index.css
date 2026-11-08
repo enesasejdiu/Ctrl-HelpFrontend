@@ -1048,6 +1048,10 @@ fieldset.field {
   color: #0284c7;
 }
 
+.role-tag--hr {
+  color: #0f766e;
+}
+
 /* ---------- Badges ---------- */
 .badge {
   display: inline-flex;
@@ -1564,6 +1568,109 @@ fieldset.field {
 
 .chart-card__body > .table-wrap {
   margin: 0 -16px -16px;
+}
+
+/* ---------- Dialogs (Modal.jsx) ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(17 24 39 / 0.45);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100dvh - 32px);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 48px -12px rgb(16 24 40 / 0.3);
+}
+
+.modal__title {
+  padding: 20px 24px 0;
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Only the content scrolls, so the title and buttons stay visible on a short screen */
+.modal__body {
+  padding: 16px 24px 20px;
+  overflow-y: auto;
+}
+
+.modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-muted);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* A label for something that isn't a form control (fixed role, temporary password) */
+.field__label {
+  font-weight: 500;
+  font-size: 13px;
+  color: #374151;
+}
+
+.static-value {
+  font-weight: 500;
+}
+
+/* The temporary password: monospace, easy to select in one go */
+.secret {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.secret__value {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.notice svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.notice--warning {
+  color: #854d0e;
+  background: #fefce8;
+  border: 1px solid #fde68a;
+}
+
+@media (max-width: 480px) {
+  .modal__footer .btn {
+    flex: 1;
+  }
 }
 
 /* ---------- Responsive ---------- */
