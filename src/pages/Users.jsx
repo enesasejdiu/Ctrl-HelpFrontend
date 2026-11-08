@@ -80,6 +80,7 @@ export default function Users() {
           email: user.email,
           department_id: user.department_id,
           department_name: user.department_name,
+          job_title: user.job_title,
         })
     }
     setDialog(null)
@@ -182,8 +183,13 @@ export default function Users() {
                         <td>
                           <span className="person">
                             <Avatar name={u.name} size="sm" />
-                            <span className="table__title">{u.name}</span>
-                            {isMe && <span className="you-tag">You</span>}
+                            <span className="person__text">
+                              <span className="person__name">
+                                <span className="table__title">{u.name}</span>
+                                {isMe && <span className="you-tag">You</span>}
+                              </span>
+                              {u.job_title && <span className="person__job">{u.job_title}</span>}
+                            </span>
                           </span>
                         </td>
                         <td className="text-muted" data-label="Email">

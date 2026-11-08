@@ -660,3 +660,141 @@ describe('Reset password', () => {
     expect(await within(confirm).findByRole('alert')).toHaveTextContent('HR can only reset passwords of employee accounts')
   })
 })
+
+describe('Job title', () => {
+  const accountant = buildUser({ name: 'Besa Morina', role: 'employee', email: 'besa@ticketflow.local', job_title: 'Accountant' })
+  const LIST = [admin, accountant, employee]
+
+  // GET /users with `accountant` in it, and a PATCH that answers like the backend: an empty job title is saved as null
+  function mockJobTitleApi() {
+    const patches = []
+    mockApi({ users: LIST })
+    server.use(
+      http.patch(`${API}/users/:id`, async ({ request, params }) => {
+        const body = await request.json()
+        patches.push(body)
+        const current = LIST.find((u) => u.id === Number(params.id))
+        const updated = { ...current, ...body }
+        if ('job_title' in body) updated.job_title = body.job_title || null
+        return HttpResponse.json(updated)
+      }),
+    )
+    return patches
+  }
+
+  it('the Users list shows the job title under the name', async () => {
+    mockJobTitleApi()
+    renderUsers(admin)
+    await screen.findByRole('table')
+
+    expect(within(rowFor(accountant.name)).getByText('Accountant')).toHaveClass('person__job')
+    // No job title, no extra line
+    expect(rowFor(employee.name).querySelector('.person__job')).toBeNull()
+  })
+
+  it('Add user: optional field after Department, sent trimmed, and the new row shows it', async () => {
+    const posted = mockApi()
+    const { user } = renderUsers(admin)
+    const dialog = await openForm(user)
+
+    const field = within(dialog).getByLabelText(/Job title/)
+    expect(field).toHaveAttribute('placeholder', 'e.g. Accountant')
+    expect(field).toHaveAttribute('maxLength', '100')
+    expect(field).not.toBeRequired()
+    // Right after Department in the form
+    const labels = within(dialog).getAllByText(/^(Full name|Email|Department|Job title|Role)/, { selector: 'label, .field__label' })
+    expect(labels.map((l) => l.textContent.replace('Optional', '').trim())).toEqual([
+      'Full name',
+      'Email',
+      'Department',
+      'Job title',
+      'Role',
+    ])
+
+    await fillForm(user, dialog)
+    await user.type(field, '  QA Tester ')
+    await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
+
+    await screen.findByRole('alertdialog')
+    expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, department_id: 3, job_title: 'QA Tester', role: 'employee' }])
+    expect(within(rowFor(NEW_USER.name)).getByText('QA Tester')).toBeInTheDocument()
+  })
+
+  it('Edit user: prefilled, sends only the job title when only it changed, and updates the row', async () => {
+    const patches = mockJobTitleApi()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, accountant.name)
+
+    const field = within(dialog).getByLabelText(/Job title/)
+    expect(field).toHaveValue('Accountant')
+    await user.clear(field)
+    await user.type(field, 'Senior Accountant')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(patches).toEqual([{ job_title: 'Senior Accountant' }])
+    expect(within(rowFor(accountant.name)).getByText('Senior Accountant')).toBeInTheDocument()
+  })
+
+  it('Edit user: other changes leave the job title out', async () => {
+    const patches = mockJobTitleApi()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, accountant.name)
+
+    await user.type(within(dialog).getByLabelText('Full name'), ' Jr')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(patches).toEqual([{ name: `${accountant.name} Jr` }]))
+  })
+
+  it('Edit user: clearing the job title sends an empty value, and the row loses it', async () => {
+    const patches = mockJobTitleApi()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, accountant.name)
+
+    await user.clear(within(dialog).getByLabelText(/Job title/))
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(patches).toEqual([{ job_title: '' }])
+    expect(rowFor(accountant.name).querySelector('.person__job')).toBeNull()
+  })
+
+  it("shows the backend's job_title error under the field", async () => {
+    mockJobTitleApi()
+    server.use(
+      http.patch(`${API}/users/:id`, () =>
+        HttpResponse.json(
+          { message: 'Job title must be 255 characters or less', errors: [{ field: 'job_title', message: 'Job title must be 255 characters or less' }] },
+          { status: 400 },
+        ),
+      ),
+    )
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, accountant.name)
+
+    await user.type(within(dialog).getByLabelText(/Job title/), ' Lead')
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    const field = within(dialog).getByLabelText(/Job title/)
+    await waitFor(() => expect(field).toHaveAccessibleDescription('Job title must be 255 characters or less'))
+    expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('checks the 100-character limit before sending', async () => {
+    const patches = mockJobTitleApi()
+    const { user } = renderUsers(admin)
+    const dialog = await openEdit(user, accountant.name)
+
+    // maxLength stops typing past 100; a value set some other way (e.g. by a browser extension) is still caught
+    const field = within(dialog).getByLabelText(/Job title/)
+    field.removeAttribute('maxLength')
+    await user.clear(field)
+    await user.type(field, 'x'.repeat(101))
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    expect(field).toHaveAccessibleDescription('Job title must be 100 characters or less')
+    expect(patches).toEqual([])
+  })
+})

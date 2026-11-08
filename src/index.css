@@ -1042,6 +1042,27 @@ fieldset.field {
   gap: 8px;
 }
 
+/* Name (with the "You" tag) and, under it, the job title */
+.person__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.person__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.person__job {
+  max-width: 240px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: normal; /* the table doesn't wrap, but a long job title shouldn't widen it */
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Avatars & role tags ---------- */
 .avatar {
   flex-shrink: 0;
