@@ -42,12 +42,28 @@ The app runs at http://localhost:5173.
 
 ### Scripts
 
-| Command           | Description                    |
-| ----------------- | ------------------------------ |
-| `npm run dev`     | Start the dev server           |
-| `npm run build`   | Build for production (`dist/`) |
-| `npm run preview` | Preview the production build   |
-| `npm run lint`    | Lint the code with oxlint      |
+| Command                 | Description                           |
+| ----------------------- | ------------------------------------- |
+| `npm run dev`           | Start the dev server                  |
+| `npm run build`         | Build for production (`dist/`)        |
+| `npm run preview`       | Preview the production build          |
+| `npm run lint`          | Lint the code with oxlint             |
+| `npm test`              | Run the unit and component tests once |
+| `npm run test:watch`    | Re-run the tests on every file change |
+| `npm run test:coverage` | Run the tests with a coverage report  |
+
+### Running tests
+
+```bash
+npm test               # run all unit and component tests once
+npm run test:watch     # re-run them on every file change
+npm run test:coverage  # also print a coverage table (HTML report in coverage/)
+```
+
+The tests use Vitest and React Testing Library and live next to the code they test (`*.test.jsx` in `src/`). API calls
+are answered by MSW (Mock Service Worker) with fake data, so the tests **never call the real backend** and don't
+need it running. Shared helpers are in `src/test/` (`renderWithProviders` in `render.jsx`, MSW handlers in
+`server.js`, test data in `factories.js`).
 
 ## Demo logins
 
