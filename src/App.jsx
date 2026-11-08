@@ -1,12 +1,13 @@
 // App.jsx – all routes of TicketFlow.
 // Public: /login. Everything else needs a login; /change-password has its own full-page frame, the rest renders
-// inside <Layout>. /admin is admin-only; /admin/users is for admins and HR.
+// inside <Layout>. /admin is admin-only; /admin/users and /admin/departments are for admins and HR.
 import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { Spinner } from './components/Ui'
 import ChangePassword from './pages/ChangePassword'
+import Departments from './pages/Departments'
 import SetPassword from './pages/SetPassword'
 import Login from './pages/Login'
 import NewTicket from './pages/NewTicket'
@@ -49,6 +50,7 @@ function App() {
 
           <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>
             <Route path="/admin/users" element={<Users />} />
+            <Route path="/admin/departments" element={<Departments />} />
           </Route>
         </Route>
       </Route>

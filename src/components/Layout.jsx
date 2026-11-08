@@ -1,8 +1,8 @@
 // Layout.jsx – the frame around every logged-in page: top bar with logo, navigation and user menu.
-// The Dashboard link is only shown to admins; Users to admins and HR. Your name opens your profile. While the user still has a temporary password,
+// The Dashboard link is only shown to admins; Users and Departments to admins and HR. Your name opens your profile. While the user still has a temporary password,
 // the bar shows only the logo and Log out (every page but /set-password is closed to them anyway).
 // A one-off message passed in the navigation state ({ flash }) is shown above the page, e.g. "Password changed".
-import { Check, KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
+import { Building2, Check, KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS } from '../utils/format'
@@ -22,7 +22,12 @@ export default function Layout() {
         { to: '/tickets', label: 'Tickets', icon: Ticket, end: true },
         { to: '/tickets/new', label: 'New ticket', icon: TicketPlus },
         ...(isAdmin ? [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }] : []),
-        ...(canManageUsers ? [{ to: '/admin/users', label: 'Users', icon: Users }] : []),
+        ...(canManageUsers
+          ? [
+              { to: '/admin/users', label: 'Users', icon: Users },
+              { to: '/admin/departments', label: 'Departments', icon: Building2 },
+            ]
+          : []),
       ]
 
   // Avatar, name and role; a link to /profile, except while the user must first set a password
