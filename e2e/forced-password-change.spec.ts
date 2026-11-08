@@ -1,5 +1,6 @@
 // forced-password-change.spec.ts – an account made by an admin (or a password reset) gives a temporary password;
-// the user has to choose their own before they can use the app. Real backend, real database.
+// the user has to set their own on /set-password before they can use the app; later they can change it from the
+// top bar (/change-password). Real backend, real database.
 import type { Page } from '@playwright/test'
 import { expect, test } from './support/fixtures'
 import { authFile } from './support/users'
@@ -32,6 +33,15 @@ async function signIn(page: Page, email: string, password: string) {
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 
+// "Set your password" (/set-password): where a temporary password sends the user
+async function setPassword(page: Page, temporary: string, next: string) {
+  await page.getByLabel('Temporary password').fill(temporary)
+  await page.getByLabel('New password', { exact: true }).fill(next)
+  await page.getByLabel('Confirm new password').fill(next)
+  await page.getByRole('button', { name: 'Set password' }).click()
+}
+
+// "Change password" (/change-password): changing your own password later, from the top bar
 async function choosePassword(page: Page, current: string, next: string) {
   await page.getByLabel(/Temporary password|Current password/).fill(current)
   await page.getByLabel('New password', { exact: true }).fill(next)
@@ -52,19 +62,23 @@ test('a new account must choose its own password at first sign-in', async ({ pag
   const { context, page: newUser } = await freshPage(browser)
   await signIn(newUser, email, temporary)
 
-  // Sent to choose a password, and kept there even when asking for another page
-  await expect(newUser).toHaveURL('/change-password')
-  await expect(newUser.getByRole('heading', { name: 'Choose your own password' })).toBeVisible()
+  // Sent to set a password, and kept there even when asking for another page
+  await expect(newUser).toHaveURL('/set-password')
+  await expect(newUser.getByRole('heading', { name: 'Set your password' })).toBeVisible()
   await newUser.goto('/tickets/new')
-  await expect(newUser).toHaveURL('/change-password')
+  await expect(newUser).toHaveURL('/set-password')
+  await newUser.goto('/change-password')
+  await expect(newUser).toHaveURL('/set-password')
 
-  // A wrong temporary password is refused without logging out
-  await choosePassword(newUser, 'not-the-temp-password', 'MyOwnPassword1')
-  await expect(newUser.getByRole('alert')).toHaveText('Current password is wrong')
-  await expect(newUser).toHaveURL('/change-password')
+  // A wrong temporary password is refused (under its field) without logging out
+  await setPassword(newUser, 'not-the-temp-password', 'MyOwnPassword1')
+  await expect(newUser.getByLabel('Temporary password')).toHaveAccessibleDescription('Current password is wrong')
+  await expect(newUser).toHaveURL('/set-password')
 
-  await choosePassword(newUser, temporary, 'MyOwnPassword1')
-  await expect(newUser).toHaveURL('/tickets/new')
+  await setPassword(newUser, temporary, 'MyOwnPassword1')
+  await expect(newUser).toHaveURL('/tickets')
+  await expect(newUser.getByRole('status')).toHaveText('Password changed')
+  await newUser.goto('/tickets/new')
   await expect(newUser.getByRole('heading', { name: 'New ticket' })).toBeVisible()
 
   // The temporary password no longer works; the new one does
@@ -74,7 +88,7 @@ test('a new account must choose its own password at first sign-in', async ({ pag
   await newUser.getByLabel('Password', { exact: true }).fill('MyOwnPassword1')
   await newUser.getByRole('button', { name: 'Sign in' }).click()
   await expect(newUser).toHaveURL(/\/tickets/)
-  await expect(newUser).not.toHaveURL(/change-password/)
+  await expect(newUser).not.toHaveURL(/set-password/)
   await context.close()
 })
 
@@ -85,7 +99,7 @@ test('a password reset during a session sends the user to choose a new one', asy
 
   const { context, page: user } = await freshPage(browser)
   await signIn(user, email, first)
-  await choosePassword(user, first, 'FirstChoice123')
+  await setPassword(user, first, 'FirstChoice123')
   await expect(user).toHaveURL('/tickets')
 
   // Admin resets it while the user is still signed in
@@ -95,8 +109,8 @@ test('a password reset during a session sends the user to choose a new one', asy
 
   // The user's next page load is refused by the backend, so the app sends them to change it
   await user.reload()
-  await expect(user).toHaveURL('/change-password')
-  await choosePassword(user, second, 'SecondChoice123')
+  await expect(user).toHaveURL('/set-password')
+  await setPassword(user, second, 'SecondChoice123')
   await expect(user).toHaveURL('/tickets')
   await context.close()
 })
@@ -107,7 +121,7 @@ test('anyone can change their password from the top bar', async ({ page, browser
 
   const { context, page: user } = await freshPage(browser)
   await signIn(user, email, temporary)
-  await choosePassword(user, temporary, 'FirstChoice123')
+  await setPassword(user, temporary, 'FirstChoice123')
   await expect(user).toHaveURL('/tickets')
 
   await user.getByRole('link', { name: 'Change password' }).click()

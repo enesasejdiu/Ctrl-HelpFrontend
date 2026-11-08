@@ -7,6 +7,7 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { Spinner } from './components/Ui'
 import ChangePassword from './pages/ChangePassword'
+import SetPassword from './pages/SetPassword'
 import Login from './pages/Login'
 import NewTicket from './pages/NewTicket'
 import TicketDetail from './pages/TicketDetail'
@@ -27,6 +28,8 @@ function App() {
         <Route path="/change-password" element={<ChangePassword />} />
 
         <Route element={<Layout />}>
+          {/* After logging in with a temporary password, the only page until a new one is chosen */}
+          <Route path="/set-password" element={<SetPassword />} />
           <Route path="/tickets" element={<TicketList />} />
           <Route path="/tickets/new" element={<NewTicket />} />
           <Route path="/tickets/:id" element={<TicketDetail />} />

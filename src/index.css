@@ -1695,6 +1695,43 @@ fieldset.field {
   border: 1px solid #fde68a;
 }
 
+.notice--success {
+  color: #065f46;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+/* A one-off message above a page (Layout's { flash } state) */
+.page-notice {
+  margin-bottom: 20px;
+}
+
+/* ---------- Set your password ---------- */
+.set-password {
+  max-width: 520px;
+}
+
+/* Live list of password rules: grey circle until met, then a green check */
+.checklist {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist li.is-met {
+  color: #047857;
+}
+
 @media (max-width: 480px) {
   .modal__footer .btn {
     flex: 1;

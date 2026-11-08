@@ -62,7 +62,7 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, logout)
   }, [logout])
 
-  // The password was reset while this user was logged in: flag them so ProtectedRoute sends them to /change-password
+  // The password was reset while this user was logged in: flag them so ProtectedRoute sends them to /set-password
   useEffect(() => {
     function requirePasswordChange() {
       const current = loadUser()

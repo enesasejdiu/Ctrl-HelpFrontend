@@ -11,7 +11,7 @@ export const USER_KEY = 'ticketflow.user'
 export const SESSION_EXPIRED_EVENT = 'ticketflow:session-expired'
 
 // Fired when the backend refuses a request because the user still has a temporary password (for example after
-// an admin reset it mid-session); AuthContext marks the user, and ProtectedRoute sends them to /change-password
+// an admin reset it mid-session); AuthContext marks the user, and ProtectedRoute sends them to /set-password
 export const PASSWORD_CHANGE_REQUIRED_EVENT = 'ticketflow:password-change-required'
 
 // VITE_API_URL comes from the .env file; Vite puts it into the code at build time
