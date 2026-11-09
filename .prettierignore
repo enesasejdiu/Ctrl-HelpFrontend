@@ -1,0 +1,8 @@
+# Generated files and lock files: never formatted
+dist
+coverage
+test-results
+playwright-report
+blob-report
+e2e/.auth
+package-lock.json
