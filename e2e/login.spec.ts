@@ -1,4 +1,5 @@
 // login.spec.ts – signing in through the real form against the real backend.
+import { API_URL } from '../scripts/e2e-env.mjs'
 import { expect, test } from './support/fixtures'
 import { PASSWORD, USERS } from './support/users'
 
@@ -23,6 +24,35 @@ test.describe('Login', () => {
     await page.getByRole('button', { name: 'Sign in' }).click()
 
     await expect(page.getByRole('alert')).toHaveText('Wrong email or password')
+    await expect(page).toHaveURL('/login')
+  })
+
+  // A fresh account, so locking it can't get in the way of other tests that sign in with the seeded ones
+  test('5 wrong passwords lock the account; the right password is still refused', async ({ page, api, uniq, request }) => {
+    const account = await api.createEmployee(`Locked ${uniq}`, `locked.${uniq}@test.local`)
+    await page.goto('/login')
+    await page.getByLabel('Work email').fill(account.email)
+
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      await page.getByLabel('Password', { exact: true }).fill(`wrong-password-${attempt}`)
+      await page.getByRole('button', { name: 'Sign in' }).click()
+      await expect(page.getByRole('alert')).toHaveText('Wrong email or password')
+    }
+    await page.getByLabel('Password', { exact: true }).fill('wrong-password-5')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('alert')).toHaveText('Too many wrong passwords. Your account is locked for 15 minutes.')
+    await expect(page.getByRole('button', { name: /Try again in 1[45]:\d\d/ })).toBeDisabled()
+
+    // The right password is refused too: by the backend, and on a freshly loaded page
+    const direct = await request.post(`${API_URL}/auth/login`, { data: { email: account.email, password: account.password } })
+    expect(direct.status()).toBe(423)
+    expect(await direct.json()).toMatchObject({ code: 'ACCOUNT_LOCKED', retryAfterMinutes: 15 })
+
+    await page.reload()
+    await page.getByLabel('Work email').fill(account.email)
+    await page.getByLabel('Password', { exact: true }).fill(account.password)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('alert')).toHaveText(/^Too many wrong passwords\. Your account is locked for 1[45] minutes\.$/)
     await expect(page).toHaveURL('/login')
   })
 })

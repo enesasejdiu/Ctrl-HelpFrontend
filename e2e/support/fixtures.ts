@@ -58,6 +58,12 @@ export class Api {
     })
   }
 
+  // Creates an employee account as the admin; returns its email and the one-time temporary password
+  async createEmployee(name: string, email: string): Promise<{ email: string; password: string }> {
+    const { user, temporaryPassword } = await this.send('post', 'users', 'admin', { name, email, role: 'employee' })
+    return { email: user.email, password: temporaryPassword }
+  }
+
   // Changes a ticket's status as staff (employees may only close/reopen)
   setStatus(id: number, status: string, { resolution, as = 'agent' }: { resolution?: string; as?: Role } = {}): Promise<Ticket> {
     return this.send('patch', `tickets/${id}/status`, as, { status, resolution })

@@ -1,7 +1,9 @@
 // Login.jsx – email + password sign-in. After login, returns to the page the user originally asked for.
 // Includes one-click demo accounts (seeded by the backend) to make testing each role quick.
-import { ArrowRight, LoaderCircle } from 'lucide-react'
-import { useState } from 'react'
+// The backend's login limits get their own messages: 423 ACCOUNT_LOCKED (5 wrong passwords lock the account; the
+// button stays disabled for that email until the lock runs out, with a countdown) and 429 RATE_LIMITED.
+import { ArrowRight, Clock, LoaderCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { errorMessage } from '../api/client'
 import AuthShell from '../components/AuthShell'
@@ -12,6 +14,18 @@ import { useAuth } from '../context/auth'
 const DEMO_PASSWORD = 'password123'
 // Loose "something@something.tld" check; the backend does the strict validation
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const RATE_LIMITED = 'Too many login attempts. Wait a few minutes and try again.'
+
+function lockedMessage(minutes) {
+  return `Too many wrong passwords. Your account is locked for ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`
+}
+
+// 900000 ms → "15:00"
+function countdown(ms) {
+  const seconds = Math.max(0, Math.ceil(ms / 1000))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 const DEMO_ACCOUNTS = [
   { label: 'Admin', email: 'admin@ticketflow.local' },
   { label: 'IT Staff', email: 'agent1@ticketflow.local' },
@@ -28,6 +42,25 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [invalidField, setInvalidField] = useState(null)
+  // After a 423: { email, until, message } for the locked account. The lock belongs to that account, so another email
+  // can still sign in on this page.
+  const [lock, setLock] = useState(null)
+  const [now, setNow] = useState(() => Date.now())
+  const locked = lock !== null && now < lock.until && email.trim().toLowerCase() === lock.email
+
+  // Ticks once a second while there's a lock; when it runs out, the button comes back and the lock message goes
+  useEffect(() => {
+    if (!lock) return undefined
+    const timer = setInterval(() => {
+      const time = Date.now()
+      setNow(time)
+      if (time >= lock.until) {
+        setLock(null)
+        setError((current) => (current === lock.message ? '' : current))
+      }
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [lock])
 
   // Where to go after signing in: ProtectedRoute saved the page the user wanted (with its filters) before it
   // sent them here; otherwise the ticket list
@@ -48,6 +81,7 @@ export default function Login() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (locked) return
     setError('')
     const problem = validate()
     setInvalidField(problem?.[0] ?? null)
@@ -62,7 +96,20 @@ export default function Login() {
       // replace: the Back button shouldn't return to the login form
       navigate(from, { replace: true })
     } catch (err) {
-      setError(errorMessage(err))
+      const status = err.response?.status
+      if (status === 423) {
+        // The backend rounds the minutes up, so waiting this long is always enough
+        const minutes = Math.max(1, Math.round(Number(err.response.data?.retryAfterMinutes)) || 1)
+        const message = lockedMessage(minutes)
+        const start = Date.now()
+        setLock({ email: email.trim().toLowerCase(), until: start + minutes * 60 * 1000, message })
+        setNow(start)
+        setError(message)
+      } else if (status === 429) {
+        setError(RATE_LIMITED)
+      } else {
+        setError(errorMessage(err))
+      }
       // Only on failure: after a success we leave this page anyway
       setSubmitting(false)
     }
@@ -114,10 +161,19 @@ export default function Login() {
           />
         </div>
 
-        <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={submitting}>
-          {submitting ? <LoaderCircle size={18} className="spin" aria-hidden="true" /> : null}
-          {submitting ? 'Signing in…' : 'Sign in'}
-          {!submitting && <ArrowRight size={18} aria-hidden="true" />}
+        <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={submitting || locked}>
+          {locked ? (
+            <>
+              <Clock size={18} aria-hidden="true" />
+              Try again in {countdown(lock.until - now)}
+            </>
+          ) : (
+            <>
+              {submitting ? <LoaderCircle size={18} className="spin" aria-hidden="true" /> : null}
+              {submitting ? 'Signing in…' : 'Sign in'}
+              {!submitting && <ArrowRight size={18} aria-hidden="true" />}
+            </>
+          )}
         </button>
       </form>
 

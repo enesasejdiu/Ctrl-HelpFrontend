@@ -134,4 +134,5 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Navigation for HR: Tickets (own), New ticket, Users, Departments
 - [x] e2e tests use a throwaway database, never the real one
 - [x] Component and Playwright tests: HR adds an employee → employee sets password → creates a ticket (built by Aulona in PR #17; "My tickets" and admin checks added)
+- [x] Lockout and rate-limit messages on the login page
 - [x] HR navigation checked
