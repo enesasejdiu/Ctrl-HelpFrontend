@@ -4,7 +4,8 @@ import { createContext, useContext } from 'react'
 
 export const AuthContext = createContext(null)
 
-// Returns { user, isStaff, isAdmin, canManageUsers, login, logout, updateUser }; must be used inside <AuthProvider>
+// Returns { user, notice, isStaff, isAdmin, canManageUsers, login, changePassword, logout, updateUser };
+// must be used inside <AuthProvider>
 export function useAuth() {
   const value = useContext(AuthContext)
   if (!value) throw new Error('useAuth must be used inside <AuthProvider>')

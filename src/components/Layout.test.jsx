@@ -36,6 +36,24 @@ describe('Layout top bar', () => {
     expect(await navLinks()).toEqual(links)
   })
 
+  it('Log out asks the backend to clear the session cookies (with the CSRF header), then shows the login page', async () => {
+    document.cookie = 'tf_csrf=csrf-value'
+    const logouts = []
+    server.use(
+      http.post(`${API}/auth/logout`, ({ request }) => {
+        logouts.push(request.headers.get('X-CSRF-Token'))
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    const { user } = renderApp(buildUser({ role: 'agent' }))
+
+    await user.click(await screen.findByRole('button', { name: 'Log out' }))
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+    expect(logouts).toEqual(['csrf-value'])
+    expect(localStorage.length).toBe(0)
+  })
+
   it('HR: no Dashboard link, plus the profile link and Log out', async () => {
     renderApp(buildUser({ role: 'hr', name: 'Hana Rexhepi' }))
 

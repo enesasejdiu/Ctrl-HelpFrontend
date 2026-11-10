@@ -3,7 +3,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { buildTicket, buildUser } from '../test/factories'
-import { currentParams, renderWithProviders } from '../test/render'
+import { currentParams, renderReady } from '../test/render'
 import { API, server } from '../test/server'
 import TicketList from './TicketList'
 
@@ -43,8 +43,8 @@ function mockTickets(tickets = TICKETS, { currentUser = agent } = {}) {
   return queries
 }
 
-function renderList({ route = '/tickets', user = agent, userEventOptions } = {}) {
-  return renderWithProviders(<TicketList />, { route, path: '/tickets', user, userEventOptions })
+async function renderList({ route = '/tickets', user = agent, userEventOptions } = {}) {
+  return renderReady(<TicketList />, { route, path: '/tickets', user, userEventOptions })
 }
 
 // Titles of the rows in the (visible) ticket table
@@ -65,7 +65,7 @@ describe('TicketList', () => {
   describe('states', () => {
     it('shows a loading state, then the tickets from the API', async () => {
       mockTickets()
-      renderList()
+      await renderList()
 
       expect(screen.getByText('Loading tickets…')).toBeInTheDocument()
       await expectTitles(ALL_TITLES)
@@ -77,7 +77,7 @@ describe('TicketList', () => {
 
     it('shows each ticket’s details in its row', async () => {
       mockTickets([TICKETS[1]])
-      renderList()
+      await renderList()
 
       const row = (await screen.findByRole('link', { name: 'VPN keeps disconnecting' })).closest('tr')
       expect(within(row).getByText('In Progress')).toBeInTheDocument()
@@ -90,7 +90,7 @@ describe('TicketList', () => {
 
     it('shows an empty state with a link to report a problem', async () => {
       mockTickets([])
-      renderList()
+      await renderList()
 
       expect(await screen.findByRole('heading', { name: 'No tickets found.' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Report a problem' })).toHaveAttribute('href', '/tickets/new')
@@ -98,7 +98,7 @@ describe('TicketList', () => {
 
     it('shows the error when the tickets cannot be loaded', async () => {
       server.use(http.get(`${API}/tickets`, () => HttpResponse.json({ message: 'Something went wrong on the server' }, { status: 500 })))
-      renderList()
+      await renderList()
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong on the server')
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
@@ -107,7 +107,7 @@ describe('TicketList', () => {
     it('shows the error when the filter options cannot be loaded', async () => {
       mockTickets()
       server.use(http.get(`${API}/meta`, () => HttpResponse.json({ message: 'Meta unavailable' }, { status: 500 })))
-      renderList()
+      await renderList()
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Meta unavailable')
     })
@@ -116,7 +116,7 @@ describe('TicketList', () => {
   describe('filters', () => {
     it('filters by status', async () => {
       const queries = mockTickets()
-      const { user, router } = renderList()
+      const { user, router } = await renderList()
       await expectTitles(ALL_TITLES)
 
       await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Open')
@@ -128,7 +128,7 @@ describe('TicketList', () => {
 
     it('filters by priority', async () => {
       mockTickets()
-      const { user, router } = renderList()
+      const { user, router } = await renderList()
       await waitForMeta()
 
       await user.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'Medium')
@@ -139,7 +139,7 @@ describe('TicketList', () => {
 
     it('filters by category', async () => {
       mockTickets()
-      const { user, router } = renderList()
+      const { user, router } = await renderList()
       await waitForMeta()
 
       await user.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Network')
@@ -150,7 +150,7 @@ describe('TicketList', () => {
 
     it('filters by assignee', async () => {
       mockTickets()
-      const { user, router } = renderList()
+      const { user, router } = await renderList()
       await expectTitles(ALL_TITLES)
       const assigned = screen.getByRole('group', { name: 'Assigned to' })
 
@@ -169,7 +169,7 @@ describe('TicketList', () => {
 
     it('shows only overdue tickets when the switch is on', async () => {
       mockTickets()
-      const { user, router } = renderList()
+      const { user, router } = await renderList()
       await expectTitles(ALL_TITLES)
 
       await user.click(screen.getByRole('checkbox', { name: 'Overdue only' }))
@@ -181,7 +181,7 @@ describe('TicketList', () => {
     it('searches title and description after the user stops typing', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
       const queries = mockTickets()
-      const { user, router } = renderList({ userEventOptions: { advanceTimers: vi.advanceTimersByTime } })
+      const { user, router } = await renderList({ userEventOptions: { advanceTimers: vi.advanceTimersByTime } })
       await expectTitles(ALL_TITLES)
 
       await user.type(screen.getByRole('searchbox', { name: 'Search tickets' }), 'printer')
@@ -200,7 +200,7 @@ describe('TicketList', () => {
 
     it('matches the search against the description too', async () => {
       mockTickets()
-      const { user } = renderList()
+      const { user } = await renderList()
       await expectTitles(ALL_TITLES)
 
       await user.type(screen.getByRole('searchbox', { name: 'Search tickets' }), 'canon')
@@ -210,7 +210,7 @@ describe('TicketList', () => {
 
     it('clears the search with the × button', async () => {
       mockTickets()
-      const { user, router } = renderList({ route: '/tickets?q=vpn' })
+      const { user, router } = await renderList({ route: '/tickets?q=vpn' })
       await expectTitles(['VPN keeps disconnecting'])
 
       await user.click(screen.getByRole('button', { name: 'Clear search' }))
@@ -222,7 +222,7 @@ describe('TicketList', () => {
 
     it('combines filters', async () => {
       mockTickets()
-      const { user, router } = renderList()
+      const { user, router } = await renderList()
       await waitForMeta()
 
       await user.type(screen.getByRole('searchbox', { name: 'Search tickets' }), 'printer')
@@ -235,7 +235,7 @@ describe('TicketList', () => {
 
     it('shows the full list again after "Clear filters"', async () => {
       mockTickets()
-      const { user, router } = renderList()
+      const { user, router } = await renderList()
       await expectTitles(ALL_TITLES)
       expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
 
@@ -254,7 +254,7 @@ describe('TicketList', () => {
 
     it('offers to clear the filters when nothing matches', async () => {
       mockTickets()
-      const { user } = renderList({ route: '/tickets?status=closed' })
+      const { user } = await renderList({ route: '/tickets?status=closed' })
 
       expect(await screen.findByRole('heading', { name: 'No tickets found.' })).toBeInTheDocument()
       expect(screen.getByText('Try a different search or remove some filters.')).toBeInTheDocument()
@@ -267,7 +267,7 @@ describe('TicketList', () => {
 
     it('applies the filters from the URL on load', async () => {
       const queries = mockTickets()
-      renderList({ route: '/tickets?status=open&priority=3&q=printer' })
+      await renderList({ route: '/tickets?status=open&priority=3&q=printer' })
 
       await expectTitles(['Printer jammed on 3rd floor'])
       expect(queries).toEqual(['q=printer&status=open&priority=3'])
@@ -281,7 +281,7 @@ describe('TicketList', () => {
   describe('as an employee', () => {
     it('shows "My tickets" without the staff-only filters', async () => {
       mockTickets([TICKETS[0]], { currentUser: employee })
-      renderList({ user: employee })
+      await renderList({ user: employee })
 
       expect(screen.getByRole('heading', { name: 'My tickets' })).toBeInTheDocument()
       await expectTitles(['Printer jammed on 3rd floor'])
@@ -292,7 +292,7 @@ describe('TicketList', () => {
     // HR is not staff: for tickets HR is an employee and only sees their own
     it('HR also gets "My tickets" without the staff-only filters', async () => {
       mockTickets([TICKETS[0]], { currentUser: hr })
-      renderList({ user: hr })
+      await renderList({ user: hr })
 
       expect(screen.getByRole('heading', { name: 'My tickets' })).toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: 'All tickets' })).not.toBeInTheDocument()
@@ -303,7 +303,7 @@ describe('TicketList', () => {
 
     it('ignores staff-only filters in the URL', async () => {
       const queries = mockTickets(TICKETS, { currentUser: employee })
-      renderList({ user: employee, route: '/tickets?assigned=me&overdue=1&status=open' })
+      await renderList({ user: employee, route: '/tickets?assigned=me&overdue=1&status=open' })
 
       await expectTitles(['Printer jammed on 3rd floor', 'Outlook crashes on start'])
       expect(queries).toEqual(['status=open'])

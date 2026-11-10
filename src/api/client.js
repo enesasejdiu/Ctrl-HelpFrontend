@@ -1,12 +1,15 @@
 // client.js – the single axios instance every API call goes through.
-// It adds the login token to each request and turns an expired/invalid session (401) into a logout.
+// The session lives in cookies the backend sets at login: tf_session (httpOnly, so this code can't read it; the
+// browser sends it by itself) and tf_csrf (readable). Every request sends the cookies (withCredentials), and every
+// change (POST/PATCH/PUT/DELETE) copies tf_csrf into the X-CSRF-Token header, which the backend requires. No token is
+// ever read or stored here. An expired/invalid session (401, or a refused CSRF token) turns into a logout.
 import axios from 'axios'
 
-// localStorage keys for the session; AuthContext reads and writes the same keys
-export const TOKEN_KEY = 'ticketflow.token'
-export const USER_KEY = 'ticketflow.user'
+// Keys an older version of the app kept in localStorage. AuthProvider deletes them on startup; nothing reads them.
+export const LEGACY_STORAGE_KEYS = ['ticketflow.token', 'ticketflow.user']
 
-// Fired on window when the backend rejects our token; AuthContext listens and logs the user out
+// Fired on window when the backend says the session is over; AuthContext listens and drops the user.
+// event.detail.message is set when the user should be told why (shown on the login page).
 // An event, because this file is plain JavaScript outside React and can't change React state itself
 export const SESSION_EXPIRED_EVENT = 'ticketflow:session-expired'
 
@@ -14,16 +17,32 @@ export const SESSION_EXPIRED_EVENT = 'ticketflow:session-expired'
 // an admin reset it mid-session); AuthContext marks the user, and ProtectedRoute sends them to /set-password
 export const PASSWORD_CHANGE_REQUIRED_EVENT = 'ticketflow:password-change-required'
 
-// VITE_API_URL comes from the .env file; Vite puts it into the code at build time
+export const CSRF_COOKIE = 'tf_csrf'
+export const CSRF_HEADER = 'X-CSRF-Token'
+export const SESSION_EXPIRED_MESSAGE = 'Your session expired, please sign in again'
+const CSRF_METHODS = ['post', 'patch', 'put', 'delete']
+
+// The value of a cookie this page can read (tf_csrf), or null
+export function readCookie(name) {
+  for (const part of document.cookie.split(';')) {
+    const [key, ...value] = part.trim().split('=')
+    if (key === name) return decodeURIComponent(value.join('='))
+  }
+  return null
+}
+
+// VITE_API_URL comes from the .env file; Vite puts it into the code at build time.
+// withCredentials: send (and accept) the session cookies on requests to the API.
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
+  withCredentials: true,
 })
 
-// Attach "Authorization: Bearer <token>" when we have a token
+// Changes carry the CSRF token: another site can make the browser send our cookies, but it can't read tf_csrf
 client.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  if (CSRF_METHODS.includes((config.method || 'get').toLowerCase())) {
+    const csrf = readCookie(CSRF_COOKIE)
+    if (csrf) config.headers[CSRF_HEADER] = csrf
   }
   return config
 })
@@ -36,12 +55,15 @@ client.interceptors.response.use(
   (error) => {
     const url = error.config?.url || ''
     const isPasswordCheck = PASSWORD_CHECKS.some((path) => url.startsWith(path))
-    if (error.response?.status === 401 && !isPasswordCheck) {
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(USER_KEY)
-      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+    const { status, data } = error.response || {}
+    if (status === 401 && !isPasswordCheck) {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: {} }))
     }
-    if (error.response?.status === 403 && error.response.data?.code === 'PASSWORD_CHANGE_REQUIRED') {
+    // The CSRF cookie is missing or doesn't match (e.g. cookies were cleared or replaced): sign in again
+    if (status === 403 && data?.code === 'CSRF_INVALID') {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message: SESSION_EXPIRED_MESSAGE } }))
+    }
+    if (status === 403 && data?.code === 'PASSWORD_CHANGE_REQUIRED') {
       window.dispatchEvent(new Event(PASSWORD_CHANGE_REQUIRED_EVENT))
     }
     return Promise.reject(error)

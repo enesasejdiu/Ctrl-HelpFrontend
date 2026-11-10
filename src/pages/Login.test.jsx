@@ -1,9 +1,8 @@
 // Login.test.jsx – signing in: fields, success redirect, error messages and the pending state.
 import { act, screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { TOKEN_KEY, USER_KEY } from '../api/client'
 import { buildUser } from '../test/factories'
-import { renderWithProviders } from '../test/render'
+import { renderReady } from '../test/render'
 import { API, deferred, server } from '../test/server'
 import Login from './Login'
 
@@ -20,8 +19,8 @@ function mockLogin(respond) {
   return requests
 }
 
-function renderLogin(options) {
-  return renderWithProviders(<Login />, { route: '/login', ...options })
+async function renderLogin(options) {
+  return renderReady(<Login />, { route: '/login', ...options })
 }
 
 async function fillAndSubmit(user, email, password) {
@@ -31,43 +30,43 @@ async function fillAndSubmit(user, email, password) {
 }
 
 describe('Login', () => {
-  it('renders the email and password fields and a submit button', () => {
-    renderLogin()
+  it('renders the email and password fields and a submit button', async () => {
+    await renderLogin()
 
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
     expect(screen.getByLabelText('Work email')).toHaveAttribute('type', 'email')
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
   })
 
-  it('offers no sign-up: accounts are created by an admin or HR', () => {
-    renderLogin()
+  it('offers no sign-up: accounts are created by an admin or HR', async () => {
+    await renderLogin()
 
     expect(screen.queryByRole('link', { name: /create an account|sign up|register/i })).not.toBeInTheDocument()
     expect(screen.getByText('No account yet? Ask your IT admin or HR to create one.')).toBeInTheDocument()
   })
 
-  it('hides the password as it is typed', () => {
-    renderLogin()
+  it('hides the password as it is typed', async () => {
+    await renderLogin()
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
   })
 
-  it('logs in with the entered credentials, saves the session and goes to the ticket list', async () => {
+  it('logs in with the entered credentials and goes to the ticket list, storing nothing in localStorage', async () => {
     const account = buildUser({ email: 'agent1@ticketflow.local', role: 'agent' })
     const requests = mockLogin(() => HttpResponse.json({ token: 'jwt-123', user: account }))
-    const { user, router } = renderLogin()
+    const { user, router } = await renderLogin()
 
     await fillAndSubmit(user, 'agent1@ticketflow.local', 'password123')
 
     expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets')
     expect(requests).toEqual([{ email: 'agent1@ticketflow.local', password: 'password123' }])
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('jwt-123')
-    expect(JSON.parse(localStorage.getItem(USER_KEY))).toEqual(account)
+    // The session is the backend's httpOnly cookie: the token in the response is ignored, and nothing is saved
+    expect(localStorage.length).toBe(0)
   })
 
   it('goes back to the page the user came from after logging in', async () => {
     mockLogin(() => HttpResponse.json({ token: 'jwt-123', user: buildUser() }))
-    const { user, router } = renderLogin({
+    const { user, router } = await renderLogin({
       route: { pathname: '/login', state: { from: { pathname: '/tickets/7' } } },
     })
 
@@ -79,7 +78,7 @@ describe('Login', () => {
 
   it('keeps the filters of the page the user came from', async () => {
     mockLogin(() => HttpResponse.json({ token: 'jwt-123', user: buildUser() }))
-    const { user, router } = renderLogin({
+    const { user, router } = await renderLogin({
       route: { pathname: '/login', state: { from: { pathname: '/tickets', search: '?status=open' } } },
     })
 
@@ -91,7 +90,7 @@ describe('Login', () => {
 
   it('shows the error and stays on the page when the credentials are wrong', async () => {
     mockLogin(() => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }))
-    const { user, router } = renderLogin()
+    const { user, router } = await renderLogin()
 
     await fillAndSubmit(user, 'employee1@ticketflow.local', 'not-my-password')
 
@@ -99,12 +98,12 @@ describe('Login', () => {
     expect(router.state.location.pathname).toBe('/login')
     expect(screen.getByLabelText('Work email')).toHaveValue('employee1@ticketflow.local')
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+    expect(localStorage.length).toBe(0)
   })
 
   it('tells the user when the server cannot be reached', async () => {
     server.use(http.post(`${API}/auth/login`, () => HttpResponse.error()))
-    const { user } = renderLogin()
+    const { user } = await renderLogin()
 
     await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
@@ -118,7 +117,7 @@ describe('Login', () => {
       ['a missing password', 'employee1@ticketflow.local', '', 'Password is required', 'Password'],
     ])('rejects %s', async (_case, email, password, message, invalidLabel) => {
       const requests = mockLogin(() => HttpResponse.json({ token: 'jwt-123', user: buildUser() }))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, email, password)
 
@@ -130,7 +129,7 @@ describe('Login', () => {
 
     it('clears the error once the form is valid and sends a trimmed email', async () => {
       const requests = mockLogin(() => HttpResponse.json({ token: 'jwt-123', user: buildUser() }))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'oops', 'password123')
       expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid email')
@@ -144,7 +143,7 @@ describe('Login', () => {
 
     it('still shows the API’s message when the server rejects the input', async () => {
       mockLogin(() => HttpResponse.json({ message: 'Email must be at most 150 characters' }, { status: 400 }))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
@@ -158,7 +157,7 @@ describe('Login', () => {
       await gate.promise
       return HttpResponse.json({ token: 'jwt-123', user: buildUser() })
     })
-    const { user } = renderLogin()
+    const { user } = await renderLogin()
 
     await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
@@ -169,12 +168,12 @@ describe('Login', () => {
   })
 
   it('sends an already logged-in user to the ticket list', async () => {
-    renderLogin({ user: buildUser() })
+    await renderLogin({ user: buildUser() })
     expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
   })
 
   it('fills in a demo account with one click', async () => {
-    const { user } = renderLogin()
+    const { user } = await renderLogin()
 
     await user.click(screen.getByRole('button', { name: 'Admin' }))
 
@@ -196,7 +195,7 @@ describe('Login', () => {
 
     it('423: says the account is locked for N minutes, and disables the button with a countdown', async () => {
       const requests = mockLogin(() => locked(15))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
@@ -212,7 +211,7 @@ describe('Login', () => {
 
     it('423 with 1 minute left says "1 minute"', async () => {
       mockLogin(() => locked(1))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
@@ -224,7 +223,7 @@ describe('Login', () => {
     it('counts down, and gives the button back when the lock runs out', async () => {
       vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
       mockLogin(() => locked(1))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
       expect(await screen.findByRole('button', { name: 'Try again in 1:00' })).toBeDisabled()
@@ -239,7 +238,7 @@ describe('Login', () => {
 
     it('the lock belongs to that account: another email can still sign in', async () => {
       mockLogin(() => locked(15))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
       await screen.findByRole('button', { name: /Try again in/ })
@@ -261,7 +260,7 @@ describe('Login', () => {
           { status: 429 },
         ),
       )
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
@@ -273,7 +272,7 @@ describe('Login', () => {
 
     it('401 still says "Wrong email or password"', async () => {
       mockLogin(() => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }))
-      const { user } = renderLogin()
+      const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'wrong-password1')
 

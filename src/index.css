@@ -1248,6 +1248,13 @@ fieldset.field {
   margin-top: 12px;
 }
 
+/* Full-page wait while the app asks the backend who is logged in (AuthProvider) */
+.session-check {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
 .spinner {
   display: flex;
   align-items: center;

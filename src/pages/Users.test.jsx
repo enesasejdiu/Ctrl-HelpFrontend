@@ -3,8 +3,8 @@
 // backend (POST /users, PATCH /users/:id, POST /users/:id/reset-password).
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { USER_KEY } from '../api/client'
 import App from '../App'
+import { useAuth } from '../context/auth'
 import { DEPARTMENTS, buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
 import { API, deferred, server } from '../test/server'
@@ -49,6 +49,12 @@ function mockApi({ users = USERS, create } = {}) {
     }),
   )
   return posted
+}
+
+// Shows who the app thinks is logged in (useAuth().user), next to the page
+function LoggedInAs() {
+  const { user } = useAuth()
+  return <output aria-label="Logged in as">{user?.name}</output>
 }
 
 function renderUsers(me = admin, options = {}) {
@@ -513,10 +519,16 @@ describe('Edit user form', () => {
     expect(await screen.findByRole('cell', { name: /Liridon G\./ })).toBeInTheDocument()
   })
 
-  it('admin editing their own row: no role dropdown, and the saved session gets the new name', async () => {
+  it('admin editing their own row: no role dropdown, and the logged-in user gets the new name', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const page = (
+      <>
+        <Users />
+        <LoggedInAs />
+      </>
+    )
+    const { user } = renderWithProviders(null, { route: '/admin/users', routes: [{ path: '/admin/users', element: page }], user: admin })
     const dialog = await openEdit(user, admin.name)
 
     expect(within(dialog).queryByRole('combobox', { name: 'Role' })).not.toBeInTheDocument()
@@ -526,7 +538,7 @@ describe('Edit user form', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => expect(calls.patches).toEqual([{ id: admin.id, body: { name: 'Head Admin' } }]))
-    await waitFor(() => expect(JSON.parse(localStorage.getItem(USER_KEY)).name).toBe('Head Admin'))
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Logged in as' })).toHaveTextContent('Head Admin'))
   })
 
   it("shows the backend's 400 field errors under the fields and a 409 under Email", async () => {

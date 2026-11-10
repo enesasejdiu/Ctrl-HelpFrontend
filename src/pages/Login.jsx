@@ -34,7 +34,7 @@ const DEMO_ACCOUNTS = [
 ]
 
 export default function Login() {
-  const { user, login } = useAuth()
+  const { user, login, notice } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -130,7 +130,7 @@ export default function Login() {
       footer="No account yet? Ask your IT admin or HR to create one."
     >
       <form className="form" onSubmit={handleSubmit} noValidate>
-        {error && <Alert>{error}</Alert>}
+        {error ? <Alert>{error}</Alert> : notice && <Alert>{notice}</Alert>}
 
         <div className="field">
           <label htmlFor="email">Work email</label>

@@ -1,96 +1,102 @@
 // AuthContext.jsx – holds the logged-in user for the whole app.
-// The token and user are saved in localStorage so a page reload keeps you logged in.
+// The session is the backend's httpOnly cookie, which this code can't see. So on startup the app asks the backend who
+// is logged in (GET /auth/me) and shows a short "checking" screen until it answers; it never trusts anything saved in
+// the browser. Nothing about the session is kept in localStorage.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import client, { PASSWORD_CHANGE_REQUIRED_EVENT, SESSION_EXPIRED_EVENT, TOKEN_KEY, USER_KEY } from '../api/client'
+import client, { LEGACY_STORAGE_KEYS, PASSWORD_CHANGE_REQUIRED_EVENT, SESSION_EXPIRED_EVENT } from '../api/client'
+import { Spinner } from '../components/Ui'
 import { AuthContext } from './auth'
 
-// Reads the saved user; a corrupted value counts as logged out
-function loadUser() {
+// Older versions kept the token (and the user) in localStorage: remove them, they are never used again
+function removeLegacyStorage() {
   try {
-    const saved = localStorage.getItem(USER_KEY)
-    return saved && localStorage.getItem(TOKEN_KEY) ? JSON.parse(saved) : null
+    for (const key of LEGACY_STORAGE_KEYS) localStorage.removeItem(key)
   } catch {
-    return null
+    // storage blocked (e.g. private mode): nothing to remove
   }
 }
 
 export function AuthProvider({ children }) {
-  // Passing the function means localStorage is only read once, on the first render
-  const [user, setUser] = useState(loadUser)
+  const [user, setUser] = useState(null)
+  // True until GET /auth/me has answered, so a logged-in user doesn't see the login page flash by
+  const [checking, setChecking] = useState(true)
+  // Why the user was signed out, shown on the login page (e.g. a refused CSRF token); cleared by the next login
+  const [notice, setNotice] = useState('')
 
-  const saveSession = useCallback(({ token, user: nextUser }) => {
-    localStorage.setItem(TOKEN_KEY, token)
-    localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
-    setUser(nextUser)
+  // Startup: who does the session cookie belong to? 401 (or no answer) means nobody is logged in.
+  useEffect(() => {
+    removeLegacyStorage()
+    let active = true
+    client
+      .get('/auth/me')
+      .then(({ data }) => active && setUser(data))
+      .catch(() => active && setUser(null))
+      .finally(() => active && setChecking(false))
+    return () => {
+      active = false
+    }
   }, [])
 
-  // Logging out only forgets the token in this browser; the token itself expires on the backend
-  // Replaces the saved user's details (e.g. after an admin edits their own name), keeping the same token
-  const updateUser = useCallback((nextUser) => {
-    localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
-    setUser(nextUser)
+  // Replaces the user's details (e.g. after an admin edits their own name); the session itself is unchanged
+  const updateUser = useCallback((nextUser) => setUser(nextUser), [])
+
+  // The backend sets the session cookies; the response only tells us who logged in
+  const login = useCallback(async (email, password) => {
+    const { data } = await client.post('/auth/login', { email, password })
+    setNotice('')
+    setUser(data.user)
+    return data.user
   }, [])
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+  // Also the way out of a temporary password: the backend clears must_change_password and returns the user.
+  // Changing the password ends every session of this user; the backend gives this browser fresh session cookies in the
+  // same response, so the user stays logged in without the app keeping anything.
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    const { data } = await client.post('/auth/change-password', { currentPassword, newPassword })
+    setUser(data.user)
+    return data.user
+  }, [])
+
+  // Asks the backend to clear the session cookies, then forgets the user (also if the request fails: the user wanted
+  // out, and a session the backend still has will be refused once its cookie is gone or expires)
+  const logout = useCallback(async () => {
+    try {
+      await client.post('/auth/logout')
+    } catch {
+      // offline or already logged out: still log out here
+    }
     setUser(null)
   }, [])
 
-  const login = useCallback(
-    async (email, password) => {
-      const { data } = await client.post('/auth/login', { email, password })
-      saveSession(data)
-      return data.user
-    },
-    [saveSession],
-  )
-
-  // Also the way out of a temporary password: the backend clears must_change_password and returns the user.
-  // Changing the password ends every session of this user, including the token we just sent, so the backend returns a
-  // fresh token for this browser: keep it, or the next request would be refused and log the user out.
-  const changePassword = useCallback(
-    async (currentPassword, newPassword) => {
-      const { data } = await client.post('/auth/change-password', { currentPassword, newPassword })
-      if (data.token) localStorage.setItem(TOKEN_KEY, data.token)
-      updateUser(data.user)
-      return data.user
-    },
-    [updateUser],
-  )
-
-  // The API client fires this event on a 401; dropping the user makes ProtectedRoute redirect to /login
+  // The API client fires this event when the backend ends the session (401, or a refused CSRF token). The backend no
+  // longer accepts the session, so just drop the user (ProtectedRoute then sends them to /login), and clear the
+  // cookies so a stale one isn't sent again.
   useEffect(() => {
-    window.addEventListener(SESSION_EXPIRED_EVENT, logout)
-    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, logout)
-  }, [logout])
+    function sessionExpired(event) {
+      setNotice(event.detail?.message || '')
+      setUser(null)
+      client.post('/auth/logout').catch(() => {})
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, sessionExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, sessionExpired)
+  }, [])
 
   // The password was reset while this user was logged in: flag them so ProtectedRoute sends them to /set-password
   useEffect(() => {
     function requirePasswordChange() {
-      const current = loadUser()
-      if (current && !current.must_change_password) updateUser({ ...current, must_change_password: true })
+      setUser((current) =>
+        current && !current.must_change_password ? { ...current, must_change_password: true } : current,
+      )
     }
     window.addEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, requirePasswordChange)
     return () => window.removeEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, requirePasswordChange)
-  }, [updateUser])
-
-  // Refresh the saved profile once on load, so a role changed by an admin shows up without logging in again
-  useEffect(() => {
-    if (!localStorage.getItem(TOKEN_KEY)) return
-    client
-      .get('/auth/me')
-      .then(({ data }) => {
-        localStorage.setItem(USER_KEY, JSON.stringify(data))
-        setUser(data)
-      })
-      .catch(() => {}) // a 401 is already handled by the client; network errors keep the saved user
   }, [])
 
   // useMemo keeps the same object between renders, so components using useAuth() only re-render when it changes
   const value = useMemo(
     () => ({
       user,
+      notice,
       // Staff = agents and admins: they see and work on all tickets
       isStaff: user?.role === 'agent' || user?.role === 'admin',
       isAdmin: user?.role === 'admin',
@@ -101,8 +107,18 @@ export function AuthProvider({ children }) {
       logout,
       updateUser,
     }),
-    [user, login, changePassword, logout, updateUser],
+    [user, notice, login, changePassword, logout, updateUser],
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {checking ? (
+        <div className="session-check">
+          <Spinner label="Checking your session…" />
+        </div>
+      ) : (
+        children
+      )}
+    </AuthContext.Provider>
+  )
 }
