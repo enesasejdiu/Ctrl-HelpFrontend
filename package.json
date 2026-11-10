@@ -10,6 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -43,6 +45,7 @@
     "jsdom": "^31.0.0",
     "msw": "^3.0.4",
     "oxlint": "^1.92.0",
+    "prettier": "^3.6.2",
     "vite": "^8.3.6",
     "vitest": "^5.1.0"
   }
