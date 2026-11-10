@@ -6,7 +6,7 @@
 import { Check, Circle, LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import client, { errorMessage } from '../api/client'
+import { errorMessage } from '../api/client'
 import PasswordInput from '../components/PasswordInput'
 import { Alert, PageHeader } from '../components/Ui'
 import { useAuth } from '../context/auth'
@@ -22,7 +22,7 @@ function checklist(newPassword, confirm) {
 }
 
 export default function SetPassword() {
-  const { user, updateUser } = useAuth()
+  const { user, changePassword } = useAuth()
   const navigate = useNavigate()
   // Read once: after the change the flag is cleared, and this page must then finish by itself (with the message)
   const [forced] = useState(Boolean(user?.must_change_password))
@@ -46,8 +46,8 @@ export default function SetPassword() {
     setError('')
     setFieldErrors({})
     try {
-      const { data } = await client.post('/auth/change-password', { currentPassword: temporary, newPassword })
-      updateUser(data.user)
+      // Through the shared changePassword, which also keeps the fresh token the backend returns (the old one has ended)
+      await changePassword(temporary, newPassword)
       navigate('/tickets', { replace: true, state: { flash: 'Password changed' } })
     } catch (err) {
       const { status, data } = err.response || {}

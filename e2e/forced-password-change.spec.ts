@@ -92,7 +92,11 @@ test('a new account must choose its own password at first sign-in', async ({ pag
   await context.close()
 })
 
-test('a password reset during a session sends the user to choose a new one', async ({ page, browser, uniq }) => {
+test('a password reset during a session ends it; the user signs in with the new temporary password', async ({
+  page,
+  browser,
+  uniq,
+}) => {
   const email = `${uniq}@test.local`
   const name = `Reset Me ${uniq}`
   const first = await addUser(page, name, email)
@@ -107,9 +111,11 @@ test('a password reset during a session sends the user to choose a new one', asy
   await page.getByRole('alertdialog', { name: 'Reset password' }).getByRole('button', { name: 'Reset password' }).click()
   const second = await takeTemporaryPassword(page)
 
-  // The user's next page load is refused by the backend, so the app sends them to change it
+  // The reset ended the user's session: their next page load is refused, so the app sends them to sign in again,
+  // and the temporary password then takes them to choose their own
   await user.reload()
-  await expect(user).toHaveURL('/set-password')
+  await expect(user).toHaveURL(/\/login/)
+  await signIn(user, email, second)
   await setPassword(user, second, 'SecondChoice123')
   await expect(user).toHaveURL('/tickets')
   await context.close()
