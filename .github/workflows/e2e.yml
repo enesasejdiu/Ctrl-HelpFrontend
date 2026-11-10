@@ -50,7 +50,7 @@ jobs:
           # Needed only if the backend repo is private: a token with read access, saved as a repo secret
           token: ${{ secrets.BACKEND_REPO_TOKEN || github.token }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
