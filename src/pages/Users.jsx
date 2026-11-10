@@ -2,9 +2,11 @@
 // Lists every account (GET /users). Admins can add, edit and reset anyone, change roles and activate/deactivate
 // accounts. HR sees everyone but can only do this for employees, and never changes roles (the backend enforces both).
 // On your own row you can edit your details, but not your role, active status or password (use Change password).
-// "Add user" (POST /users) emails the new user a set-password link; nobody sees a password. Until they have set one,
-// their row has "Resend invite" (POST /users/:id/resend-invite: a new link, the old one stops working).
-// "Reset password" (POST /users/:id/reset-password) still shows a temporary password once.
+// "Add user" (POST /users) and "Reset password" (POST /users/:id/reset-password) deliver the password the way the
+// backend says in password_delivery: 'email' → a one-time link was emailed (the page says so; no password is shown),
+// 'temporary_password' → the temporary password is shown once. Which one is the server's choice (is email set up?).
+// With email, rows that still wait for their password get "Resend link" (POST /users/:id/resend-link: a new link, the
+// old one stops working). GET /meta says whether email is set up, so the button only shows when it can work.
 import { KeyRound, Mail, Pencil, UserPlus, Users as UsersIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import client, { errorMessage } from '../api/client'
@@ -27,8 +29,10 @@ export default function Users() {
   const [dialog, setDialog] = useState(null)
   // { title?, name, email, password } after a reset. Only kept while its dialog is open, then cleared.
   const [shownPassword, setShownPassword] = useState(null)
-  // "Invitation sent to …" after Add user or Resend invite
+  // "A link … was emailed" after Add user, Reset password or Resend link (email delivery)
   const [notice, setNotice] = useState('')
+  // 'email' or 'temporary_password', from GET /meta; null until known (then no "Resend link")
+  const [delivery, setDelivery] = useState(null)
   const isHr = me?.role === 'hr'
   // The button that opened the current dialog. Every dialog sends focus back to it when it closes, even when one
   // dialog replaces another (form → password dialog), where "what had focus when I opened" is already gone.
@@ -45,7 +49,15 @@ export default function Users() {
       .get('/users')
       .then(({ data }) => setUsers(data))
       .catch((err) => setLoadError(errorMessage(err)))
+    // Only decides whether "Resend link" is offered; if it fails, the button simply stays hidden
+    client
+      .get('/meta')
+      .then(({ data }) => setDelivery(data.password_delivery ?? null))
+      .catch(() => {})
   }, [])
+
+  // What the page says when a password went out by email
+  const emailedNotice = (email) => `A link to set the password was emailed to ${email}. It expires in 48 hours.`
 
   // Sends the change and swaps the returned user into the list.
   // If it fails the list stays as it was, so the role dropdown jumps back to the saved value.
@@ -73,11 +85,12 @@ export default function Users() {
 
   // Add: the new account goes to the top of the list (newest first, like GET /users), and the page says where the
   // set-password link went. Edit: the row is updated in place; if you edited yourself, the top bar shows the new name.
-  function handleSaved({ user }) {
+  function handleSaved({ user, temporaryPassword, password_delivery: passwordDelivery }) {
     setActionError('')
     if (dialog.type === 'add') {
       setUsers((current) => [user, ...(current || [])])
-      setNotice(`${user.name}'s account is ready. We emailed ${user.email} a link to set a password (valid for 72 hours).`)
+      if (passwordDelivery === 'email') setNotice(emailedNotice(user.email))
+      else setShownPassword({ name: user.name, email: user.email, password: temporaryPassword })
     } else {
       replaceUser(user)
       if (user.id === me.id) updateSession({
@@ -92,14 +105,14 @@ export default function Users() {
     setDialog(null)
   }
 
-  async function resendInvite(u) {
+  async function resendLink(u) {
     setSavingId(u.id)
     setActionError('')
     setNotice('')
     try {
-      const { data } = await client.post(`/users/${u.id}/resend-invite`)
+      const { data } = await client.post(`/users/${u.id}/resend-link`)
       replaceUser(data.user)
-      setNotice(`We emailed ${u.email} a new link to set a password. The previous link no longer works.`)
+      setNotice(`${emailedNotice(u.email)} The previous link no longer works.`)
     } catch (err) {
       setActionError(errorMessage(err))
     } finally {
@@ -107,9 +120,13 @@ export default function Users() {
     }
   }
 
-  function handleReset({ user, temporaryPassword }) {
+  function handleReset({ user, temporaryPassword, password_delivery: passwordDelivery }) {
     replaceUser(user)
     setDialog(null)
+    if (passwordDelivery === 'email') {
+      setNotice(emailedNotice(user.email))
+      return
+    }
     setShownPassword({ title: `New password for ${user.name}`, name: user.name, email: user.email, password: temporaryPassword })
   }
 
@@ -204,8 +221,8 @@ export default function Users() {
                     const canReset = canManage && !isMe
                     const canToggle = canManage && !isMe
                     const canChangeRole = !isMe && !isHr
-                    // Not set a password yet (a new account, or a reset one): a fresh link can be sent
-                    const canResendInvite = canManage && !isMe && u.is_active && u.must_change_password
+                    // Still waiting for their password (a new account, or a reset one): with email, a fresh link
+                    const canResendLink = delivery === 'email' && canManage && !isMe && u.is_active && u.must_change_password
                     return (
                       <tr key={u.id} className={u.is_active ? undefined : 'is-inactive'}>
                         <td>
@@ -272,17 +289,17 @@ export default function Users() {
                                 <Pencil size={14} aria-hidden="true" />
                                 <span className="row-actions__text">Edit</span>
                               </button>
-                              {canResendInvite && (
+                              {canResendLink && (
                                 <button
                                   type="button"
                                   className="btn btn--sm btn--secondary btn--icon"
                                   disabled={saving}
-                                  onClick={() => resendInvite(u)}
-                                  aria-label={`Resend invite to ${u.name}`}
-                                  title="Resend invite"
+                                  onClick={() => resendLink(u)}
+                                  aria-label={`Resend link to ${u.name}`}
+                                  title="Resend link"
                                 >
                                   <Mail size={14} aria-hidden="true" />
-                                  <span className="row-actions__text">Resend invite</span>
+                                  <span className="row-actions__text">Resend link</span>
                                 </button>
                               )}
                               {canReset && (

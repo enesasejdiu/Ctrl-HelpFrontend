@@ -1,8 +1,9 @@
-// SetPasswordWithLink.test.jsx – /set-password?token=..., the page a new account's emailed link opens. Public (no
-// login): it checks the link first, shows why a link can't be used, sets the password with the live rule checklist,
-// and ends on the sign-in page with "Password set, please log in." Rendered through the real App routes, so the
-// /set-password split (link page vs. the logged-in temporary-password page) is the one the app uses.
-import { screen, within } from '@testing-library/react'
+// SetPasswordWithLink.test.jsx – /set-password?token=..., the page a one-time link opens (a new account's setup link
+// or an Admin/HR reset link). Public (no login): it takes the token out of the URL, checks the link, says what to do
+// when a link can't be used, sets the password with the live rule checklist, and ends on the sign-in page with
+// "Password set, please log in." Rendered through the real App routes, so the /set-password split (link page vs. the
+// logged-in temporary-password page) is the one the app uses.
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import App from '../App'
 import { buildUser } from '../test/factories'
@@ -11,21 +12,17 @@ import { API, deferred, server } from '../test/server'
 
 const LINK_TOKEN = 'abcDEF123_-xyzLinkTokenFromTheEmail000000000'
 const GOOD = 'my-own-pass42'
+const ASK = 'Ask your administrator or HR for a new link.'
 
 // GET /auth/set-password/validate and POST /auth/set-password, answering like the backend. Returns what they got.
-function mockApi({ validate, set } = {}) {
+function mockApi({ validate, set, purpose = 'setup' } = {}) {
   const calls = { validated: [], posted: [] }
   server.use(
     http.get(`${API}/auth/set-password/validate`, ({ request }) => {
       const token = new URL(request.url).searchParams.get('token')
       calls.validated.push(token)
       if (validate) return validate(token)
-      return HttpResponse.json({
-        status: 'valid',
-        name: 'Nora New',
-        email: 'nora@ticketflow.local',
-        expires_at: '2026-11-13T10:00:00Z',
-      })
+      return HttpResponse.json({ status: 'valid', purpose, email: 'nora@ticketflow.local', expires_at: '2026-11-12T10:00:00Z' })
     }),
     http.post(`${API}/auth/set-password`, async ({ request }) => {
       const body = await request.json()
@@ -48,18 +45,19 @@ async function openLink(options = {}) {
 const field = (label) => screen.getByLabelText(label)
 const submit = () => screen.getByRole('button', { name: 'Set password' })
 const rule = (name) => within(screen.getByRole('list', { name: 'Password rules' })).getByText(name).closest('li')
+const referrerMeta = () => document.head.querySelector('meta[name="referrer"]')
 
 async function typePasswords(user, next, confirm = next) {
   await user.type(field('New password'), next)
   await user.type(field('Confirm new password'), confirm)
 }
 
-describe('Set your password (emailed link)', () => {
-  it('needs no login: checks the link, then greets the person by name and email', async () => {
+describe('Set your password (one-time link)', () => {
+  it('needs no login: checks the link, then shows the form for that email', async () => {
     const calls = mockApi()
     const { router } = await openLink()
 
-    expect(await screen.findByText('Welcome, Nora New. Choose a password for nora@ticketflow.local.')).toBeInTheDocument()
+    expect(await screen.findByText('Choose a password for nora@ticketflow.local.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Set your password' })).toBeInTheDocument()
     expect(calls.validated).toEqual([LINK_TOKEN])
     expect(router.state.location.pathname).toBe('/set-password')
@@ -68,10 +66,39 @@ describe('Set your password (emailed link)', () => {
     expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument()
   })
 
+  it('a reset link says the password was reset', async () => {
+    mockApi({ purpose: 'reset' })
+    await openLink()
+    expect(await screen.findByRole('heading', { name: 'Choose a new password' })).toBeInTheDocument()
+    expect(screen.getByText('Your password was reset. Choose a new one for nora@ticketflow.local.')).toBeInTheDocument()
+  })
+
+  it('takes the token out of the URL (history and Referer) and sets no-referrer while the page is open', async () => {
+    const calls = mockApi()
+    const { router } = await openLink()
+    await screen.findByRole('button', { name: 'Set password' })
+
+    expect(router.state.location.search).toBe('')
+    expect(window.location.href).not.toContain(LINK_TOKEN)
+    expect(JSON.stringify(router.state.location.state ?? null)).not.toContain(LINK_TOKEN)
+    expect(referrerMeta()).toHaveAttribute('content', 'no-referrer')
+    // The token was still used for the check, from memory
+    expect(calls.validated).toEqual([LINK_TOKEN])
+  })
+
+  it('the no-referrer tag goes away with the page', async () => {
+    mockApi()
+    const { router } = await openLink()
+    await screen.findByRole('button', { name: 'Set password' })
+    await act(() => router.navigate('/login'))
+    await screen.findByRole('button', { name: 'Sign in' })
+    expect(referrerMeta()).toBeNull()
+  })
+
   it('shows "Checking your link…" while the check runs', async () => {
     const pending = deferred()
     mockApi({
-      validate: async () => (await pending.promise, HttpResponse.json({ status: 'valid', name: 'N', email: 'n@x.local' })),
+      validate: async () => (await pending.promise, HttpResponse.json({ status: 'valid', purpose: 'setup', email: 'n@x.local' })),
     })
     await openLink()
     expect(await screen.findByText('Checking your link…')).toBeInTheDocument()
@@ -80,15 +107,18 @@ describe('Set your password (emailed link)', () => {
   })
 
   it.each([
-    ['expired', 'This link has expired', 'This link has expired. Ask an admin or HR to send you a new one.'],
-    ['used', 'This link has already been used', 'This link has already been used. Log in with the password you set.'],
-    ['invalid', 'This link is not valid', 'This link is not valid. It may have been replaced by a newer one.'],
-  ])('a link that is %s says so and offers sign-in, without a form', async (status, title, message) => {
-    mockApi({ validate: () => HttpResponse.json({ status, message, code: `TOKEN_${status.toUpperCase()}` }) })
+    ['expired', 'This link has expired'],
+    ['used', 'This link has already been used'],
+    ['invalid', 'This link is not valid'],
+  ])('a link that is %s says so, says to ask for a new one, and shows no form', async (status, title) => {
+    mockApi({
+      validate: () =>
+        HttpResponse.json({ status, purpose: null, message: 'from the server', code: `TOKEN_${status.toUpperCase()}` }),
+    })
     await openLink()
 
     expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByRole('alert')).toHaveTextContent(ASK)
     expect(screen.getByRole('link', { name: 'Go to sign in' })).toHaveAttribute('href', '/login')
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
   })
@@ -132,18 +162,12 @@ describe('Set your password (emailed link)', () => {
     expect(router.state.location.pathname).toBe('/login')
     expect(calls.posted).toEqual([{ token: LINK_TOKEN, new_password: GOOD }])
     expect(screen.getByLabelText('Work email')).toHaveValue('nora@ticketflow.local')
-    // The token is not kept anywhere on the way
-    expect(router.state.location.search).toBe('')
-    expect(JSON.stringify(router.state.location.state)).not.toContain(LINK_TOKEN)
+    expect(JSON.stringify(router.state.location)).not.toContain(LINK_TOKEN)
   })
 
   it('a link that stopped working meanwhile (e.g. used in another tab) switches to its message', async () => {
     mockApi({
-      set: () =>
-        HttpResponse.json(
-          { message: 'This link has already been used. Log in with the password you set.', code: 'TOKEN_USED' },
-          { status: 400 },
-        ),
+      set: () => HttpResponse.json({ message: 'This link has already been used.', code: 'TOKEN_USED' }, { status: 400 }),
     })
     const { user } = await openLink()
     await screen.findByRole('button', { name: 'Set password' })
@@ -151,18 +175,20 @@ describe('Set your password (emailed link)', () => {
     await user.click(submit())
 
     expect(await screen.findByRole('heading', { name: 'This link has already been used' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(ASK)
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
   })
 
-  it("shows the backend's password rule under the field", async () => {
+  it("shows the backend's password rule (422) under the field", async () => {
     mockApi({
       set: () =>
         HttpResponse.json(
           {
             message: 'New password must be 72 characters or less',
+            code: 'WEAK_PASSWORD',
             errors: [{ field: 'new_password', message: 'New password must be 72 characters or less' }],
           },
-          { status: 400 },
+          { status: 422 },
         ),
     })
     const { user } = await openLink()
@@ -185,6 +211,7 @@ describe('Set your password (emailed link)', () => {
     })
     expect(await screen.findByLabelText('Temporary password')).toBeInTheDocument()
     expect(calls.validated).toEqual([])
+    expect(referrerMeta()).toBeNull()
   })
 
   it('/set-password without a token and without a login goes to sign-in', async () => {
@@ -193,6 +220,6 @@ describe('Set your password (emailed link)', () => {
       routes: [{ path: '*', element: <App /> }],
     })
     await screen.findByRole('button', { name: 'Sign in' })
-    expect(router.state.location.pathname).toBe('/login')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
   })
 })

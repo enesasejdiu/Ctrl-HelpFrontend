@@ -16,7 +16,7 @@ test('add a user in a department, then move them to another one and then to none
   await add.getByLabel(/Department/).selectOption({ label: 'Sales' })
   await add.getByRole('button', { name: 'Create user' }).click()
   // No password dialog: the new user gets an emailed set-password link
-  await expect(page.getByRole('status')).toContainText('a link to set a password')
+  await expect(page.getByRole('status')).toContainText('A link to set the password was emailed')
 
   const row = page.getByRole('row').filter({ hasText: name })
   await expect(row.getByRole('cell', { name: 'Sales', exact: true })).toBeVisible()

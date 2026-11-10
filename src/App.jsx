@@ -1,11 +1,10 @@
 // App.jsx – all routes of TicketFlow.
-// Public: /login, and /set-password?token=... (the link emailed to a new account). Everything else needs a login;
-// /change-password has its own full-page frame, the rest renders
-// inside <Layout>. /admin is admin-only; /admin/users and /admin/departments are for admins and HR.
+// Public: /login, and /set-password?token=... (a one-time link emailed for a new account or a reset). Everything else
+// needs a login; /change-password has its own full-page frame, the rest renders inside <Layout>. /admin is admin-only; /admin/users and /admin/departments are for admins and HR.
 // A URL that matches no route shows "Page not found" (NotFoundPage), logged in or not; real routes keep their guards.
 // Development builds also have /__crash pages for trying the error screens (see pages/DevCrash.jsx).
 import { Suspense, lazy } from 'react'
-import { Navigate, Route, Routes, useSearchParams } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { Spinner } from './components/Ui'
@@ -21,6 +20,7 @@ import Profile from './pages/Profile'
 import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 import Users from './pages/Users'
+import { useLinkTokenFromUrl } from './utils/linkToken'
 
 // The dashboard pulls in the chart library, so it's only downloaded when an admin opens it
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
@@ -28,9 +28,9 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 // /set-password is two pages. With ?token= it is the public page for an emailed set-password link; without, the
 // logged-in page for a temporary password (inside the Layout, like the other pages), whose child route is below.
 function SetPasswordRoute() {
-  const [searchParams] = useSearchParams()
-  // The emailed link's one-time token (not a login token: it only lets this person set their first password)
-  const linkToken = searchParams.get('token')
+  // The emailed link's one-time token (not a login token: it only lets this person set a password). It is read once
+  // and taken out of the address bar right away (utils/linkToken.js); the page keeps it in memory only.
+  const linkToken = useLinkTokenFromUrl()
   if (linkToken) return <SetPasswordWithLink linkToken={linkToken} />
   return (
     <ProtectedRoute>

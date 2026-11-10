@@ -12,7 +12,7 @@ test.use({ storageState: authFile('admin') })
 
 // After Add user the page says the set-password link was emailed (no password is shown); returns that link
 async function emailedLink(page: Page, email: string) {
-  await expect(page.getByRole('status')).toContainText(`We emailed ${email} a link to set a password`)
+  await expect(page.getByRole('status')).toContainText(`A link to set the password was emailed to ${email}`)
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
   return setPasswordLink(email)
 }

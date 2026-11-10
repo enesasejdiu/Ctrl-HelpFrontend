@@ -177,7 +177,7 @@ npx playwright test e2e/hr-flow.spec.ts --project=chromium   # one file, one bro
    already running, so a dev server can't be picked up by mistake
 3. drops the database at the end, also when tests fail (`e2e/global-teardown.ts`)
 
-No email ever leaves the machine: the e2e backend runs with `NODE_ENV=test` and saves every email it "sends" as a
+The e2e backend runs with email set up, so new and reset passwords go out as links. No email ever leaves the machine: it runs with `NODE_ENV=test` and saves every email it "sends" as a
 `.json` file in a folder of its own (`MAIL_OUTBOX_DIR`, in the system temp folder, removed with the database).
 Tests read new accounts' set-password links from there (`e2e/support/mail.ts`).
 
@@ -216,13 +216,13 @@ These accounts come from the backend's demo data. They all use the password `pas
 | -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
 | `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
 | `/change-password` | Logged-in users | Change your own password (key button in the top bar) |
-| `/set-password?token=…` | Everyone (the emailed link) | A new account sets its first password with the link from its email; the link is checked first (expired, used or replaced links say so), then sign-in opens with "Password set, please log in." |
+| `/set-password?token=…` | Everyone (the emailed link) | A one-time link (48 hours) for a new account or an Admin/HR reset, when the backend has email set up. The token is taken out of the address bar at once (not kept in history or sent as a Referer; the page also sets `Referrer-Policy: no-referrer`), the link is checked (expired, used or replaced links say to ask an administrator or HR for a new one), then sign-in opens with "Password set, please log in." |
 | `/set-password` | Users with a temporary password | Choose your own password after a reset; every other page redirects here until it's done |
 | `/tickets`     | Logged-in users | Ticket list with search and filters; employees see their own tickets, staff see all of them     |
 | `/tickets/new` | Logged-in users | Report a problem                                                                                |
 | `/tickets/:id` | Logged-in users | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs |
 | `/admin`       | Admins          | Dashboard with statistics, charts and performance tables                                        |
-| `/admin/users` | Admins and HR   | Add users (they get an emailed set-password link; "Resend invite" sends a new one), edit users, reset passwords (a temporary password is shown once), change roles, activate or deactivate accounts; HR: employees only |
+| `/admin/users` | Admins and HR   | Add and edit users, reset passwords, change roles, activate or deactivate accounts; HR: employees only. After Add user or a reset, the backend's `password_delivery` decides what you see: `email` → "A link to set the password was emailed to …" (and "Resend link" on rows still waiting), `temporary_password` → the temporary password, shown once |
 
 Employees can only open their own tickets. `/` opens `/tickets`.
 
@@ -330,13 +330,15 @@ src/
     NewTicket.jsx        New ticket form
     NotFoundPage.jsx     An address that matches no route: "Page not found" in the layout, or a public frame
     SetPassword.jsx      "Set your password" after logging in with a temporary password
-    SetPasswordWithLink.jsx  /set-password?token=…: a new account sets its password with the emailed link
+    SetPasswordWithLink.jsx  /set-password?token=…: set a password with a one-time link (new account or reset)
     TicketDetail.jsx     One ticket: comments, management boxes, info and history
     TicketList.jsx       Ticket list with filters
     Users.jsx            User management at /admin/users
   utils/
     browser.js           Full page loads (reload, go to a URL), replaceable in tests
     format.js            Status and role labels, dates, durations and initials
+    linkToken.js         Reads a set-password link's token once and takes it out of the URL (plus no-referrer)
+    passwordRules.js     The password rule as a live checklist for the password forms
     requestedPath.js     The path shown on "Page not found", and whether "Go back" stays in the app
     returnPath.js        Which page to return to after login (only paths on this site)
     wait.js              Reads Retry-After and formats the time left

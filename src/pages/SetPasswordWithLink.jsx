@@ -1,7 +1,8 @@
-// SetPasswordWithLink.jsx – /set-password?token=..., the link emailed to a new account (and by "Resend invite").
-// Public: the person has no password yet, so there is no login. First the link is checked
+// SetPasswordWithLink.jsx – /set-password?token=..., the one-time link emailed for a new account ('setup') or an
+// Admin/HR reset ('reset'), and again by "Resend link". Public: the person has no usable password, so there is no
+// login. App.jsx has already taken the token out of the address bar (utils/linkToken.js). First the link is checked
 // (GET /auth/set-password/validate); a link that can't be used (expired, already used, replaced by a newer one) says
-// so and points to sign-in. A good link shows the password form with the live rule checklist, and
+// so: ask your administrator or HR for a new link. A good link shows the password form with the live rule checklist, and
 // POST /auth/set-password { token, new_password } sets it. On success the sign-in page opens with
 // "Password set, please log in." and the email filled in.
 import { Check, Circle, LoaderCircle } from 'lucide-react'
@@ -18,13 +19,14 @@ const LINK_PROBLEM_TITLES = {
   used: 'This link has already been used',
   invalid: 'This link is not valid',
 }
+const ASK_FOR_A_NEW_LINK = 'Ask your administrator or HR for a new link.'
 const TOKEN_CODES = { TOKEN_EXPIRED: 'expired', TOKEN_USED: 'used', TOKEN_INVALID: 'invalid' }
 
 // linkToken: the one-time token from the emailed link. It is not a login token and is never stored; it only goes back
 // to the backend, which keeps nothing but its hash.
 export default function SetPasswordWithLink({ linkToken }) {
   const navigate = useNavigate()
-  // { status: 'checking' } | { status: 'valid', name, email } | { status: 'expired' | 'used' | 'invalid', message }
+  // { status: 'checking' } | { status: 'valid', purpose, email } | { status: 'expired' | 'used' | 'invalid' }
   // | { status: 'error', message } (the check itself failed, e.g. the server is down)
   const [link, setLink] = useState({ status: 'checking' })
   const [newPassword, setNewPassword] = useState('')
@@ -60,7 +62,7 @@ export default function SetPasswordWithLink({ linkToken }) {
       const data = err.response?.data
       if (TOKEN_CODES[data?.code]) {
         // The link stopped working in the meantime (e.g. used in another tab, or it just expired)
-        setLink({ status: TOKEN_CODES[data.code], message: data.message })
+        setLink({ status: TOKEN_CODES[data.code] })
       } else if (data?.errors?.some((e) => e.field === 'new_password')) {
         setFieldError(data.errors.find((e) => e.field === 'new_password').message)
       } else {
@@ -84,13 +86,22 @@ export default function SetPasswordWithLink({ linkToken }) {
         title={LINK_PROBLEM_TITLES[link.status] ?? 'Set your password'}
         footer={<Link to="/login">Go to sign in</Link>}
       >
-        <Alert tone={link.status === 'error' ? 'error' : 'warning'}>{link.message}</Alert>
+        <Alert tone={link.status === 'error' ? 'error' : 'warning'}>
+          {link.status === 'error' ? link.message : ASK_FOR_A_NEW_LINK}
+        </Alert>
       </AuthShell>
     )
   }
 
   return (
-    <AuthShell title="Set your password" subtitle={`Welcome, ${link.name}. Choose a password for ${link.email}.`}>
+    <AuthShell
+      title={link.purpose === 'reset' ? 'Choose a new password' : 'Set your password'}
+      subtitle={
+        link.purpose === 'reset'
+          ? `Your password was reset. Choose a new one for ${link.email}.`
+          : `Choose a password for ${link.email}.`
+      }
+    >
       <form className="form" onSubmit={handleSubmit} noValidate>
         {error && <Alert>{error}</Alert>}
 
