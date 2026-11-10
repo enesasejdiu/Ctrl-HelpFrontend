@@ -62,6 +62,27 @@ describe('ChangePassword', () => {
     expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(false)
   })
 
+  it('keeps the fresh token the backend returns, so the user stays logged in (the old token has ended)', async () => {
+    mockChangePassword(() => {
+      const saved = JSON.parse(localStorage.getItem(USER_KEY))
+      return HttpResponse.json({ token: 'fresh-token', user: { ...saved, must_change_password: false } })
+    })
+    const { user } = renderPage({ from: '/tickets/42' })
+
+    await fill(user)
+
+    expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
+    expect(localStorage.getItem(TOKEN_KEY)).toBe('fresh-token')
+  })
+
+  it('keeps the current token when the response has none', async () => {
+    mockChangePassword()
+    const { user } = renderPage({ from: '/tickets/42' })
+    await fill(user)
+    expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
+    expect(localStorage.getItem(TOKEN_KEY)).toBe('test-token')
+  })
+
   it('goes to the ticket list when there is no page to return to', async () => {
     mockChangePassword()
     const { user } = renderPage()

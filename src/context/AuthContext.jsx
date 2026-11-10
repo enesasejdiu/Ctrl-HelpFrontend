@@ -46,10 +46,13 @@ export function AuthProvider({ children }) {
     [saveSession],
   )
 
-  // Also the way out of a temporary password: the backend clears must_change_password and returns the user
+  // Also the way out of a temporary password: the backend clears must_change_password and returns the user.
+  // Changing the password ends every session of this user, including the token we just sent, so the backend returns a
+  // fresh token for this browser: keep it, or the next request would be refused and log the user out.
   const changePassword = useCallback(
     async (currentPassword, newPassword) => {
       const { data } = await client.post('/auth/change-password', { currentPassword, newPassword })
+      if (data.token) localStorage.setItem(TOKEN_KEY, data.token)
       updateUser(data.user)
       return data.user
     },
