@@ -4,11 +4,13 @@
 // because one change can trigger others (assigning also moves the status and adds history rows).
 import { ArrowLeft, Check, Lock, LoaderCircle, RotateCcw, Save, Send, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import client, { errorMessage } from '../api/client'
+import { Link, useParams } from 'react-router'
+import client, { errorMessage, isNotFound } from '../api/client'
 import { OverdueBadge, PriorityBadge, StatusBadge } from '../components/Badges'
+import NotFound from '../components/NotFound'
 import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
+import { t } from '../i18n'
 import { ROLE_LABELS, STATUSES, formatDate, statusLabel, targetLabel, timeAgo } from '../utils/format'
 
 const DONE_STATUSES = ['resolved', 'closed']
@@ -45,10 +47,15 @@ export default function TicketDetail() {
   return <TicketPage key={id} id={id} />
 }
 
+// Ticket ids are positive whole numbers; anything else can't be a ticket, so it isn't even requested
+const TICKET_ID = /^[1-9]\d*$/
+
 function TicketPage({ id }) {
   const { isStaff } = useAuth()
   const [ticket, setTicket] = useState(null)
   const [error, setError] = useState('')
+  // The ticket doesn't exist (or was deleted, also while the page was open): "not found" instead of an error box
+  const [missing, setMissing] = useState(!TICKET_ID.test(id))
   const latestLoad = useRef(0)
 
   // Only the newest load may update the page, in case two actions finish out of order
@@ -63,13 +70,17 @@ function TicketPage({ id }) {
         }
       })
       .catch((err) => {
-        if (thisLoad === latestLoad.current) setError(errorMessage(err))
+        if (thisLoad !== latestLoad.current) return
+        if (isNotFound(err)) setMissing(true)
+        else setError(errorMessage(err))
       })
   }, [id])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (TICKET_ID.test(id)) load()
+  }, [id, load])
+
+  if (missing) return <NotFound message={t('notFound.ticket')} />
 
   return (
     <>

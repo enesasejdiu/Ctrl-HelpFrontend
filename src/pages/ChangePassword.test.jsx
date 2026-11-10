@@ -2,10 +2,9 @@
 // version from the top bar, the client-side rules, and a wrong current password (which must not log the user out).
 import { screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { TOKEN_KEY, USER_KEY } from '../api/client'
 import { buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
-import { API, server } from '../test/server'
+import { API, server, session } from '../test/server'
 import ChangePassword from './ChangePassword'
 
 const GOOD_PASSWORD = 'NewPassword42'
@@ -18,14 +17,13 @@ function mockChangePassword(respond) {
       const body = await request.json()
       requests.push(body)
       if (respond) return respond(body)
-      const saved = JSON.parse(localStorage.getItem(USER_KEY))
-      return HttpResponse.json({ user: { ...saved, must_change_password: false } })
+      return HttpResponse.json({ user: { ...session.user, must_change_password: false } })
     }),
   )
   return requests
 }
 
-function renderPage({ user = buildUser({ must_change_password: true }), from } = {}) {
+async function renderPage({ user = buildUser({ must_change_password: true }), from } = {}) {
   return renderWithProviders(<ChangePassword />, {
     route: { pathname: '/change-password', state: from ? { from: { pathname: from } } : undefined },
     user,
@@ -49,7 +47,7 @@ async function fill(user, { current = 'Temp1234abcd', next = GOOD_PASSWORD, conf
 describe('ChangePassword', () => {
   it('after a temporary password: explains why, saves, clears the flag and goes to the page the user wanted', async () => {
     const requests = mockChangePassword()
-    const { user, router } = renderPage({ from: '/tickets/42' })
+    const { user, router } = await renderPage({ from: '/tickets/42' })
 
     expect(screen.getByRole('heading', { name: 'Choose your own password' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
@@ -59,18 +57,17 @@ describe('ChangePassword', () => {
     expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets/42')
     expect(requests).toEqual([{ currentPassword: 'Temp1234abcd', newPassword: GOOD_PASSWORD }])
-    expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(false)
   })
 
   it('goes to the ticket list when there is no page to return to', async () => {
     mockChangePassword()
-    const { user } = renderPage()
+    const { user } = await renderPage()
     await fill(user)
     expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
   })
 
   it('opened from the top bar: asks for the current password and can be cancelled', async () => {
-    const { user } = renderPage({ user: buildUser({ must_change_password: false }), from: '/tickets' })
+    const { user } = await renderPage({ user: buildUser({ must_change_password: false }), from: '/tickets' })
 
     expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
     expect(screen.getByLabelText('Current password')).toBeInTheDocument()
@@ -89,7 +86,7 @@ describe('ChangePassword', () => {
     ['repeat does not match', { confirm: 'NewPassword43' }, 'The new passwords do not match'],
   ])('refuses %s without calling the server', async (_, values, message) => {
     const requests = mockChangePassword()
-    const { user } = renderPage()
+    const { user } = await renderPage()
 
     await fill(user, values)
 
@@ -99,22 +96,21 @@ describe('ChangePassword', () => {
 
   it('shows a wrong current password and stays logged in', async () => {
     mockChangePassword(() => HttpResponse.json({ message: 'Current password is wrong' }, { status: 401 }))
-    const { user, router } = renderPage()
+    const { user, router } = await renderPage()
 
     await fill(user)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Current password is wrong')
     expect(router.state.location.pathname).toBe('/change-password')
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('test-token')
     expect(screen.getByRole('button', { name: 'Save new password' })).toBeEnabled()
   })
 
   it('lets a user with a temporary password log out instead', async () => {
-    const { user } = renderPage()
+    const { user } = await renderPage()
 
     await user.click(screen.getByRole('button', { name: 'Log out' }))
 
     expect(await screen.findByRole('heading', { name: 'Login page' })).toBeInTheDocument()
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+    expect(session.user).toBeNull() // POST /auth/logout ended the session
   })
 })

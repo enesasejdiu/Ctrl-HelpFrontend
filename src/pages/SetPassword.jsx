@@ -5,7 +5,7 @@
 // opens with "Password changed". (Changing your password later, by choice, is /change-password.)
 import { Check, Circle, LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router'
 import client, { errorMessage } from '../api/client'
 import PasswordInput from '../components/PasswordInput'
 import { Alert, PageHeader } from '../components/Ui'

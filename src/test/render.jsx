@@ -1,16 +1,17 @@
 // render.jsx – renderWithProviders(): renders a component inside the same providers as main.jsx
 // (AuthProvider + a router), with an in-memory router so tests can start on any URL and read where they ended up.
 /* oxlint-disable react/only-export-components -- test helpers, not a fast-refresh module */
-import { render } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { RouterProvider, createMemoryRouter, useParams } from 'react-router-dom'
-import { TOKEN_KEY, USER_KEY } from '../api/client'
-import { AuthProvider } from '../context/AuthContext'
+import { createMemoryRouter, useParams } from 'react-router'
+import { RouterProvider } from 'react-router/dom'
+import { AuthProvider, CHECKING_SESSION_LABEL } from '../context/AuthContext'
+import { session } from './server'
 
-// Saves a session the way AuthProvider does after logging in
-export function seedSession(user, token = 'test-token') {
-  localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
+// Starts a session the way a real login does: the mock backend now answers GET /auth/me with this user
+// (in the browser that's the httpOnly cookie; the app itself never stores anything)
+export function seedSession(user) {
+  session.user = user
 }
 
 function TicketPageStub() {
@@ -25,16 +26,26 @@ export const stubRoutes = [
   { path: '/tickets/:id', element: <TicketPageStub /> },
 ]
 
+// Resolves once AuthProvider's startup session check (GET /auth/me) has answered and the app is rendered
+export async function sessionChecked() {
+  await waitFor(() => expect(screen.queryByText(CHECKING_SESSION_LABEL)).not.toBeInTheDocument())
+}
+
 /**
+ * Async: resolves after the startup session check, so the page is rendered when it returns.
  * @param ui       element to render at `path` (ignored when `routes` is given)
  * @param options.route       starting URL, or a location object like { pathname, search, state }
  * @param options.path        route pattern `ui` is mounted at (default: the pathname of `route`)
- * @param options.user        log this user in before rendering (saved to localStorage like a real login)
+ * @param options.user        log this user in before rendering (the mock backend's session, like a real login)
  * @param options.routes      a full route tree instead of `ui` + stub pages
  * @param options.userEventOptions  passed to userEvent.setup() (e.g. { advanceTimers } for fake timers)
+ * @param options.waitForSession    false: return right away, while the session check is still running
  * @returns render() result plus `user` (userEvent instance) and `router` (read router.state.location)
  */
-export function renderWithProviders(ui, { route = '/', path, user = null, routes, userEventOptions } = {}) {
+export async function renderWithProviders(
+  ui,
+  { route = '/', path, user = null, routes, userEventOptions, waitForSession = true } = {},
+) {
   if (user) seedSession(user)
 
   const pathname = typeof route === 'string' ? route.split('?')[0] : route.pathname
@@ -48,6 +59,7 @@ export function renderWithProviders(ui, { route = '/', path, user = null, routes
       <RouterProvider router={router} />
     </AuthProvider>,
   )
+  if (waitForSession) await sessionChecked()
   return { ...result, user: events, router }
 }
 

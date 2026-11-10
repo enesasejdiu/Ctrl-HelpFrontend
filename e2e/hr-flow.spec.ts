@@ -46,6 +46,9 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   browser,
   uniq,
 }) => {
+  // Three users in separate browsers, each signing in: in Firefox this flow can take close to the default 30 s (a
+  // trace showed its last step starting at 27.8 s), so it gets triple the time (Playwright's test.slow())
+  test.slow()
   const hrName = `HR Person ${uniq}`
   const hrEmail = `hr.${uniq}@test.local`
   const employeeName = `New Employee ${uniq}`

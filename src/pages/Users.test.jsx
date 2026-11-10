@@ -3,7 +3,7 @@
 // backend (POST /users, PATCH /users/:id, POST /users/:id/reset-password).
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { USER_KEY } from '../api/client'
+import { useAuth } from '../context/auth'
 import App from '../App'
 import { DEPARTMENTS, buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
@@ -51,8 +51,20 @@ function mockApi({ users = USERS, create } = {}) {
   return posted
 }
 
-function renderUsers(me = admin, options = {}) {
-  return renderWithProviders(<Users />, { route: '/admin/users', user: me, ...options })
+// Shows the logged-in user's name as AuthProvider holds it (in memory only), so a test can see it change
+function SessionName() {
+  const { user } = useAuth()
+  return <output data-testid="session-name">{user?.name}</output>
+}
+
+async function renderUsers(me = admin, options = {}) {
+  return renderWithProviders(
+    <>
+      <Users />
+      <SessionName />
+    </>,
+    { route: '/admin/users', user: me, ...options },
+  )
 }
 
 // Opens the form and waits for the table, so both are ready
@@ -87,7 +99,7 @@ describe('Users page access (real App routes)', () => {
     ['an admin', admin],
     ['HR', hr],
   ])('%s can open /admin/users', async (_, me) => {
-    const { router } = renderApp(me)
+    const { router } = await renderApp(me)
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/admin/users')
   })
@@ -96,14 +108,18 @@ describe('Users page access (real App routes)', () => {
     ['an employee', employee, 'My tickets'],
     ['an agent', agent, 'All tickets'],
   ])('%s is sent to /tickets', async (_, me, heading) => {
-    const { router } = renderApp(me)
+    const { router } = await renderApp(me)
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets')
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
   })
 
   it('HR gets the Users link but not the Dashboard, and stays out of /admin', async () => {
-    const { router } = renderWithProviders(null, { route: '/admin', routes: [{ path: '*', element: <App /> }], user: hr })
+    const { router } = await renderWithProviders(null, {
+      route: '/admin',
+      routes: [{ path: '*', element: <App /> }],
+      user: hr,
+    })
     expect(await screen.findByRole('heading', { name: 'My tickets' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets')
     const nav = screen.getByRole('navigation', { name: 'Main' })
@@ -117,7 +133,7 @@ describe('Users page access (real App routes)', () => {
 describe('Users table', () => {
   it('admin gets a role dropdown (with HR) on every row except their own', async () => {
     mockApi()
-    renderUsers(admin)
+    await renderUsers(admin)
     await screen.findByRole('table')
 
     expect(within(rowFor('Admin User')).queryByRole('combobox')).not.toBeInTheDocument()
@@ -129,7 +145,7 @@ describe('Users table', () => {
 
   it('HR sees no role dropdowns, and Activate/Deactivate only on employees', async () => {
     mockApi()
-    renderUsers(hr)
+    await renderUsers(hr)
     const table = await screen.findByRole('table')
 
     expect(within(table).queryAllByRole('combobox')).toHaveLength(0)
@@ -147,7 +163,7 @@ describe('Users table', () => {
 describe('Add user form', () => {
   it('admin can pick any of the 4 roles, Employee by default', async () => {
     mockApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
 
     const role = within(dialog).getByLabelText('Role')
@@ -159,7 +175,7 @@ describe('Add user form', () => {
 
   it('admin creates an IT Staff account with the chosen role', async () => {
     const posted = mockApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
     await fillForm(user, dialog)
     await user.selectOptions(within(dialog).getByLabelText('Role'), 'IT Staff')
@@ -171,7 +187,7 @@ describe('Add user form', () => {
 
   it('HR sees only "Employee" as fixed text, and creates an employee', async () => {
     const posted = mockApi()
-    const { user } = renderUsers(hr)
+    const { user } = await renderUsers(hr)
     const dialog = await openForm(user)
 
     expect(within(dialog).queryByRole('combobox', { name: 'Role' })).not.toBeInTheDocument()
@@ -186,7 +202,7 @@ describe('Add user form', () => {
 
   it('checks the required fields and the email format before sending', async () => {
     const posted = mockApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
 
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
@@ -216,7 +232,7 @@ describe('Add user form', () => {
           { status: 400 },
         ),
     })
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
     await fillForm(user, dialog)
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
@@ -230,8 +246,10 @@ describe('Add user form', () => {
   })
 
   it('shows a 409 under Email', async () => {
-    mockApi({ create: () => HttpResponse.json({ message: 'An account with this email already exists' }, { status: 409 }) })
-    const { user } = renderUsers(admin)
+    mockApi({
+      create: () => HttpResponse.json({ message: 'An account with this email already exists' }, { status: 409 }),
+    })
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
     await fillForm(user, dialog)
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
@@ -244,7 +262,7 @@ describe('Add user form', () => {
 
   it('shows other failures (e.g. a 403) in an alert', async () => {
     mockApi({ create: () => HttpResponse.json({ message: 'HR can only create employee accounts' }, { status: 403 }) })
-    const { user } = renderUsers(hr)
+    const { user } = await renderUsers(hr)
     const dialog = await openForm(user)
     await fillForm(user, dialog)
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
@@ -254,8 +272,16 @@ describe('Add user form', () => {
 
   it('shows "Creating…" and blocks closing while it saves', async () => {
     const pending = deferred()
-    mockApi({ create: async () => (await pending.promise, HttpResponse.json({ user: { id: 9001, ...NEW_USER, role: 'employee', is_active: true }, temporaryPassword: TEMP_PASSWORD }, { status: 201 })) })
-    const { user } = renderUsers(admin)
+    mockApi({
+      create: async () => (
+        await pending.promise,
+        HttpResponse.json(
+          { user: { id: 9001, ...NEW_USER, role: 'employee', is_active: true }, temporaryPassword: TEMP_PASSWORD },
+          { status: 201 },
+        )
+      ),
+    })
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
     await fillForm(user, dialog)
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
@@ -274,7 +300,7 @@ describe('Add user form', () => {
     ['Escape', (user) => user.keyboard('{Escape}')],
   ])('%s closes the form without saving and returns focus to "Add user"', async (_, close) => {
     const posted = mockApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
     await fillForm(user, dialog)
     await close(user, dialog)
@@ -286,7 +312,7 @@ describe('Add user form', () => {
 
   it('keeps Tab inside the form', async () => {
     mockApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
 
     const createButton = within(dialog).getByRole('button', { name: 'Create user' })
@@ -302,7 +328,7 @@ describe('temporary password dialog', () => {
   // Creates NEW_USER as an admin and returns the password dialog
   async function createUser(options) {
     mockApi()
-    const rendered = renderUsers(admin, options)
+    const rendered = await renderUsers(admin, options)
     const dialog = await openForm(rendered.user)
     await fillForm(rendered.user, dialog)
     await rendered.user.click(within(dialog).getByRole('button', { name: 'Create user' }))
@@ -398,7 +424,7 @@ async function openEdit(user, name) {
 describe('Edit and Reset password buttons', () => {
   it('admin: Edit on every row (own included), Reset on every row but their own', async () => {
     mockApi()
-    renderUsers(admin)
+    await renderUsers(admin)
     await screen.findByRole('table')
 
     for (const u of USERS) {
@@ -412,7 +438,7 @@ describe('Edit and Reset password buttons', () => {
 
   it('HR: Edit and Reset only on employee rows', async () => {
     mockApi()
-    renderUsers(hr)
+    await renderUsers(hr)
     await screen.findByRole('table')
 
     for (const u of USERS) {
@@ -428,7 +454,7 @@ describe('Edit user form', () => {
   it('admin: prefilled with name, email, department and role; focus on the name', async () => {
     mockApi()
     mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, agent.name)
 
     expect(within(dialog).getByLabelText('Full name')).toHaveValue(agent.name)
@@ -443,7 +469,7 @@ describe('Edit user form', () => {
   it('sends only the fields that changed and updates the row without a reload', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, agent.name)
 
     await within(dialog).findByRole('option', { name: 'IT' })
@@ -462,7 +488,7 @@ describe('Edit user form', () => {
   it('offers every department from GET /departments, plus No department', async () => {
     mockApi()
     mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, agent.name)
 
     await within(dialog).findByRole('option', { name: 'Sales' })
@@ -474,7 +500,7 @@ describe('Edit user form', () => {
     mockApi()
     const calls = mockEditAndReset()
     server.use(http.get(`${API}/departments`, () => HttpResponse.json({ message: 'Down' }, { status: 500 })))
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, agent.name)
 
     expect(await within(dialog).findByText(/Departments could not be loaded/)).toBeInTheDocument()
@@ -488,7 +514,7 @@ describe('Edit user form', () => {
   it('choosing No department sends null', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, employee.name)
 
     await within(dialog).findByRole('option', { name: 'IT' }) // loaded
@@ -500,7 +526,7 @@ describe('Edit user form', () => {
   it('HR edits an employee without a role field', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(hr)
+    const { user } = await renderUsers(hr)
     const dialog = await openEdit(user, employee.name)
 
     expect(within(dialog).queryByRole('combobox', { name: 'Role' })).not.toBeInTheDocument()
@@ -513,10 +539,10 @@ describe('Edit user form', () => {
     expect(await screen.findByRole('cell', { name: /Liridon G\./ })).toBeInTheDocument()
   })
 
-  it('admin editing their own row: no role dropdown, and the saved session gets the new name', async () => {
+  it('admin editing their own row: no role dropdown, and the logged-in user gets the new name', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, admin.name)
 
     expect(within(dialog).queryByRole('combobox', { name: 'Role' })).not.toBeInTheDocument()
@@ -526,7 +552,7 @@ describe('Edit user form', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => expect(calls.patches).toEqual([{ id: admin.id, body: { name: 'Head Admin' } }]))
-    await waitFor(() => expect(JSON.parse(localStorage.getItem(USER_KEY)).name).toBe('Head Admin'))
+    expect(await screen.findByTestId('session-name')).toHaveTextContent('Head Admin')
   })
 
   it("shows the backend's 400 field errors under the fields and a 409 under Email", async () => {
@@ -537,7 +563,7 @@ describe('Edit user form', () => {
         { status: 400 },
       )
     mockEditAndReset({ patch: () => answer() })
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, employee.name)
 
     await user.type(within(dialog).getByLabelText('Full name'), ' Jr')
@@ -559,8 +585,10 @@ describe('Edit user form', () => {
 
   it('shows other failures (e.g. 403) in an alert', async () => {
     mockApi()
-    mockEditAndReset({ patch: () => HttpResponse.json({ message: 'HR can only change employee accounts' }, { status: 403 }) })
-    const { user } = renderUsers(hr)
+    mockEditAndReset({
+      patch: () => HttpResponse.json({ message: 'HR can only change employee accounts' }, { status: 403 }),
+    })
+    const { user } = await renderUsers(hr)
     const dialog = await openEdit(user, employee.name)
     await within(dialog).findByRole('option', { name: 'Sales' })
     await user.selectOptions(within(dialog).getByLabelText(/Department/), 'Sales')
@@ -571,7 +599,7 @@ describe('Edit user form', () => {
   it('Cancel and Escape close it without saving', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     let dialog = await openEdit(user, agent.name)
     await user.type(within(dialog).getByLabelText('Full name'), ' changed')
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
@@ -596,7 +624,7 @@ describe('Reset password', () => {
   it('asks first; Cancel (or Escape) resets nothing', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     let confirm = await openReset(user, agent.name)
 
     expect(confirm).toHaveTextContent(`Reset ${agent.name}'s password? Their current password stops working immediately.`)
@@ -614,7 +642,7 @@ describe('Reset password', () => {
   it('confirming shows "New password for <name>" with the email, password and Copy; Done clears it', async () => {
     mockApi()
     const calls = mockEditAndReset()
-    const { user } = renderUsers(hr)
+    const { user } = await renderUsers(hr)
     const confirm = await openReset(user, employee.name)
     await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
 
@@ -640,7 +668,7 @@ describe('Reset password', () => {
     mockEditAndReset({
       reset: async () => (await pending.promise, HttpResponse.json({ user: { ...agent, must_change_password: true }, temporaryPassword: 'Abc123def456' })),
     })
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const confirm = await openReset(user, agent.name)
     await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
 
@@ -653,8 +681,10 @@ describe('Reset password', () => {
 
   it('shows a failed reset in the confirm dialog', async () => {
     mockApi()
-    mockEditAndReset({ reset: () => HttpResponse.json({ message: 'HR can only reset passwords of employee accounts' }, { status: 403 }) })
-    const { user } = renderUsers(hr)
+    mockEditAndReset({
+      reset: () => HttpResponse.json({ message: 'HR can only reset passwords of employee accounts' }, { status: 403 }),
+    })
+    const { user } = await renderUsers(hr)
     const confirm = await openReset(user, employee.name)
     await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
     expect(await within(confirm).findByRole('alert')).toHaveTextContent('HR can only reset passwords of employee accounts')
@@ -684,7 +714,7 @@ describe('Job title', () => {
 
   it('the Users list shows the job title under the name', async () => {
     mockJobTitleApi()
-    renderUsers(admin)
+    await renderUsers(admin)
     await screen.findByRole('table')
 
     expect(within(rowFor(accountant.name)).getByText('Accountant')).toHaveClass('person__job')
@@ -694,7 +724,7 @@ describe('Job title', () => {
 
   it('Add user: optional field after Department, sent trimmed, and the new row shows it', async () => {
     const posted = mockApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openForm(user)
 
     const field = within(dialog).getByLabelText(/Job title/)
@@ -722,7 +752,7 @@ describe('Job title', () => {
 
   it('Edit user: prefilled, sends only the job title when only it changed, and updates the row', async () => {
     const patches = mockJobTitleApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, accountant.name)
 
     const field = within(dialog).getByLabelText(/Job title/)
@@ -738,7 +768,7 @@ describe('Job title', () => {
 
   it('Edit user: other changes leave the job title out', async () => {
     const patches = mockJobTitleApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, accountant.name)
 
     await user.type(within(dialog).getByLabelText('Full name'), ' Jr')
@@ -749,7 +779,7 @@ describe('Job title', () => {
 
   it('Edit user: clearing the job title sends an empty value, and the row loses it', async () => {
     const patches = mockJobTitleApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, accountant.name)
 
     await user.clear(within(dialog).getByLabelText(/Job title/))
@@ -770,7 +800,7 @@ describe('Job title', () => {
         ),
       ),
     )
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, accountant.name)
 
     await user.type(within(dialog).getByLabelText(/Job title/), ' Lead')
@@ -784,7 +814,7 @@ describe('Job title', () => {
 
   it('checks the 100-character limit before sending', async () => {
     const patches = mockJobTitleApi()
-    const { user } = renderUsers(admin)
+    const { user } = await renderUsers(admin)
     const dialog = await openEdit(user, accountant.name)
 
     // maxLength stops typing past 100; a value set some other way (e.g. by a browser extension) is still caught

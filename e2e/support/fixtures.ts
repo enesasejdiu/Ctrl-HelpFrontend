@@ -13,25 +13,36 @@ export const PRIORITY = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const
 
 export type Ticket = { id: number; title: string; status: string }
 
+type Session = { http: APIRequestContext; csrf: string }
+
+// Talks to the API the way the app does: with the session cookies and the X-CSRF-Token header, never a token
 export class Api {
-  private tokens = new Map<Role, string>()
+  private sessions = new Map<Role, Session>()
 
-  constructor(private readonly http: APIRequestContext) {}
+  constructor(private readonly newContext: () => Promise<APIRequestContext>) {}
 
-  // Logs in through the API (cached per role) and returns the token
-  async loginAs(role: Role): Promise<string> {
-    const cached = this.tokens.get(role)
+  // Logs in as `role` in a request context of its own (its cookie jar is that role's session), cached per role
+  private async session(role: Role): Promise<Session> {
+    const cached = this.sessions.get(role)
     if (cached) return cached
-    const response = await this.http.post('auth/login', { data: { email: USERS[role].email, password: PASSWORD } })
+    const http = await this.newContext()
+    const response = await http.post('auth/login', { data: { email: USERS[role].email, password: PASSWORD } })
     expect(response, `login as ${role}`).toBeOK()
-    const { token } = await response.json()
-    this.tokens.set(role, token)
-    return token
+    const { cookies } = await http.storageState()
+    const csrf = cookies.find((cookie) => cookie.name === 'tf_csrf')?.value
+    expect(csrf, `login as ${role} sets the tf_csrf cookie`).toBeTruthy()
+    const session = { http, csrf: csrf as string }
+    this.sessions.set(role, session)
+    return session
+  }
+
+  async dispose() {
+    for (const { http } of this.sessions.values()) await http.dispose()
   }
 
   private async send(method: 'get' | 'post' | 'patch', url: string, as: Role, data?: unknown) {
-    const headers = { Authorization: `Bearer ${await this.loginAs(as)}` }
-    const response = await this.http[method](url, { headers, data })
+    const { http, csrf } = await this.session(as)
+    const response = await http[method](url, { headers: { 'X-CSRF-Token': csrf }, data })
     expect(response, `${method.toUpperCase()} ${url} as ${as}`).toBeOK()
     return response.json()
   }
@@ -64,6 +75,31 @@ export class Api {
     return { email: user.email, password: temporaryPassword }
   }
 
+  // Creates an employee who can sign in straight away: the account is made with a temporary password, which is then
+  // replaced through the API (POST auth/change-password), so must_change_password is off and a login isn't sent to
+  // /set-password. Returns the email and the password now in use. Nothing is deleted afterwards: each run's database
+  // is dropped at the end, and the unique email keeps the account away from every other test.
+  async createReadyEmployee(name: string, email: string, password = 'ReadyPassword123') {
+    const account = await this.createEmployee(name, email)
+    const http = await this.newContext()
+    try {
+      const login = await http.post('auth/login', { data: account })
+      expect(login, `first login as ${account.email}`).toBeOK()
+      const { cookies } = await http.storageState()
+      const csrf = cookies.find((cookie) => cookie.name === 'tf_csrf')?.value ?? ''
+      const change = await http.post('auth/change-password', {
+        headers: { 'X-CSRF-Token': csrf },
+        data: { currentPassword: account.password, newPassword: password },
+      })
+      expect(change, `set own password for ${account.email}`).toBeOK()
+      const me = await http.get('auth/me')
+      expect(await me.json(), 'must_change_password is off').toMatchObject({ must_change_password: false })
+    } finally {
+      await http.dispose()
+    }
+    return { email: account.email, password }
+  }
+
   // Changes a ticket's status as staff (employees may only close/reopen)
   setStatus(id: number, status: string, { resolution, as = 'agent' }: { resolution?: string; as?: Role } = {}): Promise<Ticket> {
     return this.send('patch', `tickets/${id}/status`, as, { status, resolution })
@@ -72,9 +108,9 @@ export class Api {
 
 export const test = base.extend<{ api: Api; uniq: string }>({
   api: async ({ playwright }, use) => {
-    const http = await playwright.request.newContext({ baseURL: `${API_URL}/` })
-    await use(new Api(http))
-    await http.dispose()
+    const api = new Api(() => playwright.request.newContext({ baseURL: `${API_URL}/` }))
+    await use(api)
+    await api.dispose()
   },
 
   // A name unique to this test and run, e.g. "e2e-lq3k9z-4f2a"; prefix test data with it and search for it

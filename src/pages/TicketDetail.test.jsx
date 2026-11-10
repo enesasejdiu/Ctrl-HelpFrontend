@@ -17,7 +17,7 @@ const ticket = {
   history: [],
 }
 
-function renderTicket(role) {
+async function renderTicket(role) {
   server.use(
     http.get(`${API}/tickets/42`, () => HttpResponse.json(ticket)),
     http.get(`${API}/users/agents`, () => HttpResponse.json([])),
@@ -27,7 +27,7 @@ function renderTicket(role) {
 
 describe('Ticket detail per role', () => {
   it.each(['hr', 'employee'])('%s: no Manage box and no internal-note switch', async (role) => {
-    renderTicket(role)
+    await renderTicket(role)
 
     expect(await screen.findByRole('heading', { name: /Laptop does not turn on/ })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Comment' })).toBeInTheDocument()
@@ -37,7 +37,7 @@ describe('Ticket detail per role', () => {
   })
 
   it.each(['agent', 'admin'])('%s: gets the Manage box and the internal-note switch', async (role) => {
-    renderTicket(role)
+    await renderTicket(role)
 
     expect(await screen.findByRole('heading', { name: 'Manage' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Internal note' })).toBeInTheDocument()

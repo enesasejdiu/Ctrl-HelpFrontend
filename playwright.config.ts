@@ -2,7 +2,7 @@
 // (ticketflow_e2e_<timestamp>_<pid>, created and seeded for this run and dropped afterwards). The real database is
 // never touched. Ports and the database name are chosen per run in scripts/e2e-env.mjs. Run with `npm run e2e`.
 import { defineConfig, devices } from '@playwright/test'
-import { API_URL, FRONTEND_PORT, FRONTEND_URL } from './scripts/e2e-env.mjs'
+import { API_PORT, API_URL, FRONTEND_PORT, FRONTEND_URL } from './scripts/e2e-env.mjs'
 
 const CI = !!process.env.CI
 
@@ -46,10 +46,12 @@ export default defineConfig({
     },
     {
       name: 'frontend',
-      // VITE_API_URL from the environment takes priority over the value in .env
+      // Same setup as development: the page calls /api and the dev server proxies it to this run's backend, so the
+      // session cookies are first-party. Environment variables take priority over the values in .env.
       command: `npx vite --port ${FRONTEND_PORT} --strictPort`,
       url: FRONTEND_URL,
-      env: { VITE_API_URL: API_URL },
+      // VITE_SENTRY_DSN is emptied so test runs never report to Sentry, whatever .env says
+      env: { VITE_API_URL: '/api', API_PROXY_TARGET: `http://localhost:${API_PORT}`, VITE_SENTRY_DSN: '' },
       reuseExistingServer: false,
       timeout: 60_000,
     },

@@ -4,10 +4,9 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import App from '../App'
-import { TOKEN_KEY, USER_KEY } from '../api/client'
 import { buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
-import { API, server } from '../test/server'
+import { API, server, session } from '../test/server'
 
 const TEMPORARY = 'Tmp4uK9pQw2xZr'
 const GOOD = 'my-own-pass42'
@@ -21,14 +20,13 @@ function mockApi({ change } = {}) {
       const body = await request.json()
       bodies.push(body)
       if (change) return change(body)
-      const saved = JSON.parse(localStorage.getItem(USER_KEY))
-      return HttpResponse.json({ message: 'Password changed', user: { ...saved, must_change_password: false } })
+      return HttpResponse.json({ message: 'Password changed', user: { ...session.user, must_change_password: false } })
     }),
   )
   return bodies
 }
 
-function renderApp(route, user = buildUser({ must_change_password: true })) {
+async function renderApp(route, user = buildUser({ must_change_password: true })) {
   return renderWithProviders(null, { route, routes: [{ path: '*', element: <App /> }], user })
 }
 
@@ -41,7 +39,7 @@ describe('Set your password', () => {
     'a flagged user opening %s lands on the page',
     async (route) => {
       mockApi()
-      const { router } = renderApp(route)
+      const { router } = await renderApp(route)
       expect(await screen.findByRole('heading', { name: 'Set your password' })).toBeInTheDocument()
       expect(router.state.location.pathname).toBe('/set-password')
       expect(screen.getByText('Your account uses a temporary password. Choose your own to continue.')).toBeInTheDocument()
@@ -54,14 +52,14 @@ describe('Set your password', () => {
     ['hr', '/admin/users'],
   ])('a flagged %s is kept out of %s too', async (role, route) => {
     mockApi()
-    const { router } = renderApp(route, buildUser({ role, must_change_password: true }))
+    const { router } = await renderApp(route, buildUser({ role, must_change_password: true }))
     expect(await screen.findByRole('heading', { name: 'Set your password' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/set-password')
   })
 
   it('the top bar shows only the logo and Log out', async () => {
     mockApi()
-    renderApp('/tickets', buildUser({ role: 'admin', must_change_password: true }))
+    await renderApp('/tickets', buildUser({ role: 'admin', must_change_password: true }))
     await screen.findByRole('heading', { name: 'Set your password' })
 
     expect(within(screen.getByRole('navigation', { name: 'Main' })).queryAllByRole('link')).toHaveLength(0)
@@ -72,7 +70,6 @@ describe('Set your password', () => {
 
   it('a 403 PASSWORD_CHANGE_REQUIRED during a session sends the user to the page', async () => {
     server.use(
-      http.get(`${API}/auth/me`, () => HttpResponse.error()), // so only the 403 can flag the user
       http.get(`${API}/tickets`, () =>
         HttpResponse.json(
           { message: 'You must change your password before continuing', code: 'PASSWORD_CHANGE_REQUIRED' },
@@ -80,14 +77,14 @@ describe('Set your password', () => {
         ),
       ),
     )
-    const { router } = renderApp('/tickets', buildUser())
+    const { router } = await renderApp('/tickets', buildUser())
     expect(await screen.findByRole('heading', { name: 'Set your password' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/set-password')
   })
 
   it('the checklist follows what is typed, and the button waits until every rule passes', async () => {
     mockApi()
-    const { user } = renderApp('/set-password')
+    const { user } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
 
     const met = () => ['At least 10 characters', 'A letter', 'A number', 'Both new passwords match'].filter((n) => rule(n).classList.contains('is-met'))
@@ -114,7 +111,7 @@ describe('Set your password', () => {
 
   it('a mismatch keeps "match" unchecked and the button disabled', async () => {
     mockApi()
-    const { user } = renderApp('/set-password')
+    const { user } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.type(field('Temporary password'), TEMPORARY)
     await user.type(field('New password'), GOOD)
@@ -129,7 +126,7 @@ describe('Set your password', () => {
 
   it('needs the temporary password too', async () => {
     mockApi()
-    const { user } = renderApp('/set-password')
+    const { user } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.type(field('New password'), GOOD)
     await user.type(field('Confirm new password'), GOOD)
@@ -141,7 +138,7 @@ describe('Set your password', () => {
     ['401 (older backend)', 401, { message: 'Current password is wrong' }],
   ])('a wrong temporary password (%s) shows under its field, and the user stays logged in', async (_, status, body) => {
     mockApi({ change: () => HttpResponse.json(body, { status }) })
-    const { user, router } = renderApp('/set-password')
+    const { user, router } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.type(field('Temporary password'), 'wrong-one')
     await user.type(field('New password'), GOOD)
@@ -150,13 +147,16 @@ describe('Set your password', () => {
 
     await waitFor(() => expect(field('Temporary password')).toHaveAccessibleDescription('Current password is wrong'))
     expect(router.state.location.pathname).toBe('/set-password')
-    expect(localStorage.getItem(TOKEN_KEY)).toBe('test-token')
-    expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(true)
+    // Still logged in, still flagged: the form stays
+    expect(screen.getByRole('heading', { name: 'Set your password' })).toBeInTheDocument()
   })
 
   it('other backend errors are shown (e.g. the same password again)', async () => {
-    mockApi({ change: () => HttpResponse.json({ message: 'New password must be different from the current one' }, { status: 400 }) })
-    const { user } = renderApp('/set-password')
+    mockApi({
+      change: () =>
+        HttpResponse.json({ message: 'New password must be different from the current one' }, { status: 400 }),
+    })
+    const { user } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.type(field('Temporary password'), GOOD)
     await user.type(field('New password'), GOOD)
@@ -167,7 +167,7 @@ describe('Set your password', () => {
 
   it('success clears the flag, opens the ticket list and says "Password changed"', async () => {
     const bodies = mockApi()
-    const { user, router } = renderApp('/tickets/new')
+    const { user, router } = await renderApp('/tickets/new')
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.type(field('Temporary password'), TEMPORARY)
     await user.type(field('New password'), GOOD)
@@ -178,7 +178,6 @@ describe('Set your password', () => {
     expect(router.state.location.pathname).toBe('/tickets')
     expect(screen.getByRole('status')).toHaveTextContent('Password changed')
     expect(bodies).toEqual([{ currentPassword: TEMPORARY, newPassword: GOOD }])
-    expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(false)
     // The menu is back, and other pages open again
     expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'New ticket' })).toBeInTheDocument()
     await act(() => router.navigate('/tickets/new'))
@@ -187,7 +186,7 @@ describe('Set your password', () => {
 
   it('an unflagged user never sees it: /set-password goes to the ticket list', async () => {
     mockApi()
-    const { router } = renderApp('/set-password', buildUser())
+    const { router } = await renderApp('/set-password', buildUser())
     expect(await screen.findByRole('heading', { name: 'My tickets' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets')
     expect(screen.queryByText('Password changed')).not.toBeInTheDocument()
@@ -195,11 +194,11 @@ describe('Set your password', () => {
 
   it('Log out works from the page', async () => {
     mockApi()
-    const { user, router } = renderApp('/set-password')
+    const { user, router } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.click(screen.getByRole('button', { name: 'Log out' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
-    expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+    expect(session.user).toBeNull() // POST /auth/logout ended the session
   })
 })
 

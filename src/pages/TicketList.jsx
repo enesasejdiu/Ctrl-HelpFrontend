@@ -3,7 +3,7 @@
 // Filters live in the URL (?q=&status=&priority=&category=&assigned=&overdue=1) so reloads and shared links keep them.
 import { FilterX, Inbox, Plus, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import client, { errorMessage } from '../api/client'
 import { OverdueBadge, PriorityBadge, StatusBadge } from '../components/Badges'
 import { Alert, Avatar, EmptyState, PageHeader } from '../components/Ui'
