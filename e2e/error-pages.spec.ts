@@ -16,10 +16,14 @@ function errorLogLines(page: Page) {
   return lines
 }
 
-// Counts full page loads of the main frame (the first one included)
+// Counts full page loads (the first one included): each time the browser requests the page itself (an HTML document
+// for the main frame). Not 'load' events, which Firefox can fire more than once for the same page; a real second reload
+// is exactly what these tests must catch.
 function countLoads(page: Page) {
   const loads = { count: 0 }
-  page.on('load', () => (loads.count += 1))
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) loads.count += 1
+  })
   return loads
 }
 
@@ -97,8 +101,8 @@ test('a crash outside the layout fills the page; Reload and Go to home page are 
   // Not logged in, so home ("/" → /tickets) ends on the login page
   await page.getByRole('button', { name: 'Go to home page' }).click()
   await expect(page).toHaveURL(/\/login$/)
-  // A full page load, not a router navigation (Firefox can report an extra load event here, so no exact count)
-  expect(loads.count).toBeGreaterThan(2)
+  // One more full page load (of "/"); the redirects from there to /login happen inside the app
+  expect(loads.count).toBe(3)
 })
 
 test('the keyboard reaches the buttons, and Try again works from it', async ({ page }) => {
