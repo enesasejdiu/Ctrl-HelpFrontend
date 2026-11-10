@@ -3,7 +3,7 @@
 // the bar shows only the logo and Log out (every page but /set-password is closed to them anyway).
 // A one-off message passed in the navigation state ({ flash }) is shown above the page, e.g. "Password changed".
 // A page that crashes while rendering is replaced by an error message (RouteErrorBoundary); the bar keeps working.
-import { Building2, Check, KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
+import { Building2, Check, KeyRound, LayoutDashboard, LogOut, ScrollText, Ticket, TicketPlus, Users } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../context/auth'
 import RouteErrorBoundary from '../errors/RouteErrorBoundary'
@@ -31,6 +31,7 @@ export default function Layout({ children }) {
               { to: '/admin/departments', label: 'Departments', icon: Building2 },
             ]
           : []),
+        ...(isAdmin ? [{ to: '/admin/audit', label: 'Audit log', icon: ScrollText }] : []),
       ]
 
   // Avatar, name and role; a link to /profile, except while the user must first set a password

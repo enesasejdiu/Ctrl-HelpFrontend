@@ -1036,6 +1036,61 @@ fieldset.field {
   box-shadow: inset 3px 0 0 var(--danger);
 }
 
+/* Audit log: failed logins and lockouts in amber, with a bar on the left edge like overdue tickets */
+.table tbody tr.is-warning {
+  background: #fffbeb;
+}
+
+.table tbody tr.is-warning:hover {
+  background: #fef3c7;
+}
+
+.table tbody tr.is-warning td:first-child {
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.audit-action {
+  font-weight: 600;
+}
+
+.audit-action--warning {
+  color: #92400e;
+}
+
+.table__ip {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* "From" / "To" date inputs in a filter toolbar */
+.date-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.date-filter .input {
+  width: auto;
+}
+
+/* "Previous · Page X of Y · Next" under a table */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pagination__status {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .person {
   display: inline-flex;
   align-items: center;
@@ -2078,6 +2133,19 @@ fieldset.field {
   }
 
   /* The red overdue bar moves from the first cell to the whole card */
+  .table--stack tbody tr.is-warning {
+    box-shadow: inset 3px 0 0 #f59e0b;
+  }
+
+  .table.table--stack tbody tr.is-warning td:first-child {
+    box-shadow: none;
+  }
+
+  .date-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .table--stack tbody tr.is-overdue {
     box-shadow: inset 3px 0 0 var(--danger);
   }

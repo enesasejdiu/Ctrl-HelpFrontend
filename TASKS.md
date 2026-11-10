@@ -136,3 +136,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Component and Playwright tests: HR adds an employee → employee sets password → creates a ticket (built by Aulona in PR #17; "My tickets" and admin checks added)
 - [x] Lockout and rate-limit messages on the login page
 - [x] HR navigation checked
+- [x] Audit log page (Admin): filter by user, action and date

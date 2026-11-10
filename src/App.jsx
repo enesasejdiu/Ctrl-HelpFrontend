@@ -1,6 +1,6 @@
 // App.jsx – all routes of TicketFlow.
 // Public: /login. Everything else needs a login; /change-password has its own full-page frame, the rest renders
-// inside <Layout>. /admin is admin-only; /admin/users and /admin/departments are for admins and HR.
+// inside <Layout>. /admin and /admin/audit are admin-only; /admin/users and /admin/departments are for admins and HR.
 // A URL that matches no route shows "Page not found" (NotFoundPage), logged in or not; real routes keep their guards.
 // Development builds also have /__crash pages for trying the error screens (see pages/DevCrash.jsx).
 import { Suspense, lazy } from 'react'
@@ -19,6 +19,7 @@ import Profile from './pages/Profile'
 import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 import Users from './pages/Users'
+import AuditLog from './pages/AuditLog'
 
 // The dashboard pulls in the chart library, so it's only downloaded when an admin opens it
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
@@ -54,6 +55,7 @@ function App() {
                 </Suspense>
               }
             />
+            <Route path="/admin/audit" element={<AuditLog />} />
           </Route>
 
           <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>
