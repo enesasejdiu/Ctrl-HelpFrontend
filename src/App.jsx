@@ -1,5 +1,5 @@
 // App.jsx – all routes of TicketFlow.
-// Public: /login, and /set-password?token=... (a one-time link emailed for a new account or a reset). Everything else
+// Public: /login, /forgot-password, and /set-password?token=... (a one-time link emailed for a new account or a reset). Everything else
 // needs a login; /change-password has its own full-page frame, the rest renders inside <Layout>. /admin is admin-only; /admin/users and /admin/departments are for admins and HR.
 // A URL that matches no route shows "Page not found" (NotFoundPage), logged in or not; real routes keep their guards.
 // Development builds also have /__crash pages for trying the error screens (see pages/DevCrash.jsx).
@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { Spinner } from './components/Ui'
 import ChangePassword from './pages/ChangePassword'
 import DevCrash from './pages/DevCrash'
+import ForgotPassword from './pages/ForgotPassword'
 import Departments from './pages/Departments'
 import SetPassword from './pages/SetPassword'
 import SetPasswordWithLink from './pages/SetPasswordWithLink'
@@ -43,6 +44,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/set-password" element={<SetPasswordRoute />}>
         {/* After logging in with a temporary password, the only page until a new one is chosen */}
         <Route index element={<SetPassword />} />

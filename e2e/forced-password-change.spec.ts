@@ -80,6 +80,8 @@ test('a new account sets its own password with the emailed link, which works onl
   browser,
   uniq,
 }) => {
+  // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
+  test.slow()
   const email = `${uniq}@test.local`
   await addUser(page, `New Starter ${uniq}`, email)
 
@@ -116,6 +118,8 @@ test('a new account sets its own password with the emailed link, which works onl
 })
 
 test('"Resend link" sends a new link; the old one stops working', async ({ page, browser, uniq }) => {
+  // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
+  test.slow()
   const email = `${uniq}@test.local`
   const name = `Resend Me ${uniq}`
   await addUser(page, name, email)
@@ -144,6 +148,8 @@ test('a password reset during a session ends it; the user chooses a new password
   browser,
   uniq,
 }) => {
+  // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
+  test.slow()
   const email = `${uniq}@test.local`
   const name = `Reset Me ${uniq}`
   const { context, page: user } = await newUserWithPassword(page, browser, name, email, 'FirstChoice123')
@@ -179,6 +185,8 @@ test('a password reset during a session ends it; the user chooses a new password
 })
 
 test('anyone can change their password from the top bar', async ({ page, browser, uniq }) => {
+  // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
+  test.slow()
   const email = `${uniq}@test.local`
   const { context, page: user } = await newUserWithPassword(page, browser, `Changer ${uniq}`, email, 'FirstChoice123')
 

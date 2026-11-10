@@ -147,6 +147,7 @@ in real browsers.
 | `npm run test:watch`    | Re-run the tests on every file change |
 | `npm run test:coverage` | Run the tests with a coverage report  |
 | `npm run e2e`           | Run the end-to-end tests (Playwright) on a throwaway database |
+| `npm run e2e:temporary-passwords` | The e2e tests for the backend without email (temporary passwords), on a throwaway database of their own |
 | `npm run e2e:cleanup`   | Drop any `ticketflow_e2e_*` database a crashed run left behind |
 
 ### Running tests
@@ -180,6 +181,10 @@ npx playwright test e2e/hr-flow.spec.ts --project=chromium   # one file, one bro
 The e2e backend runs with email set up, so new and reset passwords go out as links. No email ever leaves the machine: it runs with `NODE_ENV=test` and saves every email it "sends" as a
 `.json` file in a folder of its own (`MAIL_OUTBOX_DIR`, in the system temp folder, removed with the database).
 Tests read new accounts' set-password links from there (`e2e/support/mail.ts`).
+
+The backend can also run without email (temporary passwords). `npm run e2e:temporary-passwords` starts a separate run
+in that mode, with only `e2e/temporary-passwords.spec.ts` (the normal run skips that file); CI runs it after the main
+suite, in Chromium.
 
 Every step refuses to run unless the database name starts with `ticketflow_e2e_`. The database server is the one in
 the backend's `.env` (for example MariaDB from XAMPP); only the name is different. Set `E2E_DB_HOST`, `E2E_DB_PORT`,
@@ -215,6 +220,7 @@ These accounts come from the backend's demo data. They all use the password `pas
 | Route          | Who can open it | What it does                                                                                    |
 | -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
 | `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
+| `/forgot-password` | Everyone | "Forgot password?" from sign-in: asks the backend to email a one-time reset link (the same answer for any address; the current password keeps working until the link is used). Without email on the backend it says to ask an administrator or HR |
 | `/change-password` | Logged-in users | Change your own password (key button in the top bar) |
 | `/set-password?token=…` | Everyone (the emailed link) | A one-time link (48 hours) for a new account or an Admin/HR reset, when the backend has email set up. The token is taken out of the address bar at once (not kept in history or sent as a Referer; the page also sets `Referrer-Policy: no-referrer`), the link is checked (expired, used or replaced links say to ask an administrator or HR for a new one), then sign-in opens with "Password set, please log in." |
 | `/set-password` | Users with a temporary password | Choose your own password after a reset; every other page redirects here until it's done |
@@ -326,6 +332,7 @@ src/
     AdminDashboard.jsx   Statistics, charts and tables at /admin
     ChangePassword.jsx   Change your own password (from the top bar)
     DevCrash.jsx         Development only: /__crash pages that throw, to try the error screens
+    ForgotPassword.jsx   "Forgot password": asks for a reset link by email
     Login.jsx            Sign-in page: session-expired, lockout, rate-limit and error notices
     NewTicket.jsx        New ticket form
     NotFoundPage.jsx     An address that matches no route: "Page not found" in the layout, or a public frame

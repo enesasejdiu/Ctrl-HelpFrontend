@@ -64,6 +64,11 @@ export const API_URL = `http://localhost:${API_PORT}/api`
 export const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`
 // Where this run's backend saves every email it sends (as .json files), so tests can open set-password links.
 // Removed with the database.
+// How this run's backend delivers new and reset passwords: 'email' (one-time links, the default) or
+// 'temporary_password' (E2E_PASSWORD_DELIVERY=temporary_password: email not set up; npm run e2e:temporary-passwords)
+export const PASSWORD_DELIVERY =
+  process.env.E2E_PASSWORD_DELIVERY === 'temporary_password' ? 'temporary_password' : 'email'
+
 export const mailOutboxFor = (dbName) => path.join(os.tmpdir(), 'ticketflow-e2e-mail', assertE2eDbName(dbName))
 export const MAIL_OUTBOX_DIR = mailOutboxFor(DB_NAME)
 

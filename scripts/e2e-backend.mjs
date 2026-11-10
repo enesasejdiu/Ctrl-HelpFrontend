@@ -21,6 +21,7 @@ import {
   E2E_DB_PREFIX,
   FRONTEND_URL,
   MAIL_OUTBOX_DIR,
+  PASSWORD_DELIVERY,
   TEST_SETTINGS,
   assertE2eDbName,
   mailOutboxFor,
@@ -62,11 +63,12 @@ const backendEnv = {
   APP_URL: FRONTEND_URL,
   MAIL_OUTBOX_DIR,
   IT_NOTIFY_EMAIL: '',
-  // Email counts as set up, so new and reset passwords go out as one-time links (read from MAIL_OUTBOX_DIR). The
-  // host is never contacted: NODE_ENV=test keeps nodemailer's jsonTransport.
-  MAIL_ENABLED: 'true',
-  SMTP_HOST: 'smtp.e2e.invalid',
-  MAIL_FROM: 'TicketFlow <no-reply@e2e.invalid>',
+  // Email set up (the default run): new and reset passwords go out as one-time links, read from MAIL_OUTBOX_DIR. The
+  // host is never contacted: NODE_ENV=test keeps nodemailer's jsonTransport. The temporary-password run leaves email
+  // off, so the backend falls back to temporary passwords.
+  ...(PASSWORD_DELIVERY === 'email'
+    ? { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.e2e.invalid', MAIL_FROM: 'TicketFlow <no-reply@e2e.invalid>' }
+    : { MAIL_ENABLED: 'false', SMTP_HOST: '', MAIL_FROM: '' }),
   DOTENV_CONFIG_QUIET: 'true',
 }
 

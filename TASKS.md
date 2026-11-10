@@ -137,3 +137,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Lockout and rate-limit messages on the login page
 - [x] HR navigation checked
 - [x] Password delivery from the backend: one-time links (48h, /set-password?token=…, token removed from the URL) for new accounts and resets when email is set up, the temporary password otherwise; Resend link
+- [x] "Forgot password" page; e2e run in temporary-password mode

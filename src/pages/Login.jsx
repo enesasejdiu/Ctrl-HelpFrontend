@@ -10,7 +10,7 @@
 // All texts come from src/i18n.
 import { ArrowRight, Clock, LoaderCircle } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { errorMessage } from '../api/client'
 import AuthShell from '../components/AuthShell'
 import PasswordInput from '../components/PasswordInput'
@@ -239,6 +239,10 @@ export default function Login() {
             aria-invalid={invalidField === 'password' || undefined}
             required
           />
+          {/* Takes what was typed as the email along, so it needn't be typed again */}
+          <Link className="auth__forgot" to="/forgot-password" state={{ email }}>
+            {t('login.forgotPassword')}
+          </Link>
         </div>
 
         <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={submitting || waiting}>
