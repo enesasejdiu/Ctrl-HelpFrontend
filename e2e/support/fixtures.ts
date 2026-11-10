@@ -13,16 +13,17 @@ export const PRIORITY = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const
 
 export type Ticket = { id: number; title: string; status: string }
 
+// A logged-in role: its own request context (so its own cookie jar with tf_session) and the tf_csrf value to send
 type Session = { http: APIRequestContext; csrf: string }
 
-// Talks to the API the way the app does: with the session cookies and the X-CSRF-Token header, never a token
 export class Api {
   private sessions = new Map<Role, Session>()
 
   constructor(private readonly newContext: () => Promise<APIRequestContext>) {}
 
-  // Logs in as `role` in a request context of its own (its cookie jar is that role's session), cached per role
-  private async session(role: Role): Promise<Session> {
+  // Logs in through the API once per role, like the browser does: the backend sets the session cookies in that
+  // role's context, which sends them on every later request. Changes also need tf_csrf as the X-CSRF-Token header.
+  async loginAs(role: Role): Promise<Session> {
     const cached = this.sessions.get(role)
     if (cached) return cached
     const http = await this.newContext()
@@ -30,7 +31,7 @@ export class Api {
     expect(response, `login as ${role}`).toBeOK()
     const { cookies } = await http.storageState()
     const csrf = cookies.find((cookie) => cookie.name === 'tf_csrf')?.value
-    expect(csrf, `login as ${role} sets the tf_csrf cookie`).toBeTruthy()
+    expect(csrf, `tf_csrf cookie after logging in as ${role}`).toBeTruthy()
     const session = { http, csrf: csrf as string }
     this.sessions.set(role, session)
     return session
@@ -41,8 +42,9 @@ export class Api {
   }
 
   private async send(method: 'get' | 'post' | 'patch', url: string, as: Role, data?: unknown) {
-    const { http, csrf } = await this.session(as)
-    const response = await http[method](url, { headers: { 'X-CSRF-Token': csrf }, data })
+    const { http, csrf } = await this.loginAs(as)
+    const headers = method === 'get' ? {} : { 'X-CSRF-Token': csrf }
+    const response = await http[method](url, { headers, data })
     expect(response, `${method.toUpperCase()} ${url} as ${as}`).toBeOK()
     return response.json()
   }
