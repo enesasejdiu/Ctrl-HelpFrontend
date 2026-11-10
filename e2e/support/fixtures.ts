@@ -79,6 +79,14 @@ export class Api {
     return { email: user.email, link: await setPasswordLink(user.email) }
   }
 
+  // Resets an account's password as the admin (POST users/:id/reset-password), which ends all of its sessions
+  async resetPassword(email: string) {
+    const users: { id: number; email: string }[] = await this.send('get', 'users', 'admin')
+    const user = users.find((u) => u.email === email)
+    expect(user, `user ${email} exists`).toBeTruthy()
+    return this.send('post', `users/${user!.id}/reset-password`, 'admin')
+  }
+
   // Creates an employee who can sign in straight away: the account is made, and its password is set with the emailed
   // link through the API (POST auth/set-password), so must_change_password is off and a login isn't sent to
   // /set-password. Returns the email and the password. Nothing is deleted afterwards: each run's database is dropped

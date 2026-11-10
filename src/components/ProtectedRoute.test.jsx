@@ -161,6 +161,23 @@ describe('ProtectedRoute', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
+    it('/auth/me 401 for a logged-out visitor never calls POST /auth/logout', async () => {
+      const logouts = []
+      server.use(
+        http.get(`${API}/auth/me`, () => HttpResponse.json({ message: 'Not logged in' }, { status: 401 })),
+        http.post(`${API}/auth/logout`, () => {
+          logouts.push(1)
+          return new HttpResponse(null, { status: 204 })
+        }),
+      )
+      await renderWithProviders(null, { route: '/tickets', routes: appRoutes({ loginElement: <Login /> }) })
+
+      expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+      // Give any stray request a chance to go out before checking that none did
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(logouts).toHaveLength(0)
+    })
+
     it('treats an unreachable server as logged out', async () => {
       server.use(http.get(`${API}/auth/me`, () => HttpResponse.error()))
       await renderWithProviders(null, { route: '/tickets', routes: appRoutes() })
@@ -234,13 +251,40 @@ describe('ProtectedRoute', () => {
         await expect(client.get('/tickets')).rejects.toThrow()
       })
 
-      expect(await screen.findByRole('status')).toHaveTextContent('Your session has expired. Please log in again.')
+      expect(await screen.findByRole('status')).toHaveTextContent('Your session has ended. Please sign in again.')
       await waitFor(() => expect(router.state.location.search).toBe(''))
 
       await user.type(screen.getByLabelText('Work email'), 'employee1@ticketflow.local')
       await user.type(screen.getByLabelText('Password'), 'password123')
       await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
+      expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
+    })
+
+    it('a 403 CSRF_INVALID says the same, and signing in returns to the page', async () => {
+      server.use(
+        http.post(`${API}/tickets`, () =>
+          HttpResponse.json(
+            { message: 'Missing or invalid CSRF token. Reload the page and try again.', code: 'CSRF_INVALID' },
+            { status: 403 },
+          ),
+        ),
+        http.post(`${API}/auth/login`, () => HttpResponse.json({ user: buildUser() })),
+      )
+      const { user } = await renderWithProviders(null, {
+        route: '/tickets/42',
+        routes: appRoutes({ loginElement: <Login /> }),
+        user: buildUser(),
+      })
+
+      await act(async () => {
+        await expect(client.post('/tickets', {})).rejects.toThrow()
+      })
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Your session has ended. Please sign in again.')
+      await user.type(screen.getByLabelText('Work email'), 'employee1@ticketflow.local')
+      await user.type(screen.getByLabelText('Password'), 'password123')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
       expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
     })
 
@@ -261,7 +305,7 @@ describe('ProtectedRoute', () => {
 
       await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
       expect(router.state.location.search).toBe('')
-      expect(screen.queryByText(/session has expired/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/session has ended/)).not.toBeInTheDocument()
     })
 
     it('logging out yourself is not a session expiring: plain /login, no message', async () => {
@@ -275,7 +319,7 @@ describe('ProtectedRoute', () => {
 
       expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
       expect(router.state.location.search).toBe('')
-      expect(screen.queryByText(/session has expired/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/session has ended/)).not.toBeInTheDocument()
     })
 
     it('a 401 that arrives while logging out does not count as a session expiring', async () => {
@@ -301,7 +345,7 @@ describe('ProtectedRoute', () => {
 
       expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
       expect(router.state.location.search).toBe('')
-      expect(screen.queryByText(/session has expired/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/session has ended/)).not.toBeInTheDocument()
     })
 
     it('a 401 from the login request itself (wrong password) does not count as a session ending', async () => {
@@ -321,7 +365,7 @@ describe('ProtectedRoute', () => {
       await user.type(screen.getByLabelText('Password'), 'wrong-password')
       await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password.')
+      expect(await screen.findByRole('alert')).toHaveTextContent('Wrong email or password')
       // Only the startup check and the login: no retry loop of /auth/me
       expect(requests).toEqual(['/api/auth/me', '/api/auth/login'])
     })

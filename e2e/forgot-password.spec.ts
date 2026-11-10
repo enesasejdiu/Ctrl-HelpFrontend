@@ -45,7 +45,7 @@ test('a reset link by email; the old password works until the link sets a new on
 
   await page.getByLabel('Password', { exact: true }).fill('OldPassword123')
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
+  await expect(page.getByRole('alert')).toHaveText('Wrong email or password')
   await page.getByLabel('Password', { exact: true }).fill('NewPassword456')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL('/tickets')

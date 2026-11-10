@@ -88,7 +88,7 @@ test('a new account sets its own password with the emailed link, which works onl
   // Nothing to sign in with yet: the usual message
   const { context, page: newUser } = await freshPage(browser)
   await signIn(newUser, email, 'password123')
-  await expect(newUser.getByRole('alert')).toHaveText('Incorrect email or password.')
+  await expect(newUser.getByRole('alert')).toHaveText('Wrong email or password')
 
   // The emailed link: no login needed, a greeting, the live checklist, then the sign-in page with the email filled in
   const link = await setPasswordLink(email)
@@ -168,7 +168,7 @@ test('a password reset during a session ends it; the user chooses a new password
   await user.reload()
   await expect(user).toHaveURL(/\/login/)
   await signIn(user, email, 'FirstChoice123')
-  await expect(user.getByRole('alert')).toHaveText('Incorrect email or password.')
+  await expect(user.getByRole('alert')).toHaveText('Wrong email or password')
 
   // The reset link: a new password, then sign in with it
   await user.goto(link)

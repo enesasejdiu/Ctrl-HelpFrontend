@@ -61,7 +61,7 @@ The frontend never sees or stores the login token.
   `localStorage` by an older version (`ticketflow.token`, `ticketflow.user`) is deleted once, silently
   (`src/context/legacySession.js`, to be removed after a release or two).
 - **401** on any request (the session expired, the account was deactivated) forgets the user and opens
-  `/login?reason=session_expired`. The login page says "Your session has expired. Please log in again.", takes the
+  `/login?reason=session_expired`. The login page says "Your session has ended. Please sign in again.", takes the
   reason out of the URL (so a reload doesn't repeat it), and after signing in returns to the page you were on. That
   page travels in the router state, not the URL, and only a path on this site is accepted
   (`src/utils/returnPath.js`). Logging out yourself, or opening the app without a session, shows no message.
@@ -85,7 +85,7 @@ One notice at a time above the login form, the latest event winning:
 
 | Backend answer | Message | Button |
 | --- | --- | --- |
-| 401 | Incorrect email or password. (never says whether the email exists) | enabled |
+| 401 | Wrong email or password (never says whether the email exists) | enabled |
 | 423 `ACCOUNT_LOCKED` | Too many failed attempts. Your account is locked. Try again in {time}. Plus a note that an administrator or HR can reset the password | disabled for that email until the time is up; another email gets it back |
 | 429 `RATE_LIMITED` with `Retry-After` | Too many attempts. Please wait {time} and try again. | disabled until the time is up |
 | 429 without `Retry-After` | Too many attempts. Please wait a few minutes and try again. | enabled |

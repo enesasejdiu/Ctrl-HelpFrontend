@@ -58,7 +58,7 @@ test.describe('Login', () => {
     await page.getByLabel('Password', { exact: true }).fill('not-the-password')
     await page.getByRole('button', { name: 'Sign in' }).click()
 
-    await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.')
+    await expect(page.getByRole('alert')).toHaveText('Wrong email or password')
     await expect(page).toHaveURL('/login')
   })
 })

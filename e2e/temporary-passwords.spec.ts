@@ -93,7 +93,7 @@ test('a reset shows a new temporary password and ends the user’s session', asy
   await user.reload()
   await expect(user).toHaveURL(/\/login/)
   await signIn(user, email, 'FirstChoice123')
-  await expect(user.getByRole('alert')).toHaveText('Incorrect email or password.')
+  await expect(user.getByRole('alert')).toHaveText('Wrong email or password')
   await signIn(user, email, second)
   await setPassword(user, second, 'SecondChoice123')
   await expect(user).toHaveURL('/tickets')
