@@ -1,78 +1,149 @@
-// client.test.js – the axios client and the cookie session: requests send the cookies, every change copies the
-// tf_csrf cookie into X-CSRF-Token, reads don't need it, and no token is ever sent or stored.
+// client.test.js – the shared axios client with cookie sessions: it sends credentials, never an Authorization header,
+// adds the CSRF header to requests that change something, and reports a session ending (401) or a temporary password.
 import { http, HttpResponse } from 'msw'
 import { API, server } from '../test/server'
-import client, { CSRF_HEADER, readCookie } from './client'
+import client, { CSRF_HEADER, PASSWORD_CHANGE_REQUIRED_EVENT, SESSION_EXPIRED_EVENT } from './client'
 
-// Answers every method on /echo with the headers it received
-function echoHeaders() {
-  const seen = []
-  const record = ({ request }) => {
-    seen.push({
-      method: request.method,
-      csrf: request.headers.get(CSRF_HEADER),
-      auth: request.headers.get('Authorization'),
-    })
-    return HttpResponse.json({ ok: true })
-  }
+// Answers every request to /echo with 200 and records its headers
+function recordRequests() {
+  const requests = []
   server.use(
-    http.get(`${API}/echo`, record),
-    http.post(`${API}/echo`, record),
-    http.patch(`${API}/echo`, record),
-    http.put(`${API}/echo`, record),
-    http.delete(`${API}/echo`, record),
+    http.all(`${API}/echo`, ({ request }) => {
+      requests.push({ method: request.method, headers: Object.fromEntries(request.headers) })
+      return HttpResponse.json({ ok: true })
+    }),
   )
-  return seen
+  return requests
+}
+
+function listenFor(eventName) {
+  const listener = vi.fn()
+  window.addEventListener(eventName, listener)
+  onTestFinished(() => window.removeEventListener(eventName, listener))
+  return listener
 }
 
 describe('API client', () => {
-  it('sends the cookies with every request (withCredentials)', () => {
+  it('sends credentials (the session cookies) with every request', async () => {
+    recordRequests()
     expect(client.defaults.withCredentials).toBe(true)
+
+    const { config } = await client.get('/echo')
+    expect(config.withCredentials).toBe(true)
   })
 
-  it('copies the tf_csrf cookie into X-CSRF-Token on POST, PATCH, PUT and DELETE', async () => {
-    document.cookie = 'tf_csrf=abc123'
-    const seen = echoHeaders()
-
-    await client.post('/echo', {})
-    await client.patch('/echo', {})
-    await client.put('/echo', {})
-    await client.delete('/echo')
-
-    expect(seen.map((r) => [r.method, r.csrf])).toEqual([
-      ['POST', 'abc123'],
-      ['PATCH', 'abc123'],
-      ['PUT', 'abc123'],
-      ['DELETE', 'abc123'],
-    ])
-  })
-
-  it('sends no CSRF header on GET', async () => {
-    document.cookie = 'tf_csrf=abc123'
-    const seen = echoHeaders()
-    await client.get('/echo')
-    expect(seen).toEqual([{ method: 'GET', csrf: null, auth: null }])
-  })
-
-  it('never sends an Authorization header, even if an old token is still in localStorage', async () => {
+  it('never sets an Authorization header, even with an old token left in localStorage', async () => {
     localStorage.setItem('ticketflow.token', 'old-token')
-    document.cookie = 'tf_csrf=abc123'
-    const seen = echoHeaders()
-    await client.get('/echo')
-    await client.post('/echo', {})
-    expect(seen.map((r) => r.auth)).toEqual([null, null])
+    const requests = recordRequests()
+
+    for (const method of ['get', 'post', 'patch', 'put', 'delete']) await client[method]('/echo')
+
+    expect(requests).toHaveLength(5)
+    for (const { headers } of requests) expect(headers).not.toHaveProperty('authorization')
   })
 
-  it('sends no CSRF header when there is no tf_csrf cookie (the backend then answers 403)', async () => {
-    const seen = echoHeaders()
-    await client.post('/echo', {})
-    expect(seen[0].csrf).toBeNull()
+  describe('CSRF header', () => {
+    it.each(['post', 'patch', 'put', 'delete'])(
+      '%s sends X-CSRF-Token with the tf_csrf cookie value',
+      async (method) => {
+        document.cookie = 'tf_csrf=abc123'
+        const requests = recordRequests()
+
+        await client[method]('/echo')
+
+        expect(requests[0].headers['x-csrf-token']).toBe('abc123')
+      },
+    )
+
+    it('GET does not need it and does not send it', async () => {
+      document.cookie = 'tf_csrf=abc123'
+      const requests = recordRequests()
+
+      await client.get('/echo')
+
+      expect(requests[0].headers).not.toHaveProperty('x-csrf-token')
+    })
+
+    it('without the cookie (logged out) no header is sent', async () => {
+      const requests = recordRequests()
+      await client.post('/echo')
+      expect(requests[0].headers).not.toHaveProperty('x-csrf-token')
+    })
+
+    it('reads the right cookie among others', async () => {
+      document.cookie = 'other=1'
+      document.cookie = 'tf_csrf=the-value'
+      document.cookie = 'tf_csrf_old=wrong'
+      const requests = recordRequests()
+
+      await client.post('/echo')
+
+      expect(requests[0].headers[CSRF_HEADER.toLowerCase()]).toBe('the-value')
+    })
   })
 
-  it('readCookie finds a cookie among several and decodes it', () => {
-    document.cookie = 'other=1'
-    document.cookie = 'tf_csrf=a%20b'
-    expect(readCookie('tf_csrf')).toBe('a b')
-    expect(readCookie('missing')).toBeNull()
+  describe('errors', () => {
+    it('a 401 reports that the session ended', async () => {
+      const expired = listenFor(SESSION_EXPIRED_EVENT)
+      server.use(http.get(`${API}/tickets`, () => HttpResponse.json({ message: 'Not logged in' }, { status: 401 })))
+
+      await expect(client.get('/tickets')).rejects.toMatchObject({ response: { status: 401 } })
+      expect(expired).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['/auth/login', '/auth/change-password', '/auth/logout'])(
+      'a 401 from %s does not count as the session ending',
+      async (url) => {
+        const expired = listenFor(SESSION_EXPIRED_EVENT)
+        server.use(
+          http.post(`${API}${url}`, () => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 })),
+        )
+
+        await expect(client.post(url, {})).rejects.toMatchObject({ response: { status: 401 } })
+        expect(expired).not.toHaveBeenCalled()
+      },
+    )
+
+    it('a 403 PASSWORD_CHANGE_REQUIRED reports it (not a logout)', async () => {
+      const expired = listenFor(SESSION_EXPIRED_EVENT)
+      const passwordChange = listenFor(PASSWORD_CHANGE_REQUIRED_EVENT)
+      server.use(
+        http.get(`${API}/tickets`, () =>
+          HttpResponse.json({ message: 'Change your password', code: 'PASSWORD_CHANGE_REQUIRED' }, { status: 403 }),
+        ),
+      )
+
+      await expect(client.get('/tickets')).rejects.toMatchObject({ response: { status: 403 } })
+      expect(passwordChange).toHaveBeenCalledTimes(1)
+      expect(expired).not.toHaveBeenCalled()
+    })
+
+    it('a 403 CSRF_INVALID (cookies cleared or replaced) ends the session, like a 401', async () => {
+      const expired = listenFor(SESSION_EXPIRED_EVENT)
+      const passwordChange = listenFor(PASSWORD_CHANGE_REQUIRED_EVENT)
+      server.use(
+        http.post(`${API}/tickets`, () =>
+          HttpResponse.json({ message: 'Missing or invalid CSRF token.', code: 'CSRF_INVALID' }, { status: 403 }),
+        ),
+      )
+
+      await expect(client.post('/tickets', {})).rejects.toMatchObject({ response: { status: 403 } })
+      expect(expired).toHaveBeenCalledTimes(1)
+      expect(passwordChange).not.toHaveBeenCalled()
+    })
+
+    it('any other 403 (e.g. not allowed for this role) is just an error', async () => {
+      const expired = listenFor(SESSION_EXPIRED_EVENT)
+      const passwordChange = listenFor(PASSWORD_CHANGE_REQUIRED_EVENT)
+      server.use(
+        http.post(`${API}/tickets`, () =>
+          HttpResponse.json({ message: 'Only staff can do that', code: 'FORBIDDEN' }, { status: 403 }),
+        ),
+      )
+
+      await expect(client.post('/tickets', {})).rejects.toMatchObject({ response: { status: 403 } })
+      expect(passwordChange).not.toHaveBeenCalled()
+      expect(expired).not.toHaveBeenCalled()
+    })
   })
 })

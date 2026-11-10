@@ -1,8 +1,9 @@
-// Login.test.jsx – signing in: fields, success redirect, error messages and the pending state.
-import { act, screen } from '@testing-library/react'
+// Login.test.jsx – signing in: fields, success redirect (only to pages on this site), the notices above the form
+// (session expired, wrong credentials, server unreachable, account locked, rate limited) and the pending state.
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { buildUser } from '../test/factories'
-import { renderReady } from '../test/render'
+import { renderWithProviders } from '../test/render'
 import { API, deferred, server } from '../test/server'
 import Login from './Login'
 
@@ -20,7 +21,7 @@ function mockLogin(respond) {
 }
 
 async function renderLogin(options) {
-  return renderReady(<Login />, { route: '/login', ...options })
+  return renderWithProviders(<Login />, { route: '/login', ...options })
 }
 
 async function fillAndSubmit(user, email, password) {
@@ -50,7 +51,7 @@ describe('Login', () => {
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
   })
 
-  it('logs in with the entered credentials and goes to the ticket list, storing nothing in localStorage', async () => {
+  it('logs in with the entered credentials and goes to the ticket list, storing nothing', async () => {
     const account = buildUser({ email: 'agent1@ticketflow.local', role: 'agent' })
     const requests = mockLogin(() => HttpResponse.json({ token: 'jwt-123', user: account }))
     const { user, router } = await renderLogin()
@@ -60,8 +61,9 @@ describe('Login', () => {
     expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets')
     expect(requests).toEqual([{ email: 'agent1@ticketflow.local', password: 'password123' }])
-    // The session is the backend's httpOnly cookie: the token in the response is ignored, and nothing is saved
+    // The session is the cookie the backend set; the token in the body is ignored and nothing is saved
     expect(localStorage.length).toBe(0)
+    expect(sessionStorage.length).toBe(0)
   })
 
   it('goes back to the page the user came from after logging in', async () => {
@@ -86,28 +88,6 @@ describe('Login', () => {
 
     expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
     expect(router.state.location.search).toBe('?status=open')
-  })
-
-  it('shows the error and stays on the page when the credentials are wrong', async () => {
-    mockLogin(() => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }))
-    const { user, router } = await renderLogin()
-
-    await fillAndSubmit(user, 'employee1@ticketflow.local', 'not-my-password')
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Wrong email or password')
-    expect(router.state.location.pathname).toBe('/login')
-    expect(screen.getByLabelText('Work email')).toHaveValue('employee1@ticketflow.local')
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
-    expect(localStorage.length).toBe(0)
-  })
-
-  it('tells the user when the server cannot be reached', async () => {
-    server.use(http.post(`${API}/auth/login`, () => HttpResponse.error()))
-    const { user } = await renderLogin()
-
-    await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the server')
   })
 
   describe('validation (before calling the API)', () => {
@@ -181,103 +161,315 @@ describe('Login', () => {
     expect(screen.getByLabelText('Password')).toHaveValue('password123')
   })
 
-  // The backend's login limits (backend README, "Login limits"): 423 ACCOUNT_LOCKED and 429 RATE_LIMITED
+  describe('return address after logging in', () => {
+    it.each([
+      ['another site', 'https://evil.example', '/x'],
+      ['a protocol-relative address', '//evil.example', '/x'],
+      ['a backslash trick', '/\\evil.example', ''],
+      ['the login page itself', '/login', ''],
+    ])('ignores %s and goes to the ticket list', async (_case, pathname, search) => {
+      mockLogin(() => HttpResponse.json({ user: buildUser() }))
+      const { user, router } = await renderLogin({
+        route: { pathname: '/login', state: { from: { pathname, search } } },
+      })
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/tickets')
+    })
+  })
+
+  describe('messages', () => {
+    it('wrong credentials: one generic message, never whether the email exists', async () => {
+      mockLogin(() => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }))
+      const { user, router } = await renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'not-my-password')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/^Incorrect email or password\.$/)
+      expect(router.state.location.pathname).toBe('/login')
+      expect(screen.getByLabelText('Work email')).toHaveValue('employee1@ticketflow.local')
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    })
+
+    it.each([
+      ['the server cannot be reached', () => HttpResponse.error()],
+      ['the server fails', () => HttpResponse.json({ message: 'Database is down' }, { status: 500 })],
+      ['the proxy cannot reach the backend', () => new HttpResponse(null, { status: 502 })],
+    ])('%s: asks to try again', async (_case, respond) => {
+      server.use(http.post(`${API}/auth/login`, respond))
+      const { user } = await renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/^Couldn't reach the server\. Please try again\.$/)
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    })
+
+    it('shows one message at a time: the latest one', async () => {
+      let attempt = 0
+      mockLogin(() => {
+        attempt += 1
+        return attempt === 1
+          ? HttpResponse.error()
+          : HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 })
+      })
+      const { user } = await renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+      expect(await screen.findByText(/Couldn't reach the server/)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+      expect(await screen.findByText('Incorrect email or password.')).toBeInTheDocument()
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      expect(screen.queryByText(/Couldn't reach the server/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('session expired (?reason=session_expired)', () => {
+    it('says the session expired, as a status (not an error), and takes the reason out of the URL', async () => {
+      const { router } = await renderLogin({
+        route: { pathname: '/login', search: '?reason=session_expired', state: { from: { pathname: '/tickets/42' } } },
+      })
+
+      const notice = screen.getByRole('status')
+      expect(notice).toHaveTextContent('Your session has expired. Please log in again.')
+      expect(notice).toHaveClass('alert--info')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      // Gone from the URL, so a reload or bookmark doesn't show it again; the page to return to is kept
+      await waitFor(() => expect(router.state.location.search).toBe(''))
+      expect(router.state.location.state).toEqual({ from: { pathname: '/tickets/42' } })
+      expect(router.state.historyAction).toBe('REPLACE')
+    })
+
+    it('keeps other query parameters', async () => {
+      const { router } = await renderLogin({ route: '/login?reason=session_expired&lang=en' })
+      expect(screen.getByRole('status')).toHaveTextContent('Your session has expired.')
+      await waitFor(() => expect(router.state.location.search).toBe('?lang=en'))
+    })
+
+    it('a reload (the same URL without the reason) shows nothing', async () => {
+      const first = await renderLogin({ route: '/login?reason=session_expired' })
+      await waitFor(() => expect(first.router.state.location.search).toBe(''))
+      const reloadedUrl = `${first.router.state.location.pathname}${first.router.state.location.search}`
+      first.unmount()
+
+      await renderLogin({ route: reloadedUrl })
+      expect(screen.queryByText(/session has expired/)).not.toBeInTheDocument()
+    })
+
+    it.each(['', '?reason=unknown', '?reason=%3Cimg%20src%3Dx%3E', '?reason=constructor', '?reason=toString'])(
+      'shows nothing for %j (only known reasons, never the raw text)',
+      async (search) => {
+        const { container } = await renderLogin({ route: `/login${search}` })
+
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(container.querySelector('img')).toBeNull()
+      },
+    )
+
+    it('goes away when the form is submitted', async () => {
+      mockLogin(() => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }))
+      const { user } = await renderLogin({ route: '/login?reason=session_expired' })
+      expect(screen.getByRole('status')).toBeInTheDocument()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password.')
+      expect(screen.queryByText(/session has expired/)).not.toBeInTheDocument()
+    })
+
+    it('after logging in, goes back to the page the user was on', async () => {
+      mockLogin(() => HttpResponse.json({ user: buildUser() }))
+      const { user, router } = await renderLogin({
+        route: { pathname: '/login', search: '?reason=session_expired', state: { from: { pathname: '/tickets/42' } } },
+      })
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/tickets/42')
+    })
+  })
+
+  // The backend's login limits: 423 ACCOUNT_LOCKED (Retry-After seconds, body retryAfterMinutes) and 429 RATE_LIMITED
+  // (Retry-After seconds)
   describe('login limits', () => {
-    const locked = (minutes) =>
+    const locked = ({ minutes = 15, retryAfter = minutes * 60 } = {}) =>
       HttpResponse.json(
-        { message: `Too many wrong passwords. Try again in ${minutes} minutes.`, code: 'ACCOUNT_LOCKED', retryAfterMinutes: minutes },
-        { status: 423 },
+        {
+          message: `Too many wrong passwords. Try again in ${minutes} minutes.`,
+          code: 'ACCOUNT_LOCKED',
+          retryAfterMinutes: minutes,
+        },
+        { status: 423, headers: retryAfter ? { 'Retry-After': String(retryAfter) } : {} },
       )
+    const rateLimited = (retryAfter) =>
+      HttpResponse.json(
+        { message: 'Too many login attempts. Wait a few minutes and try again.', code: 'RATE_LIMITED' },
+        { status: 429, headers: retryAfter ? { 'Retry-After': String(retryAfter) } : {} },
+      )
+    // Intervals and the clock are fake; userEvent's own timeouts stay real
+    const fakeClock = () => vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
 
     afterEach(() => {
       vi.useRealTimers()
     })
 
-    it('423: says the account is locked for N minutes, and disables the button with a countdown', async () => {
-      const requests = mockLogin(() => locked(15))
+    it('423: says the account is locked, for how long, that Admin/HR can help, and disables the button', async () => {
+      const requests = mockLogin(() => locked({ minutes: 15 }))
       const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Too many wrong passwords. Your account is locked for 15 minutes.',
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(
+        'Too many failed attempts. Your account is locked. Try again in about 15 minutes.',
       )
-      const button = screen.getByRole('button', { name: /Try again in 1[45]:\d\d/ })
-      expect(button).toBeDisabled()
+      expect(alert).toHaveTextContent('An administrator or HR can reset your password.')
+      expect(alert).toHaveClass('alert--warning')
+      expect(within(alert).getByRole('timer')).toHaveTextContent('about 15 minutes')
+      expect(screen.getByRole('button', { name: 'Try again in about 15 minutes' })).toBeDisabled()
       // Enter in the form doesn't send either
       await user.type(screen.getByLabelText('Password'), '{Enter}')
       expect(requests).toHaveLength(1)
     })
 
-    it('423 with 1 minute left says "1 minute"', async () => {
-      mockLogin(() => locked(1))
+    it('counts down by the second (mm:ss) in the last 5 minutes, and gives the button back at zero', async () => {
+      fakeClock()
+      mockLogin(() => locked({ minutes: 2, retryAfter: 90 }))
       const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+      expect(await screen.findByRole('timer')).toHaveTextContent('1:30')
+      expect(screen.getByRole('button', { name: 'Try again in 1:30' })).toBeDisabled()
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        /^Too many wrong passwords\. Your account is locked for 1 minute\.$/,
-      )
-    })
-
-    it('counts down, and gives the button back when the lock runs out', async () => {
-      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
-      mockLogin(() => locked(1))
-      const { user } = await renderLogin()
-
-      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
-      expect(await screen.findByRole('button', { name: 'Try again in 1:00' })).toBeDisabled()
-
-      act(() => vi.advanceTimersByTime(30_000))
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(screen.getByRole('timer')).toHaveTextContent('0:30')
       expect(screen.getByRole('button', { name: 'Try again in 0:30' })).toBeDisabled()
 
       act(() => vi.advanceTimersByTime(30_000))
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('The lock has ended. You can try signing in again.')
     })
 
-    it('the lock belongs to that account: another email can still sign in', async () => {
-      mockLogin(() => locked(15))
+    it('goes from "about N minutes" to mm:ss', async () => {
+      fakeClock()
+      mockLogin(() => locked({ minutes: 6, retryAfter: 360 }))
+      const { user } = await renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+      expect(await screen.findByRole('timer')).toHaveTextContent('about 6 minutes')
+
+      // 5:01 left is still over 5 minutes
+      act(() => vi.advanceTimersByTime(59_000))
+      expect(screen.getByRole('timer')).toHaveTextContent('about 6 minutes')
+      act(() => vi.advanceTimersByTime(1_000))
+      expect(screen.getByRole('timer')).toHaveTextContent('5:00')
+      act(() => vi.advanceTimersByTime(1_000))
+      expect(screen.getByRole('timer')).toHaveTextContent('4:59')
+    })
+
+    it('counts from an end time, so it is right after the tab was in the background', async () => {
+      fakeClock()
+      mockLogin(() => locked({ minutes: 2, retryAfter: 120 }))
+      const { user } = await renderLogin()
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+      expect(await screen.findByRole('timer')).toHaveTextContent('2:00')
+
+      // A background tab: the clock moves on but the interval doesn't fire
+      vi.setSystemTime(Date.now() + 100_000)
+      act(() => document.dispatchEvent(new Event('visibilitychange')))
+
+      expect(screen.getByRole('timer')).toHaveTextContent('0:20')
+    })
+
+    it('uses the minutes in the body when Retry-After is missing', async () => {
+      mockLogin(() => locked({ minutes: 3, retryAfter: null }))
+      const { user } = await renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('timer')).toHaveTextContent('3:00')
+    })
+
+    it('423 without any time: the fallback message, and the button stays usable', async () => {
+      mockLogin(() => HttpResponse.json({ message: 'Locked', code: 'ACCOUNT_LOCKED' }, { status: 423 }))
+      const { user } = await renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(
+        'Your account is temporarily locked. Try again later or contact your administrator or HR.',
+      )
+      expect(within(alert).queryByRole('timer')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    })
+
+    it('the lock belongs to that account: changing the email hides it and gives the button back', async () => {
+      mockLogin(() => locked({ minutes: 15 }))
       const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
       await screen.findByRole('button', { name: /Try again in/ })
 
+      // Only a different address counts: the same one with other spacing or letter case is still locked
       const emailField = screen.getByLabelText('Work email')
+      await user.type(emailField, ' ')
+      expect(screen.getByRole('button', { name: /Try again in/ })).toBeDisabled()
+
       await user.clear(emailField)
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
       await user.type(emailField, 'employee2@ticketflow.local')
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
-      // Back to the locked email (any letter case): disabled again
-      await user.clear(emailField)
-      await user.type(emailField, 'Employee1@ticketflow.local')
-      expect(screen.getByRole('button', { name: /Try again in/ })).toBeDisabled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
-    it('429: asks to wait a few minutes, and keeps the button enabled', async () => {
-      mockLogin(() =>
-        HttpResponse.json(
-          { message: 'Too many login attempts. Wait a few minutes and try again.', code: 'RATE_LIMITED' },
-          { status: 429 },
-        ),
-      )
+    it('429 with Retry-After: says how long to wait, and disables the button until then (for any email)', async () => {
+      fakeClock()
+      mockLogin(() => rateLimited(45))
+      const { user } = await renderLogin()
+
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts. Please wait 0:45 and try again.')
+      expect(screen.getByRole('button', { name: 'Try again in 0:45' })).toBeDisabled()
+      // A rate limit is per address, not per account
+      await user.type(screen.getByLabelText('Work email'), 'x')
+      expect(screen.getByRole('button', { name: /Try again in/ })).toBeDisabled()
+
+      act(() => vi.advanceTimersByTime(45_000))
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+      expect(screen.getByRole('status')).toHaveTextContent('You can try signing in again now.')
+    })
+
+    it('429 without Retry-After: asks to wait a few minutes, and keeps the button enabled', async () => {
+      mockLogin(() => rateLimited(null))
       const { user } = await renderLogin()
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Too many login attempts. Wait a few minutes and try again.',
+        /^Too many attempts\. Please wait a few minutes and try again\.$/,
       )
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
     })
 
-    it('401 still says "Wrong email or password"', async () => {
-      mockLogin(() => HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }))
-      const { user } = await renderLogin()
+    it('stops its timer when the page goes away', async () => {
+      fakeClock()
+      mockLogin(() => locked({ minutes: 1, retryAfter: 60 }))
+      const { user, unmount } = await renderLogin()
+      await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
+      await screen.findByRole('timer')
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
 
-      await fillAndSubmit(user, 'employee1@ticketflow.local', 'wrong-password1')
+      unmount()
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(/^Wrong email or password$/)
-      expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+      expect(vi.getTimerCount()).toBe(0)
     })
   })
 })

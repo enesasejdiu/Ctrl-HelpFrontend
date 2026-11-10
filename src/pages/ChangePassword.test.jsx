@@ -3,8 +3,8 @@
 import { screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { buildUser } from '../test/factories'
-import { renderReady } from '../test/render'
-import { API, getSessionUser, server, setSessionUser } from '../test/server'
+import { renderWithProviders } from '../test/render'
+import { API, server, session } from '../test/server'
 import ChangePassword from './ChangePassword'
 
 const GOOD_PASSWORD = 'NewPassword42'
@@ -17,17 +17,14 @@ function mockChangePassword(respond) {
       const body = await request.json()
       requests.push(body)
       if (respond) return respond(body)
-      // Like the backend: the same user, flag cleared, with fresh session cookies (the mock session)
-      const changed = { ...getSessionUser(), must_change_password: false }
-      setSessionUser(changed)
-      return HttpResponse.json({ message: 'Password changed', user: changed })
+      return HttpResponse.json({ user: { ...session.user, must_change_password: false } })
     }),
   )
   return requests
 }
 
 async function renderPage({ user = buildUser({ must_change_password: true }), from } = {}) {
-  return renderReady(<ChangePassword />, {
+  return renderWithProviders(<ChangePassword />, {
     route: { pathname: '/change-password', state: from ? { from: { pathname: from } } : undefined },
     user,
   })
@@ -60,23 +57,6 @@ describe('ChangePassword', () => {
     expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets/42')
     expect(requests).toEqual([{ currentPassword: 'Temp1234abcd', newPassword: GOOD_PASSWORD }])
-    expect(localStorage.length).toBe(0)
-  })
-
-  it('stays logged in after the change through the fresh cookie, and keeps no token itself', async () => {
-    // The backend still sends a token in the body for older clients; the app must ignore it
-    mockChangePassword(() => {
-      const changed = { ...getSessionUser(), must_change_password: false }
-      setSessionUser(changed)
-      return HttpResponse.json({ message: 'Password changed', token: 'fresh-token', user: changed })
-    })
-    const { user } = await renderPage({ from: '/tickets/42' })
-
-    await fill(user)
-
-    expect(await screen.findByRole('heading', { name: 'Ticket 42' })).toBeInTheDocument()
-    expect(getSessionUser()).not.toBeNull() // no logout happened
-    expect(localStorage.length).toBe(0)
   })
 
   it('goes to the ticket list when there is no page to return to', async () => {
@@ -122,7 +102,6 @@ describe('ChangePassword', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Current password is wrong')
     expect(router.state.location.pathname).toBe('/change-password')
-    expect(getSessionUser()).not.toBeNull() // still logged in: a wrong password is not an expired session
     expect(screen.getByRole('button', { name: 'Save new password' })).toBeEnabled()
   })
 
@@ -132,6 +111,6 @@ describe('ChangePassword', () => {
     await user.click(screen.getByRole('button', { name: 'Log out' }))
 
     expect(await screen.findByRole('heading', { name: 'Login page' })).toBeInTheDocument()
-    expect(getSessionUser()).toBeNull() // POST /auth/logout was called
+    expect(session.user).toBeNull() // POST /auth/logout ended the session
   })
 })

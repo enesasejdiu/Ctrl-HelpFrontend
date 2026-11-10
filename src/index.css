@@ -1208,6 +1208,32 @@ fieldset.field {
   border: 1px solid var(--danger-border);
 }
 
+.alert--warning {
+  color: #854d0e;
+  background: #fefce8;
+  border: 1px solid #fde68a;
+}
+
+.alert--info {
+  color: #3730a3;
+  background: var(--primary-soft);
+  border: 1px solid #c7d2fe;
+}
+
+.alert p {
+  margin: 0;
+}
+
+.alert p + p {
+  margin-top: 4px;
+}
+
+/* The countdown in a lock message: digits of equal width, so the text doesn't jiggle every second */
+.alert [role='timer'] {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -1248,11 +1274,12 @@ fieldset.field {
   margin-top: 12px;
 }
 
-/* Full-page wait while the app asks the backend who is logged in (AuthProvider) */
+/* Shown instead of the app while the startup session check (GET /auth/me) runs */
 .session-check {
-  min-height: 100vh;
   display: grid;
   place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .spinner {
@@ -2102,4 +2129,146 @@ fieldset.field {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Error screens (errors/ErrorFallback.jsx): deliberately plain, so they still look right if other styles are what broke */
+.error-fallback--page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg, #f5f6f8);
+}
+
+.error-fallback--route {
+  padding: 32px 0;
+}
+
+.error-fallback__card {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 28px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  color: var(--text, #111827);
+}
+
+.error-fallback__card h1 {
+  margin: 0 0 8px;
+  font-size: 1.375rem;
+}
+
+.error-fallback__card h1:focus {
+  outline: none;
+}
+
+.error-fallback__card > p {
+  margin: 0 0 20px;
+  color: var(--text-muted, #6b7280);
+}
+
+.error-fallback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.error-fallback__card > .error-fallback__reference {
+  margin: 20px 0 0;
+  font-size: 0.875rem;
+}
+
+.error-fallback__reference code {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text, #111827);
+}
+
+.error-fallback__details {
+  margin-top: 16px;
+  font-size: 0.8125rem;
+}
+
+.error-fallback__details pre {
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--surface-muted, #f9fafb);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* "Page not found" (components/NotFound.jsx): the error screen's card, with a neutral icon instead of error colours */
+.not-found {
+  padding: 32px 0;
+}
+
+.not-found__card {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.not-found__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.not-found__card h1 {
+  margin: 0 0 8px;
+  font-size: 1.375rem;
+}
+
+.not-found__card h1:focus {
+  outline: none;
+}
+
+.not-found__card > p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+}
+
+.not-found__path code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.not-found__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* The frame around "Page not found" for logged-out visitors */
+.public-page {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.public-page__header {
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.public-page__main {
+  padding: 24px 16px;
 }

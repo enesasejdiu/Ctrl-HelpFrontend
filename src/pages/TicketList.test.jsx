@@ -3,7 +3,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { buildTicket, buildUser } from '../test/factories'
-import { currentParams, renderReady } from '../test/render'
+import { currentParams, renderWithProviders } from '../test/render'
 import { API, server } from '../test/server'
 import TicketList from './TicketList'
 
@@ -44,7 +44,7 @@ function mockTickets(tickets = TICKETS, { currentUser = agent } = {}) {
 }
 
 async function renderList({ route = '/tickets', user = agent, userEventOptions } = {}) {
-  return renderReady(<TicketList />, { route, path: '/tickets', user, userEventOptions })
+  return renderWithProviders(<TicketList />, { route, path: '/tickets', user, userEventOptions })
 }
 
 // Titles of the rows in the (visible) ticket table
@@ -97,7 +97,11 @@ describe('TicketList', () => {
     })
 
     it('shows the error when the tickets cannot be loaded', async () => {
-      server.use(http.get(`${API}/tickets`, () => HttpResponse.json({ message: 'Something went wrong on the server' }, { status: 500 })))
+      server.use(
+        http.get(`${API}/tickets`, () =>
+          HttpResponse.json({ message: 'Something went wrong on the server' }, { status: 500 }),
+        ),
+      )
       await renderList()
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong on the server')

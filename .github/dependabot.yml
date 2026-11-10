@@ -1,0 +1,36 @@
+# Dependabot: weekly pull requests that update dependencies (https://docs.github.com/code-security/dependabot).
+# Minor and patch updates come grouped: one PR for production dependencies, one for dev dependencies. Every major
+# update gets a PR of its own, because it can break things and needs a review.
+# Security updates (once enabled in the repo settings) still arrive as soon as an advisory is published.
+# Commit messages are Dependabot's own "Bump x from 1.2.3 to 1.2.4": imperative, like the rest of the history.
+version: 2
+
+updates:
+  # The app: one package.json and package-lock.json at the root (no workspaces)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Budapest
+    open-pull-requests-limit: 10
+    labels: [dependencies, frontend]
+    groups:
+      production-minor-and-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+      development-minor-and-patch:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # The actions used in .github/workflows (security.yml pins them to commit SHAs; Dependabot updates those too)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Budapest
+    open-pull-requests-limit: 10
+    labels: [dependencies, ci]

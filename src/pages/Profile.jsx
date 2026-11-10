@@ -2,7 +2,7 @@
 // to the Change password page. Opened from your name in the top bar. Admins and HR change details on the Users page.
 import { KeyRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router'
 import client, { errorMessage } from '../api/client'
 import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'

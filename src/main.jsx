@@ -1,17 +1,29 @@
-// main.jsx – entry point: mounts <App /> into #root with routing and the login state around it.
+// main.jsx – entry point: starts error monitoring, then mounts the app on a data router (routes in router.jsx).
+// AppErrorBoundary is outermost, so even a crash in the router shows the error page.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router'
+import { RouterProvider } from 'react-router/dom'
 import './index.css'
-import App from './App.jsx'
-import { AuthProvider } from './context/AuthContext.jsx'
+import AppErrorBoundary from './errors/AppErrorBoundary.jsx'
+import { logError } from './errors/logger.js'
+import { initMonitoring } from './errors/monitoring.js'
+import { appRoutes } from './router.jsx'
 
-createRoot(document.getElementById('root')).render(
+// Loads Sentry in the background when VITE_SENTRY_DSN is set; reports made before it's ready wait for it
+initMonitoring()
+
+const router = createBrowserRouter(appRoutes)
+
+createRoot(document.getElementById('root'), {
+  // The boundaries already log what they catch (with the reference they show), so React's own copy is skipped
+  onCaughtError: () => {},
+  // Only reachable if the full-page fallback itself fails to render
+  onUncaughtError: (error, info) => logError({ error, kind: 'uncaught', componentStack: info.componentStack }),
+}).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
+    <AppErrorBoundary>
+      <RouterProvider router={router} />
+    </AppErrorBoundary>
   </StrictMode>,
 )

@@ -5,8 +5,8 @@ import { http, HttpResponse } from 'msw'
 import Layout from '../components/Layout'
 import ProtectedRoute from '../components/ProtectedRoute'
 import { buildUser } from '../test/factories'
-import { renderReady } from '../test/render'
-import { API, server } from '../test/server'
+import { renderWithProviders } from '../test/render'
+import { API, server, session } from '../test/server'
 import Profile from './Profile'
 
 // Mirrors App.jsx: /profile inside the login check and the Layout, with stubs for the pages it links to
@@ -29,7 +29,7 @@ const routes = [
 ]
 
 async function renderProfile(user, route = '/profile') {
-  return renderReady(null, { route, routes, user })
+  return renderWithProviders(null, { route, routes, user })
 }
 
 // The value next to a label in the "My details" list
@@ -100,16 +100,16 @@ describe('Profile', () => {
   })
 
   it('shows an error when the details cannot be loaded', async () => {
-    // The first /auth/me is the app's startup session check; only the page's own request fails
-    const me = buildUser()
+    // The startup session check succeeds; the page's own request for the details fails
     let calls = 0
     server.use(
-      http.get(`${API}/auth/me`, () => {
-        calls += 1
-        return calls === 1 ? HttpResponse.json(me) : HttpResponse.json({ message: 'Server error' }, { status: 500 })
-      }),
+      http.get(`${API}/auth/me`, () =>
+        (calls += 1) === 1
+          ? HttpResponse.json(session.user)
+          : HttpResponse.json({ message: 'Server error' }, { status: 500 }),
+      ),
     )
-    await renderProfile(me)
+    await renderProfile(buildUser())
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Server error')
   })

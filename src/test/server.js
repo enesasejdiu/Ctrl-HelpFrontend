@@ -7,24 +7,18 @@ import { DEPARTMENTS, buildMeta } from './factories'
 // The same base URL the axios client uses (set for tests in vite.config.js)
 export const API = import.meta.env.VITE_API_URL
 
-// Who the mock backend thinks is logged in: the stand-in for the httpOnly session cookie, which tests (like the app)
-// can't see. renderWithProviders({ user }) sets it; setup.js clears it after each test.
-let sessionUser = null
-export function setSessionUser(user) {
-  sessionUser = user
-}
-export function getSessionUser() {
-  return sessionUser
-}
+// Stands in for the backend's cookie session: who the browser's session cookie belongs to (null = no session).
+// seedSession() in render.jsx sets it; setup.js clears it after each test.
+export const session = { user: null }
 
 export const handlers = [
-  // AuthProvider asks on startup who is logged in: answer with the session's user, or 401
+  // AuthProvider asks who is logged in on startup: whoever the mock session belongs to, otherwise 401
   http.get(`${API}/auth/me`, () =>
-    sessionUser ? HttpResponse.json(sessionUser) : HttpResponse.json({ message: 'Not logged in' }, { status: 401 }),
+    session.user ? HttpResponse.json(session.user) : HttpResponse.json({ message: 'Not logged in' }, { status: 401 }),
   ),
-  // Logout clears the session (the real backend clears the cookies) and answers 204
+  // Logging out ends the mock session, like the backend clearing the cookies
   http.post(`${API}/auth/logout`, () => {
-    sessionUser = null
+    session.user = null
     return new HttpResponse(null, { status: 204 })
   }),
   http.get(`${API}/meta`, () => HttpResponse.json(buildMeta())),

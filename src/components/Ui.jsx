@@ -1,5 +1,5 @@
 // Ui.jsx – small building blocks reused on every page: avatar, spinner, alert, empty state, page header.
-import { CircleAlert, LoaderCircle } from 'lucide-react'
+import { CircleAlert, Info, LoaderCircle, TriangleAlert } from 'lucide-react'
 import { initials } from '../utils/format'
 
 export function Avatar({ name, size = 'md' }) {
@@ -19,10 +19,19 @@ export function Spinner({ label = 'Loading…' }) {
   )
 }
 
-export function Alert({ children }) {
+// tone: error (default) and warning interrupt the screen reader (role="alert"); info waits its turn (role="status").
+// Each tone has its own icon, so the meaning doesn't rest on color alone.
+const ALERT_TONES = {
+  error: { icon: CircleAlert, role: 'alert' },
+  warning: { icon: TriangleAlert, role: 'alert' },
+  info: { icon: Info, role: 'status' },
+}
+
+export function Alert({ tone = 'error', children }) {
+  const { icon: Icon, role } = ALERT_TONES[tone]
   return (
-    <div className="alert alert--error" role="alert">
-      <CircleAlert size={18} aria-hidden="true" />
+    <div className={`alert alert--${tone}`} role={role}>
+      <Icon size={18} aria-hidden="true" />
       <div>{children}</div>
     </div>
   )

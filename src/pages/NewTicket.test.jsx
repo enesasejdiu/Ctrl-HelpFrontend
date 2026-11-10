@@ -2,7 +2,7 @@
 import { screen, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { buildUser } from '../test/factories'
-import { renderWithProviders, renderReady } from '../test/render'
+import { renderWithProviders } from '../test/render'
 import { API, deferred, server } from '../test/server'
 import NewTicket from './NewTicket'
 
@@ -24,7 +24,7 @@ const descriptionField = () => screen.getByRole('textbox', { name: 'Description'
 const submitButton = () => screen.getByRole('button', { name: /submit/i })
 
 async function renderForm() {
-  const result = renderWithProviders(<NewTicket />, { route: '/tickets/new', user: buildUser() })
+  const result = await renderWithProviders(<NewTicket />, { route: '/tickets/new', user: buildUser() })
   await screen.findByRole('combobox', { name: 'Category' })
   return result
 }
@@ -38,7 +38,7 @@ async function fillValidForm(user) {
 
 describe('NewTicket', () => {
   it('shows a loader until the form data has loaded', async () => {
-    await renderReady(<NewTicket />, { route: '/tickets/new', user: buildUser() })
+    await renderWithProviders(<NewTicket />, { route: '/tickets/new', user: buildUser() })
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading form…')
     expect(await screen.findByRole('combobox', { name: 'Category' })).toBeInTheDocument()
@@ -183,8 +183,12 @@ describe('NewTicket', () => {
   })
 
   it('shows an error instead of the form when the form data cannot be loaded', async () => {
-    server.use(http.get(`${API}/meta`, () => HttpResponse.json({ message: 'Something went wrong on the server' }, { status: 500 })))
-    renderWithProviders(<NewTicket />, { route: '/tickets/new', user: buildUser() })
+    server.use(
+      http.get(`${API}/meta`, () =>
+        HttpResponse.json({ message: 'Something went wrong on the server' }, { status: 500 }),
+      ),
+    )
+    await renderWithProviders(<NewTicket />, { route: '/tickets/new', user: buildUser() })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong on the server')
     expect(screen.queryByRole('button', { name: /submit/i })).not.toBeInTheDocument()

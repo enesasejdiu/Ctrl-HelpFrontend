@@ -144,4 +144,9 @@ const commands = {
 }
 
 if (!commands[command]) fail(`Unknown command "${command}". Use one of: ${Object.keys(commands).join(', ')}`)
-await commands[command]().catch((err) => fail(err.message))
+// A refused connection is an AggregateError with an empty message; its inner errors say what failed
+const describeError = (err) =>
+  err.message || err.errors?.map((inner) => inner.message).join('; ') || err.code || String(err)
+await commands[command]().catch((err) =>
+  fail(`${describeError(err)}${err.code === 'ECONNREFUSED' ? ' (is the database server running?)' : ''}`),
+)

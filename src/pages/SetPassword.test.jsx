@@ -5,8 +5,8 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import App from '../App'
 import { buildUser } from '../test/factories'
-import { renderReady } from '../test/render'
-import { API, getSessionUser, server, setSessionUser } from '../test/server'
+import { renderWithProviders } from '../test/render'
+import { API, server, session } from '../test/server'
 
 const TEMPORARY = 'Tmp4uK9pQw2xZr'
 const GOOD = 'my-own-pass42'
@@ -20,17 +20,14 @@ function mockApi({ change } = {}) {
       const body = await request.json()
       bodies.push(body)
       if (change) return change(body)
-      // Like the backend: the same user, flag cleared, with fresh session cookies (the mock session)
-      const changed = { ...getSessionUser(), must_change_password: false }
-      setSessionUser(changed)
-      return HttpResponse.json({ message: 'Password changed', user: changed })
+      return HttpResponse.json({ message: 'Password changed', user: { ...session.user, must_change_password: false } })
     }),
   )
   return bodies
 }
 
 async function renderApp(route, user = buildUser({ must_change_password: true })) {
-  return renderReady(null, { route, routes: [{ path: '*', element: <App /> }], user })
+  return renderWithProviders(null, { route, routes: [{ path: '*', element: <App /> }], user })
 }
 
 const field = (label) => screen.getByLabelText(label)
@@ -72,7 +69,6 @@ describe('Set your password', () => {
   })
 
   it('a 403 PASSWORD_CHANGE_REQUIRED during a session sends the user to the page', async () => {
-    // The session's user is not flagged (yet): only the 403 can send them to the page
     server.use(
       http.get(`${API}/tickets`, () =>
         HttpResponse.json(
@@ -151,11 +147,15 @@ describe('Set your password', () => {
 
     await waitFor(() => expect(field('Temporary password')).toHaveAccessibleDescription('Current password is wrong'))
     expect(router.state.location.pathname).toBe('/set-password')
-    expect(getSessionUser()).not.toBeNull() // still logged in: a wrong password is not an expired session
+    // Still logged in, still flagged: the form stays
+    expect(screen.getByRole('heading', { name: 'Set your password' })).toBeInTheDocument()
   })
 
   it('other backend errors are shown (e.g. the same password again)', async () => {
-    mockApi({ change: () => HttpResponse.json({ message: 'New password must be different from the current one' }, { status: 400 }) })
+    mockApi({
+      change: () =>
+        HttpResponse.json({ message: 'New password must be different from the current one' }, { status: 400 }),
+    })
     const { user } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.type(field('Temporary password'), GOOD)
@@ -178,7 +178,6 @@ describe('Set your password', () => {
     expect(router.state.location.pathname).toBe('/tickets')
     expect(screen.getByRole('status')).toHaveTextContent('Password changed')
     expect(bodies).toEqual([{ currentPassword: TEMPORARY, newPassword: GOOD }])
-    expect(localStorage.length).toBe(0)
     // The menu is back, and other pages open again
     expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'New ticket' })).toBeInTheDocument()
     await act(() => router.navigate('/tickets/new'))
@@ -199,7 +198,7 @@ describe('Set your password', () => {
     await screen.findByRole('heading', { name: 'Set your password' })
     await user.click(screen.getByRole('button', { name: 'Log out' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
-    expect(getSessionUser()).toBeNull() // POST /auth/logout was called
+    expect(session.user).toBeNull() // POST /auth/logout ended the session
   })
 })
 

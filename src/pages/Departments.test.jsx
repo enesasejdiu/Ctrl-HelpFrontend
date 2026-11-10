@@ -5,7 +5,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import App from '../App'
 import { DEPARTMENTS, buildUser } from '../test/factories'
-import { renderReady } from '../test/render'
+import { renderWithProviders } from '../test/render'
 import { API, server } from '../test/server'
 
 const admin = buildUser({ name: 'Admin User', role: 'admin', email: 'admin@ticketflow.local' })
@@ -60,7 +60,7 @@ function mockDepartments(initial = DEPARTMENTS) {
 }
 
 async function renderApp(me, route = '/admin/departments') {
-  return renderReady(null, { route, routes: [{ path: '*', element: <App /> }], user: me })
+  return renderWithProviders(null, { route, routes: [{ path: '*', element: <App /> }], user: me })
 }
 
 // Renders the page as an admin and waits for the table

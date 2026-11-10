@@ -2,14 +2,17 @@
 // The Dashboard link is only shown to admins; Users and Departments to admins and HR. Your name opens your profile. While the user still has a temporary password,
 // the bar shows only the logo and Log out (every page but /set-password is closed to them anyway).
 // A one-off message passed in the navigation state ({ flash }) is shown above the page, e.g. "Password changed".
+// A page that crashes while rendering is replaced by an error message (RouteErrorBoundary); the bar keeps working.
 import { Building2, Check, KeyRound, LayoutDashboard, LogOut, Ticket, TicketPlus, Users } from 'lucide-react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../context/auth'
+import RouteErrorBoundary from '../errors/RouteErrorBoundary'
 import { ROLE_LABELS } from '../utils/format'
 import Logo from './Logo'
 import { Avatar } from './Ui'
 
-export default function Layout() {
+// Used as a layout route (the page comes from <Outlet />) or around `children` (the "Page not found" page)
+export default function Layout({ children }) {
   const { user, isAdmin, canManageUsers, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -41,8 +44,8 @@ export default function Layout() {
     </>
   )
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await logout() // never fails: the user is forgotten here even if the request does
     navigate('/login', { replace: true })
   }
 
@@ -90,7 +93,7 @@ export default function Layout() {
             <p>{location.state.flash}</p>
           </div>
         )}
-        <Outlet />
+        <RouteErrorBoundary>{children ?? <Outlet />}</RouteErrorBoundary>
       </main>
     </div>
   )

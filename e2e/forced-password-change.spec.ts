@@ -33,6 +33,14 @@ async function signIn(page: Page, email: string, password: string) {
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 
+// Logs out and waits until the app is on /login, which it only goes to once the logout request has finished.
+// Navigating away sooner (e.g. signIn's page.goto) can cancel that request, in Firefox especially: the session then
+// stays alive, /login forwards the still-logged-in user to /tickets, and the sign-in form never appears.
+async function logOut(page: Page) {
+  await page.getByRole('button', { name: 'Log out' }).click()
+  await expect(page).toHaveURL('/login')
+}
+
 // "Set your password" (/set-password): where a temporary password sends the user
 async function setPassword(page: Page, temporary: string, next: string) {
   await page.getByLabel('Temporary password').fill(temporary)
@@ -82,9 +90,9 @@ test('a new account must choose its own password at first sign-in', async ({ pag
   await expect(newUser.getByRole('heading', { name: 'New ticket' })).toBeVisible()
 
   // The temporary password no longer works; the new one does
-  await newUser.getByRole('button', { name: 'Log out' }).click()
+  await logOut(newUser)
   await signIn(newUser, email, temporary)
-  await expect(newUser.getByRole('alert')).toHaveText('Wrong email or password')
+  await expect(newUser.getByRole('alert')).toHaveText('Incorrect email or password.')
   await newUser.getByLabel('Password', { exact: true }).fill('MyOwnPassword1')
   await newUser.getByRole('button', { name: 'Sign in' }).click()
   await expect(newUser).toHaveURL(/\/tickets/)
@@ -135,7 +143,7 @@ test('anyone can change their password from the top bar', async ({ page, browser
   await choosePassword(user, 'FirstChoice123', 'SecondChoice123')
   await expect(user).toHaveURL('/tickets')
 
-  await user.getByRole('button', { name: 'Log out' }).click()
+  await logOut(user)
   await signIn(user, email, 'SecondChoice123')
   await expect(user).toHaveURL('/tickets')
   await context.close()

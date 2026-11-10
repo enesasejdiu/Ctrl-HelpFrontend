@@ -77,6 +77,31 @@ export class Api {
     return { email: user.email, password: temporaryPassword }
   }
 
+  // Creates an employee who can sign in straight away: the account is made with a temporary password, which is then
+  // replaced through the API (POST auth/change-password), so must_change_password is off and a login isn't sent to
+  // /set-password. Returns the email and the password now in use. Nothing is deleted afterwards: each run's database
+  // is dropped at the end, and the unique email keeps the account away from every other test.
+  async createReadyEmployee(name: string, email: string, password = 'ReadyPassword123') {
+    const account = await this.createEmployee(name, email)
+    const http = await this.newContext()
+    try {
+      const login = await http.post('auth/login', { data: account })
+      expect(login, `first login as ${account.email}`).toBeOK()
+      const { cookies } = await http.storageState()
+      const csrf = cookies.find((cookie) => cookie.name === 'tf_csrf')?.value ?? ''
+      const change = await http.post('auth/change-password', {
+        headers: { 'X-CSRF-Token': csrf },
+        data: { currentPassword: account.password, newPassword: password },
+      })
+      expect(change, `set own password for ${account.email}`).toBeOK()
+      const me = await http.get('auth/me')
+      expect(await me.json(), 'must_change_password is off').toMatchObject({ must_change_password: false })
+    } finally {
+      await http.dispose()
+    }
+    return { email: account.email, password }
+  }
+
   // Changes a ticket's status as staff (employees may only close/reopen)
   setStatus(id: number, status: string, { resolution, as = 'agent' }: { resolution?: string; as?: Role } = {}): Promise<Ticket> {
     return this.send('patch', `tickets/${id}/status`, as, { status, resolution })

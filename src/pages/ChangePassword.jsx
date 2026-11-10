@@ -3,7 +3,7 @@
 // nowhere else until it's done. Otherwise it's opened from the key button in the top bar, and can be cancelled.
 import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { errorMessage } from '../api/client'
 import AuthShell from '../components/AuthShell'
 import PasswordInput from '../components/PasswordInput'
@@ -68,8 +68,8 @@ export default function ChangePassword() {
     }
   }
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await logout() // never fails: the user is forgotten here even if the request does
     navigate('/login', { replace: true })
   }
 

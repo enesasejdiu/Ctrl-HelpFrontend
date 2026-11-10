@@ -3,13 +3,15 @@
 /* oxlint-disable react/only-export-components -- test helpers, not a fast-refresh module */
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { RouterProvider, createMemoryRouter, useParams } from 'react-router-dom'
-import { AuthProvider } from '../context/AuthContext'
-import { setSessionUser } from './server'
+import { createMemoryRouter, useParams } from 'react-router'
+import { RouterProvider } from 'react-router/dom'
+import { AuthProvider, CHECKING_SESSION_LABEL } from '../context/AuthContext'
+import { session } from './server'
 
-// Logs a user in on the mock backend: GET /auth/me then answers with them, as it would for a real session cookie
+// Starts a session the way a real login does: the mock backend now answers GET /auth/me with this user
+// (in the browser that's the httpOnly cookie; the app itself never stores anything)
 export function seedSession(user) {
-  setSessionUser(user)
+  session.user = user
 }
 
 function TicketPageStub() {
@@ -24,16 +26,26 @@ export const stubRoutes = [
   { path: '/tickets/:id', element: <TicketPageStub /> },
 ]
 
+// Resolves once AuthProvider's startup session check (GET /auth/me) has answered and the app is rendered
+export async function sessionChecked() {
+  await waitFor(() => expect(screen.queryByText(CHECKING_SESSION_LABEL)).not.toBeInTheDocument())
+}
+
 /**
+ * Async: resolves after the startup session check, so the page is rendered when it returns.
  * @param ui       element to render at `path` (ignored when `routes` is given)
  * @param options.route       starting URL, or a location object like { pathname, search, state }
  * @param options.path        route pattern `ui` is mounted at (default: the pathname of `route`)
- * @param options.user        log this user in before rendering (the mock backend's session; see seedSession)
+ * @param options.user        log this user in before rendering (the mock backend's session, like a real login)
  * @param options.routes      a full route tree instead of `ui` + stub pages
  * @param options.userEventOptions  passed to userEvent.setup() (e.g. { advanceTimers } for fake timers)
+ * @param options.waitForSession    false: return right away, while the session check is still running
  * @returns render() result plus `user` (userEvent instance) and `router` (read router.state.location)
  */
-export function renderWithProviders(ui, { route = '/', path, user = null, routes, userEventOptions } = {}) {
+export async function renderWithProviders(
+  ui,
+  { route = '/', path, user = null, routes, userEventOptions, waitForSession = true } = {},
+) {
   if (user) seedSession(user)
 
   const pathname = typeof route === 'string' ? route.split('?')[0] : route.pathname
@@ -47,20 +59,8 @@ export function renderWithProviders(ui, { route = '/', path, user = null, routes
       <RouterProvider router={router} />
     </AuthProvider>,
   )
+  if (waitForSession) await sessionChecked()
   return { ...result, user: events, router }
-}
-
-// AuthProvider first asks the backend who is logged in (GET /auth/me) and shows "Checking your session…" until it
-// answers. Await this before looking for the page.
-export async function waitForSessionCheck() {
-  await waitFor(() => expect(screen.queryByText('Checking your session…')).not.toBeInTheDocument())
-}
-
-// renderWithProviders() that resolves once the session check is done and the page is on screen
-export async function renderReady(ui, options) {
-  const result = renderWithProviders(ui, options)
-  await waitForSessionCheck()
-  return result
 }
 
 // The current URL's query params, for asserting filter state

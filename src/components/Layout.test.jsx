@@ -7,7 +7,7 @@ import { buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
 import { API, server } from '../test/server'
 
-function renderApp(user, route = '/tickets') {
+async function renderApp(user, route = '/tickets') {
   return renderWithProviders(null, { route, routes: [{ path: '*', element: <App /> }], user })
 }
 
@@ -32,7 +32,7 @@ describe('Layout top bar', () => {
     ['hr', ['Tickets', 'New ticket', 'Users', 'Departments']],
     ['admin', ['Tickets', 'New ticket', 'Dashboard', 'Users', 'Departments']],
   ])('%s gets these navigation links', async (role, links) => {
-    renderApp(buildUser({ role }))
+    await renderApp(buildUser({ role }))
     expect(await navLinks()).toEqual(links)
   })
 
@@ -45,7 +45,7 @@ describe('Layout top bar', () => {
         return new HttpResponse(null, { status: 204 })
       }),
     )
-    const { user } = renderApp(buildUser({ role: 'agent' }))
+    const { user } = await renderApp(buildUser({ role: 'agent' }))
 
     await user.click(await screen.findByRole('button', { name: 'Log out' }))
 
@@ -55,7 +55,7 @@ describe('Layout top bar', () => {
   })
 
   it('HR: no Dashboard link, plus the profile link and Log out', async () => {
-    renderApp(buildUser({ role: 'hr', name: 'Hana Rexhepi' }))
+    await renderApp(buildUser({ role: 'hr', name: 'Hana Rexhepi' }))
 
     const nav = await screen.findByRole('navigation', { name: 'Main' })
     expect(within(nav).queryByRole('link', { name: 'Dashboard' })).not.toBeInTheDocument()
@@ -65,13 +65,13 @@ describe('Layout top bar', () => {
   })
 
   it.each(['/admin/users', '/admin/departments'])('HR can open %s', async (route) => {
-    const { router } = renderApp(buildUser({ role: 'hr' }), route)
+    const { router } = await renderApp(buildUser({ role: 'hr' }), route)
     await screen.findByRole('navigation', { name: 'Main' })
     expect(router.state.location.pathname).toBe(route)
   })
 
   it('HR is sent away from /admin (Dashboard) to the ticket list', async () => {
-    const { router } = renderApp(buildUser({ role: 'hr' }), '/admin')
+    const { router } = await renderApp(buildUser({ role: 'hr' }), '/admin')
     expect(await screen.findByRole('heading', { name: 'My tickets' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/tickets')
   })
