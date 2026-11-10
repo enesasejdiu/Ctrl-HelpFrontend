@@ -53,6 +53,11 @@ client.interceptors.response.use(
     if (error.response?.status === 401 && !ignore401) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
     }
+    // The CSRF cookie is missing or doesn't match (e.g. cookies were cleared or replaced): the session can't make
+    // changes any more, so it's treated as ended and the user signs in again (which sets fresh cookies)
+    if (error.response?.status === 403 && error.response.data?.code === 'CSRF_INVALID') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+    }
     if (error.response?.status === 403 && error.response.data?.code === 'PASSWORD_CHANGE_REQUIRED') {
       window.dispatchEvent(new Event(PASSWORD_CHANGE_REQUIRED_EVENT))
     }

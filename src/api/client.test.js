@@ -118,12 +118,26 @@ describe('API client', () => {
       expect(expired).not.toHaveBeenCalled()
     })
 
-    it('another 403 (e.g. CSRF_INVALID) is just an error', async () => {
+    it('a 403 CSRF_INVALID (cookies cleared or replaced) ends the session, like a 401', async () => {
       const expired = listenFor(SESSION_EXPIRED_EVENT)
       const passwordChange = listenFor(PASSWORD_CHANGE_REQUIRED_EVENT)
       server.use(
         http.post(`${API}/tickets`, () =>
           HttpResponse.json({ message: 'Missing or invalid CSRF token.', code: 'CSRF_INVALID' }, { status: 403 }),
+        ),
+      )
+
+      await expect(client.post('/tickets', {})).rejects.toMatchObject({ response: { status: 403 } })
+      expect(expired).toHaveBeenCalledTimes(1)
+      expect(passwordChange).not.toHaveBeenCalled()
+    })
+
+    it('any other 403 (e.g. not allowed for this role) is just an error', async () => {
+      const expired = listenFor(SESSION_EXPIRED_EVENT)
+      const passwordChange = listenFor(PASSWORD_CHANGE_REQUIRED_EVENT)
+      server.use(
+        http.post(`${API}/tickets`, () =>
+          HttpResponse.json({ message: 'Only staff can do that', code: 'FORBIDDEN' }, { status: 403 }),
         ),
       )
 

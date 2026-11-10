@@ -49,8 +49,12 @@ export function AuthProvider({ children }) {
 
   // The session ended on the server (401): forget the user, and ProtectedRoute redirects to /login. Only a session that
   // existed can expire: a 401 for someone not logged in (the startup check) or during their own logout says nothing.
+  // When a session this tab had ends, the backend is also asked to clear its cookies, so a stale one isn't sent again.
   const clearSession = useCallback(() => {
-    if (userRef.current && !loggingOut.current) setSessionExpired(true)
+    if (userRef.current && !loggingOut.current) {
+      setSessionExpired(true)
+      client.post('/auth/logout').catch(() => {}) // needs no session, and its 401s are ignored (api/client.js)
+    }
     setUser(null)
   }, [])
 

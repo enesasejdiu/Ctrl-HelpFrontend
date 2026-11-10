@@ -1,7 +1,9 @@
 // AuthContext.test.jsx – login and logout with cookie sessions: the user comes from the response and lives only in
-// memory, the token in the response is ignored, and logging out clears the user even when the request fails.
-import { screen } from '@testing-library/react'
+// memory, the token in the response is ignored, and logging out clears the user even when the request fails. A session
+// that ends mid-use (401) also asks the backend to clear its cookies.
+import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
+import client from '../api/client'
 import { buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
 import { API, server, session } from '../test/server'
@@ -22,6 +24,9 @@ function Probe() {
       </button>
       <button type="button" onClick={logout}>
         Log out
+      </button>
+      <button type="button" onClick={() => client.get('/tickets').catch(() => {})}>
+        Load tickets
       </button>
     </>
   )
@@ -89,5 +94,30 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Log out' }))
 
     expect(await screen.findByText('Logged out')).toBeInTheDocument()
+  })
+
+  it('a session that ends mid-use (401) asks the backend to clear its cookies, and forgets the user', async () => {
+    const requests = []
+    server.events.on('request:start', ({ request }) =>
+      requests.push(`${request.method} ${new URL(request.url).pathname}`),
+    )
+    server.use(http.get(`${API}/tickets`, () => HttpResponse.json({ message: 'Session expired' }, { status: 401 })))
+    const { user } = await renderProbe({ user: buildUser({ email: 'anna@test.local' }) })
+
+    await user.click(screen.getByRole('button', { name: 'Load tickets' }))
+
+    expect(await screen.findByText('Logged out')).toBeInTheDocument()
+    await waitFor(() => expect(requests).toContain('POST /api/auth/logout'))
+  })
+
+  it('a visitor who was never logged in (startup 401) causes no logout request', async () => {
+    const requests = []
+    server.events.on('request:start', ({ request }) =>
+      requests.push(`${request.method} ${new URL(request.url).pathname}`),
+    )
+    await renderProbe()
+
+    expect(screen.getByText('Logged out')).toBeInTheDocument()
+    expect(requests).toEqual(['GET /api/auth/me'])
   })
 })
