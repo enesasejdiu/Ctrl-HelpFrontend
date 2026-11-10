@@ -2,7 +2,7 @@
 import { screen, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { buildUser } from '../test/factories'
-import { renderWithProviders } from '../test/render'
+import { renderWithProviders, renderReady } from '../test/render'
 import { API, deferred, server } from '../test/server'
 import NewTicket from './NewTicket'
 
@@ -38,7 +38,7 @@ async function fillValidForm(user) {
 
 describe('NewTicket', () => {
   it('shows a loader until the form data has loaded', async () => {
-    renderWithProviders(<NewTicket />, { route: '/tickets/new', user: buildUser() })
+    await renderReady(<NewTicket />, { route: '/tickets/new', user: buildUser() })
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading form…')
     expect(await screen.findByRole('combobox', { name: 'Category' })).toBeInTheDocument()

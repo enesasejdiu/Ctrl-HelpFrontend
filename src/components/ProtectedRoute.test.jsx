@@ -2,11 +2,11 @@
 import { act, screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { useLocation } from 'react-router-dom'
-import client, { TOKEN_KEY, USER_KEY } from '../api/client'
+import client from '../api/client'
 import Login from '../pages/Login'
 import { buildUser } from '../test/factories'
-import { renderWithProviders, stubRoutes } from '../test/render'
-import { API, server } from '../test/server'
+import { renderReady, renderWithProviders, stubRoutes } from '../test/render'
+import { API, getSessionUser, server } from '../test/server'
 import ProtectedRoute from './ProtectedRoute'
 
 // Stand-in login page that shows which page the redirect says the user came from
@@ -83,30 +83,65 @@ describe('ProtectedRoute', () => {
     })
   })
 
-  describe('saved session', () => {
-    // There is no async "auth loading" state: the saved session is read synchronously on the first render,
-    // and GET /auth/me only refreshes it in the background. So the page must render straight away, never /login first.
-    it('renders the page on the first render, without waiting for the profile refresh', () => {
-      renderWithProviders(null, { route: '/tickets', routes: appRoutes(), user: buildUser() })
+  describe('session check on startup', () => {
+    // The session is an httpOnly cookie the app can't see, so on startup it asks GET /auth/me who is logged in
+    it('with a session: shows "Checking your session…" first (never the login page), then the page', async () => {
+      const { router } = renderWithProviders(null, { route: '/tickets', routes: appRoutes(), user: buildUser() })
 
-      expect(screen.getByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('Checking your session…')
+      expect(screen.queryByRole('heading', { name: 'Login page' })).not.toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/tickets')
     })
 
-    it('logs the user out and redirects when the saved token has expired', async () => {
-      server.use(http.get(`${API}/auth/me`, () => HttpResponse.json({ message: 'Session expired' }, { status: 401 })))
-      renderWithProviders(null, { route: '/tickets', routes: appRoutes(), user: buildUser() })
+    it('without a session (401 from /auth/me): goes to /login', async () => {
+      const { router } = renderWithProviders(null, { route: '/tickets', routes: appRoutes() })
 
-      expect(screen.getByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('Checking your session…')
       expect(await screen.findByRole('heading', { name: 'Login page' })).toBeInTheDocument()
-      expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+      expect(router.state.location.pathname).toBe('/login')
     })
 
-    it('treats a corrupted saved user as logged out', async () => {
-      localStorage.setItem(TOKEN_KEY, 'test-token')
-      localStorage.setItem(USER_KEY, '{not json')
+    it('removes the old localStorage token and user, and never treats them as a login', async () => {
+      localStorage.setItem('ticketflow.token', 'old-token')
+      localStorage.setItem('ticketflow.user', JSON.stringify(buildUser()))
       renderWithProviders(null, { route: '/tickets', routes: appRoutes() })
 
       expect(await screen.findByRole('heading', { name: 'Login page' })).toBeInTheDocument()
+      expect(localStorage.getItem('ticketflow.token')).toBeNull()
+      expect(localStorage.getItem('ticketflow.user')).toBeNull()
+    })
+
+    it('a 401 during the session logs the user out and sends them to /login', async () => {
+      server.use(http.get(`${API}/tickets`, () => HttpResponse.json({ message: 'Session expired' }, { status: 401 })))
+      await renderReady(null, { route: '/tickets', routes: appRoutes(), user: buildUser() })
+      expect(screen.getByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
+
+      await act(async () => {
+        await expect(client.get('/tickets')).rejects.toThrow()
+      })
+
+      expect(await screen.findByRole('heading', { name: 'Login page' })).toBeInTheDocument()
+      expect(getSessionUser()).toBeNull() // the cookies were cleared too (POST /auth/logout)
+    })
+
+    it('a 403 CSRF_INVALID sends the user to sign in again, with "Your session expired, please sign in again"', async () => {
+      server.use(
+        http.post(`${API}/tickets`, () =>
+          HttpResponse.json(
+            { message: 'Missing or invalid CSRF token. Reload the page and try again.', code: 'CSRF_INVALID' },
+            { status: 403 },
+          ),
+        ),
+      )
+      await renderReady(null, { route: '/tickets', routes: appRoutes({ loginElement: <Login /> }), user: buildUser() })
+
+      await act(async () => {
+        await expect(client.post('/tickets', {})).rejects.toThrow()
+      })
+
+      expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent('Your session expired, please sign in again')
     })
   })
 
@@ -134,9 +169,8 @@ describe('ProtectedRoute', () => {
     })
 
     it('redirects when the backend says the password was reset during the session', async () => {
+      // The session's user is not flagged (yet): only the 403 below can flag them
       server.use(
-        // The profile refresh on load fails (network), so only the 403 below can flag the user
-        http.get(`${API}/auth/me`, () => HttpResponse.error()),
         http.get(`${API}/tickets`, () =>
           HttpResponse.json(
             { message: 'You must change your password before continuing', code: 'PASSWORD_CHANGE_REQUIRED' },
@@ -144,7 +178,7 @@ describe('ProtectedRoute', () => {
           ),
         ),
       )
-      renderWithProviders(null, { route: '/tickets', routes: appRoutes(), user: buildUser() })
+      await renderReady(null, { route: '/tickets', routes: appRoutes(), user: buildUser() })
       expect(screen.getByRole('heading', { name: 'Tickets page' })).toBeInTheDocument()
 
       // Any page's request; act() because the refusal updates the logged-in user
@@ -153,8 +187,7 @@ describe('ProtectedRoute', () => {
       })
 
       expect(await screen.findByRole('heading', { name: 'Set password page' })).toBeInTheDocument()
-      expect(JSON.parse(localStorage.getItem(USER_KEY)).must_change_password).toBe(true)
-      expect(localStorage.getItem(TOKEN_KEY)).toBe('test-token') // still logged in
+      expect(getSessionUser()).not.toBeNull() // still logged in: only flagged, not logged out
     })
   })
 

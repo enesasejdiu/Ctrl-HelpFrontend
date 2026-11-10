@@ -5,7 +5,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import App from '../App'
 import { DEPARTMENTS, buildUser } from '../test/factories'
-import { renderWithProviders } from '../test/render'
+import { renderReady } from '../test/render'
 import { API, server } from '../test/server'
 
 const admin = buildUser({ name: 'Admin User', role: 'admin', email: 'admin@ticketflow.local' })
@@ -59,13 +59,13 @@ function mockDepartments(initial = DEPARTMENTS) {
   return state
 }
 
-function renderApp(me, route = '/admin/departments') {
-  return renderWithProviders(null, { route, routes: [{ path: '*', element: <App /> }], user: me })
+async function renderApp(me, route = '/admin/departments') {
+  return renderReady(null, { route, routes: [{ path: '*', element: <App /> }], user: me })
 }
 
 // Renders the page as an admin and waits for the table
 async function renderPage(me = admin) {
-  const result = renderApp(me)
+  const result = await renderApp(me)
   await screen.findByRole('table')
   return result
 }
@@ -85,7 +85,7 @@ describe('Departments page', () => {
       ['HR', hr],
     ])('%s can open it from the Departments link', async (_, me) => {
       mockDepartments()
-      const { user, router } = renderApp(me, '/tickets')
+      const { user, router } = await renderApp(me, '/tickets')
 
       const nav = await screen.findByRole('navigation', { name: 'Main' })
       await user.click(within(nav).getByRole('link', { name: 'Departments' }))
@@ -99,7 +99,7 @@ describe('Departments page', () => {
       ['an agent', agent],
     ])("%s can't open it and gets no link", async (_, me) => {
       mockDepartments()
-      const { router } = renderApp(me)
+      const { router } = await renderApp(me)
 
       await waitFor(() => expect(router.state.location.pathname).toBe('/tickets'))
       expect(screen.queryByRole('heading', { name: 'Departments' })).not.toBeInTheDocument()
@@ -123,7 +123,7 @@ describe('Departments page', () => {
 
     it('shows "No departments yet" when there are none', async () => {
       mockDepartments([])
-      renderApp(admin)
+      await renderApp(admin)
 
       expect(await screen.findByText('No departments yet')).toBeInTheDocument()
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
@@ -132,7 +132,7 @@ describe('Departments page', () => {
     it('shows a loading state, then an error if the list cannot be loaded', async () => {
       mockDepartments()
       server.use(http.get(`${API}/departments`, () => HttpResponse.json({ message: 'Server error' }, { status: 500 })))
-      renderApp(admin)
+      await renderApp(admin)
 
       expect(screen.getByRole('status')).toHaveTextContent('Loading departments…')
       expect(await screen.findByRole('alert')).toHaveTextContent('Server error')
