@@ -1,0 +1,79 @@
+# Security: npm audit on every PR, on pushes to main, and weekly (new advisories appear without any code change).
+# - Blocking: a high or critical vulnerability in a production dependency fails the job.
+# - Report only: the full audit (dev dependencies too) goes to the job summary, without failing anything.
+# Branch protection: require the "Security audit" check, which passes when every package in the matrix does.
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Mondays 05:00 UTC (06:00/07:00 in Budapest), before Dependabot's weekly run
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+# A new push to the same PR cancels its older, still-running run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: audit (${{ matrix.package.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every directory with its own package.json + package-lock.json (only the root, for now)
+        package:
+          - name: frontend
+            directory: .
+    defaults:
+      run:
+        working-directory: ${{ matrix.package.directory }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ${{ matrix.package.directory }}/package-lock.json
+      # Installs exactly what the lockfile says (and fails if it's out of date). No install scripts: the audit reads
+      # the dependency tree and never runs the code.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Audit production dependencies (fails on high or critical)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Also runs when the step above failed, so the summary shows what to fix
+      - name: Full audit report (dev dependencies too; never fails)
+        if: always()
+        run: |
+          npm audit --json --omit=dev > "$RUNNER_TEMP/audit-prod.json" || true
+          npm audit --json > "$RUNNER_TEMP/audit-all.json" || true
+          node "$GITHUB_WORKSPACE/scripts/audit-summary.mjs" "${{ matrix.package.name }}" \
+            "$RUNNER_TEMP/audit-prod.json" "$RUNNER_TEMP/audit-all.json" >> "$GITHUB_STEP_SUMMARY"
+
+  # The one check to require: green only when the audit passed for every package above
+  security-audit:
+    name: Security audit
+    if: always()
+    needs: [audit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every package passed the audit
+        if: ${{ needs.audit.result == 'success' }}
+        run: echo "No high or critical vulnerabilities in production dependencies"
+      - name: An audit did not pass
+        if: ${{ needs.audit.result != 'success' }}
+        run: |
+          echo "audit result: ${{ needs.audit.result }} (see the audit job's summary for the details)"
+          exit 1
