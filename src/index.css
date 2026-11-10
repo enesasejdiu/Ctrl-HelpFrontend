@@ -365,6 +365,19 @@ a.topbar__profile:hover {
   font-weight: 700;
 }
 
+.auth__forgot {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.875rem;
+  text-align: right;
+}
+
+.auth__note {
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
 .auth__subtitle {
   margin-top: 6px;
   margin-bottom: 28px;
@@ -2165,7 +2178,7 @@ fieldset.field {
 
 .error-fallback__card > p {
   margin: 0 0 20px;
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted);
 }
 
 .error-fallback__actions {

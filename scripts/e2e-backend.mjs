@@ -20,8 +20,11 @@ import {
   DB_SERVER,
   E2E_DB_PREFIX,
   FRONTEND_URL,
+  MAIL_OUTBOX_DIR,
+  PASSWORD_DELIVERY,
   TEST_SETTINGS,
   assertE2eDbName,
+  mailOutboxFor,
 } from './e2e-env.mjs'
 
 const command = process.argv[2] || 'start'
@@ -56,6 +59,16 @@ const backendEnv = {
   DB_PASSWORD: DB_SERVER.password,
   DB_NAME,
   CLIENT_URL: FRONTEND_URL,
+  // Emails: NODE_ENV=test never sends any; each one is saved here instead, with links to this run's frontend
+  APP_URL: FRONTEND_URL,
+  MAIL_OUTBOX_DIR,
+  IT_NOTIFY_EMAIL: '',
+  // Email set up (the default run): new and reset passwords go out as one-time links, read from MAIL_OUTBOX_DIR. The
+  // host is never contacted: NODE_ENV=test keeps nodemailer's jsonTransport. The temporary-password run leaves email
+  // off, so the backend falls back to temporary passwords.
+  ...(PASSWORD_DELIVERY === 'email'
+    ? { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.e2e.invalid', MAIL_FROM: 'TicketFlow <no-reply@e2e.invalid>' }
+    : { MAIL_ENABLED: 'false', SMTP_HOST: '', MAIL_FROM: '' }),
   DOTENV_CONFIG_QUIET: 'true',
 }
 
@@ -74,6 +87,7 @@ async function drop() {
   const connection = await connect()
   try {
     await dropDatabase(connection, DB_NAME)
+    fs.rmSync(MAIL_OUTBOX_DIR, { recursive: true, force: true })
     log(`Dropped "${DB_NAME}"`)
   } finally {
     await connection.end()
@@ -88,6 +102,7 @@ async function cleanup({ all = false } = {}) {
       const createdAt = Number(name.slice(E2E_DB_PREFIX.length).split('_')[0])
       if (all || !createdAt || Date.now() - createdAt > STALE_AFTER_MS) {
         await dropDatabase(connection, name)
+        fs.rmSync(mailOutboxFor(name), { recursive: true, force: true })
         log(`Dropped leftover "${name}"`)
       }
     }

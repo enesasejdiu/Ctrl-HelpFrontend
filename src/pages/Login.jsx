@@ -1,6 +1,7 @@
 // Login.jsx – email + password sign-in. After login, returns to the page the user originally asked for.
 // Includes one-click demo accounts (seeded by the backend) to make testing each role quick.
 // One notice at a time above the form, the latest event winning:
+// - After setting a password with an emailed link: "Password set, please log in." (info), with the email filled in.
 // - ?reason=session_expired (set by ProtectedRoute after a 401 mid-session): an info notice, then the reason is taken
 //   out of the URL so a reload or bookmark doesn't show it again. Unknown reasons are ignored, never displayed.
 // - 423 ACCOUNT_LOCKED (5 wrong passwords): the button is disabled for that email, with a countdown, until the lock ends.
@@ -9,7 +10,7 @@
 // All texts come from src/i18n.
 import { ArrowRight, Clock, LoaderCircle } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { errorMessage } from '../api/client'
 import AuthShell from '../components/AuthShell'
 import PasswordInput from '../components/PasswordInput'
@@ -92,14 +93,18 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const [email, setEmail] = useState('')
+  // After setting a password with an emailed link (SetPasswordWithLink), the email is filled in already
+  const [email, setEmail] = useState(() => (typeof location.state?.email === 'string' ? location.state.email : ''))
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [invalidField, setInvalidField] = useState(null)
   // The one message above the form (see the top of this file), or null
   const [notice, setNotice] = useState(() => {
     const reason = searchParams.get('reason')
-    return reason && Object.hasOwn(REASONS, reason) ? { kind: 'reason', key: REASONS[reason] } : null
+    if (reason && Object.hasOwn(REASONS, reason)) return { kind: 'reason', key: REASONS[reason] }
+    // Router state, so it can't be faked with a link
+    if (location.state?.notice === 'passwordSet') return { kind: 'reason', key: 'login.passwordSet' }
+    return null
   })
   const [now, setNow] = useState(() => Date.now())
   const until = notice?.until ?? null
@@ -234,6 +239,10 @@ export default function Login() {
             aria-invalid={invalidField === 'password' || undefined}
             required
           />
+          {/* Takes what was typed as the email along, so it needn't be typed again */}
+          <Link className="auth__forgot" to="/forgot-password" state={{ email }}>
+            {t('login.forgotPassword')}
+          </Link>
         </div>
 
         <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={submitting || waiting}>

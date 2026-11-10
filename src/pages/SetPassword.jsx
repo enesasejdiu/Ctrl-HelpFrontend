@@ -3,6 +3,7 @@
 // every other page here and the top bar shows only the logo and Log out. A live checklist shows the backend's
 // password rules; the button only works once they all pass. On success: the flag is cleared and the ticket list
 // opens with "Password changed". (Changing your password later, by choice, is /change-password.)
+// The same address with ?token= (the link emailed to a new account) is a different, public page: SetPasswordWithLink.
 import { Check, Circle, LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
@@ -10,16 +11,7 @@ import client, { errorMessage } from '../api/client'
 import PasswordInput from '../components/PasswordInput'
 import { Alert, PageHeader } from '../components/Ui'
 import { useAuth } from '../context/auth'
-
-// The same rules the backend checks (10–72 characters, a letter, a number), plus "both match"
-function checklist(newPassword, confirm) {
-  return [
-    { label: 'At least 10 characters', met: newPassword.length >= 10 && newPassword.length <= 72 },
-    { label: 'A letter', met: /[A-Za-z]/.test(newPassword) },
-    { label: 'A number', met: /\d/.test(newPassword) },
-    { label: 'Both new passwords match', met: newPassword.length > 0 && newPassword === confirm },
-  ]
-}
+import { passwordChecklist as checklist } from '../utils/passwordRules'
 
 export default function SetPassword() {
   const { user, updateUser } = useAuth()

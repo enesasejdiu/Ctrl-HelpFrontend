@@ -2,13 +2,16 @@
 // (ticketflow_e2e_<timestamp>_<pid>, created and seeded for this run and dropped afterwards). The real database is
 // never touched. Ports and the database name are chosen per run in scripts/e2e-env.mjs. Run with `npm run e2e`.
 import { defineConfig, devices } from '@playwright/test'
-import { API_PORT, API_URL, FRONTEND_PORT, FRONTEND_URL } from './scripts/e2e-env.mjs'
+import { API_PORT, API_URL, FRONTEND_PORT, FRONTEND_URL, PASSWORD_DELIVERY } from './scripts/e2e-env.mjs'
 
 const CI = !!process.env.CI
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: '**/*.spec.ts',
+  // The backend runs in one password-delivery mode per run. The default run (email links) runs every spec except
+  // temporary-passwords.spec.ts, which needs email off and runs on its own (npm run e2e:temporary-passwords).
+  testMatch: PASSWORD_DELIVERY === 'temporary_password' ? '**/temporary-passwords.spec.ts' : '**/*.spec.ts',
+  testIgnore: PASSWORD_DELIVERY === 'temporary_password' ? [] : ['**/temporary-passwords.spec.ts'],
   // One worker: all tests share one database. Tests only assert on data they created themselves (unique names),
   // so raising this mostly works already; for full safety give each worker its own DB + backend port.
   workers: 1,

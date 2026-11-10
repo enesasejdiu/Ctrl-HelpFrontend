@@ -69,6 +69,10 @@ jobs:
       - name: Run e2e tests
         run: npm run e2e
 
+      # The same app with email not set up on the backend: new and reset passwords are temporary ones
+      - name: Run e2e tests (temporary-password mode)
+        run: npm run e2e:temporary-passwords -- --project=chromium
+
       # The run must drop its database, also when tests failed
       - name: Check no e2e database is left
         if: always()

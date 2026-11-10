@@ -1,11 +1,13 @@
 // Users.test.jsx – the Users page: who can open it, what HR may do, the "Add user" and "Edit user" forms,
-// "Reset password", and the one-time temporary password dialog. The API is mocked with MSW and answers like the
-// backend (POST /users, PATCH /users/:id, POST /users/:id/reset-password).
+// "Reset password", and how a password is delivered: with email set up (password_delivery 'email') the page says a
+// link was emailed and offers "Resend link"; without, the temporary password is shown once. The API is mocked with
+// MSW and answers like the backend (GET /meta, POST /users, PATCH /users/:id, POST /users/:id/reset-password,
+// POST /users/:id/resend-link).
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { useAuth } from '../context/auth'
 import App from '../App'
-import { DEPARTMENTS, buildUser } from '../test/factories'
+import { DEPARTMENTS, buildMeta, buildUser } from '../test/factories'
 import { renderWithProviders } from '../test/render'
 import { API, deferred, server } from '../test/server'
 import Users from './Users'
@@ -22,12 +24,16 @@ const NEW_USER = { name: 'Besa Morina', email: 'besa.morina@ticketflow.local', d
 // The department name the backend joins in for an id
 const departmentName = (id) => DEPARTMENTS.find((d) => d.id === id)?.name ?? null
 const TEMP_PASSWORD = 'Xq7mK2pRt9wLzA'
+// What the page says when a password went out by email
+const invitedNotice = (u = NEW_USER) => `A link to set the password was emailed to ${u.email}. It expires in 48 hours.`
 
-// GET /users plus a POST /users that answers like the backend. Returns the request bodies it received.
-function mockApi({ users = USERS, create } = {}) {
+// GET /users, GET /meta and a POST /users that answer like the backend. `delivery` is how the backend delivers
+// passwords: 'email' (email set up) or 'temporary_password'. Returns the request bodies POST /users received.
+function mockApi({ users = USERS, create, delivery = 'email' } = {}) {
   const posted = []
   server.use(
     http.get(`${API}/users`, () => HttpResponse.json(users)),
+    http.get(`${API}/meta`, () => HttpResponse.json(buildMeta({ password_delivery: delivery }))),
     http.post(`${API}/users`, async ({ request }) => {
       const body = await request.json()
       posted.push(body)
@@ -42,7 +48,8 @@ function mockApi({ users = USERS, create } = {}) {
             must_change_password: true,
             created_at: new Date().toISOString(),
           },
-          temporaryPassword: TEMP_PASSWORD,
+          ...(delivery === 'email' ? {} : { temporaryPassword: TEMP_PASSWORD }),
+          password_delivery: delivery,
         },
         { status: 201 },
       )
@@ -181,7 +188,7 @@ describe('Add user form', () => {
     await user.selectOptions(within(dialog).getByLabelText('Role'), 'IT Staff')
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
 
-    await screen.findByRole('alertdialog')
+    await screen.findByText(invitedNotice())
     expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, department_id: 3, role: 'agent' }])
   })
 
@@ -196,7 +203,7 @@ describe('Add user form', () => {
 
     await fillForm(user, dialog, { name: NEW_USER.name, email: NEW_USER.email })
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
-    await screen.findByRole('alertdialog')
+    await screen.findByText(invitedNotice())
     expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, role: 'employee', department_id: null }])
   })
 
@@ -276,7 +283,7 @@ describe('Add user form', () => {
       create: async () => (
         await pending.promise,
         HttpResponse.json(
-          { user: { id: 9001, ...NEW_USER, role: 'employee', is_active: true }, temporaryPassword: TEMP_PASSWORD },
+          { user: { id: 9001, ...NEW_USER, role: 'employee', is_active: true }, password_delivery: 'email' },
           { status: 201 },
         )
       ),
@@ -292,7 +299,7 @@ describe('Add user form', () => {
     expect(screen.getByRole('dialog', { name: 'Add user' })).toBeInTheDocument()
 
     pending.resolve()
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    expect(await screen.findByText(invitedNotice())).toBeInTheDocument()
   })
 
   it.each([
@@ -324,72 +331,57 @@ describe('Add user form', () => {
   })
 })
 
-describe('temporary password dialog', () => {
-  // Creates NEW_USER as an admin and returns the password dialog
+describe('after Add user (email not set up): the temporary password, shown once', () => {
+  it('shows the name, email, password and the warning; the new user is already in the table', async () => {
+    mockApi({ delivery: 'temporary_password' })
+    const { user } = await renderUsers(admin)
+    const dialog = await openForm(user)
+    await fillForm(user, dialog)
+    await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
+
+    const passwordDialog = await screen.findByRole('alertdialog', { name: `${NEW_USER.name}'s account is ready` })
+    expect(within(passwordDialog).getByText(NEW_USER.email)).toBeInTheDocument()
+    expect(within(passwordDialog).getByText(TEMP_PASSWORD).tagName).toBe('CODE')
+    expect(passwordDialog).toHaveTextContent('This password is shown only once.')
+    expect(screen.queryByText(invitedNotice())).not.toBeInTheDocument()
+    expect(rowFor(NEW_USER.name)).toBeInTheDocument()
+    // No email, so no "Resend link"
+    expect(within(rowFor(NEW_USER.name)).queryByRole('button', { name: /Resend link/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('after Add user (email set up): the emailed link', () => {
   async function createUser(options) {
     mockApi()
     const rendered = await renderUsers(admin, options)
     const dialog = await openForm(rendered.user)
     await fillForm(rendered.user, dialog)
     await rendered.user.click(within(dialog).getByRole('button', { name: 'Create user' }))
-    const passwordDialog = await screen.findByRole('alertdialog', { name: `${NEW_USER.name}'s account is ready` })
-    return { ...rendered, passwordDialog }
+    await screen.findByText(invitedNotice())
+    return rendered
   }
 
-  it('shows the name, email, password and the warning; the new user is already in the table', async () => {
-    const { passwordDialog } = await createUser()
+  it('says where the link went; no password is shown, and the new user is already in the table', async () => {
+    await createUser()
 
-    expect(within(passwordDialog).getByText(NEW_USER.email)).toBeInTheDocument()
-    expect(within(passwordDialog).getByText(TEMP_PASSWORD).tagName).toBe('CODE')
-    expect(passwordDialog).toHaveTextContent(
-      'This password is shown only once. Give it to the user securely; they must change it at first login.',
-    )
-    expect(screen.queryByRole('dialog', { name: 'Add user' })).not.toBeInTheDocument()
-
-    // Added to the list without reloading it, at the top
-    expect(rowFor(NEW_USER.name)).toBeInTheDocument()
-    expect(screen.getByText('6 users · 5 active')).toBeInTheDocument()
-  })
-
-  it('Copy puts the password on the clipboard and says "Copied" for 2 seconds', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const { user, passwordDialog } = await createUser({ userEventOptions: { advanceTimers: vi.advanceTimersByTime } })
-    // userEvent.setup() installs a test clipboard on navigator, so spy on that one
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText')
-
-    await user.click(within(passwordDialog).getByRole('button', { name: 'Copy' }))
-    expect(writeText).toHaveBeenCalledWith(TEMP_PASSWORD)
-    expect(within(passwordDialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
-
-    act(() => vi.advanceTimersByTime(2000))
-    expect(within(passwordDialog).getByRole('button', { name: 'Copy' })).toBeInTheDocument()
-  })
-
-  it('says so when copying fails', async () => {
-    const { user, passwordDialog } = await createUser()
-    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'))
-
-    await user.click(within(passwordDialog).getByRole('button', { name: 'Copy' }))
-    expect(await within(passwordDialog).findByRole('alert')).toHaveTextContent("Couldn't copy")
-  })
-
-  it('Escape does not close it; Done does, and the password is gone for good', async () => {
-    const { user, passwordDialog } = await createUser()
-
-    await user.keyboard('{Escape}')
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
-
-    await user.click(within(passwordDialog).getByRole('button', { name: 'Done' }))
+    // An info notice (role="status"), not a dialog: there is nothing secret to copy
+    expect(screen.getByText(invitedNotice()).closest('[role="status"]')).toBeInTheDocument()
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(screen.queryByText(TEMP_PASSWORD)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add user' })).toHaveFocus()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Temporary password/i)).not.toBeInTheDocument()
 
-    // Opening the form again starts empty and never shows the old password
-    await user.click(screen.getByRole('button', { name: 'Add user' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Add user' })
-    expect(within(dialog).getByLabelText('Full name')).toHaveValue('')
-    expect(screen.queryByText(TEMP_PASSWORD)).not.toBeInTheDocument()
+    // Added to the list without reloading it, at the top, with "Resend link" (it has no password yet)
     expect(rowFor(NEW_USER.name)).toBeInTheDocument()
+    expect(within(rowFor(NEW_USER.name)).getByRole('button', { name: `Resend link to ${NEW_USER.name}` })).toBeInTheDocument()
+    expect(screen.getByText('6 users · 5 active')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add user' })).toHaveFocus()
+  })
+
+  it('opening the form again clears the notice', async () => {
+    const { user } = await createUser()
+    await user.click(screen.getByRole('button', { name: 'Add user' }))
+    await screen.findByRole('dialog', { name: 'Add user' })
+    expect(screen.queryByText(invitedNotice())).not.toBeInTheDocument()
   })
 })
 
@@ -409,7 +401,11 @@ function mockEditAndReset({ patch, reset } = {}) {
       calls.resets.push(Number(params.id))
       if (reset) return reset()
       const current = USERS.find((u) => u.id === Number(params.id))
-      return HttpResponse.json({ user: { ...current, must_change_password: true }, temporaryPassword: 'NewTemp42pass' })
+      return HttpResponse.json({
+        user: { ...current, must_change_password: true },
+        temporaryPassword: 'NewTemp42pass',
+        password_delivery: 'temporary_password',
+      })
     }),
   )
   return calls
@@ -679,6 +675,66 @@ describe('Reset password', () => {
     expect(await screen.findByRole('alertdialog', { name: `New password for ${agent.name}` })).toBeInTheDocument()
   })
 
+  // Resets the agent's password as the admin and returns the password dialog
+  async function resetAgent(options) {
+    mockApi()
+    mockEditAndReset()
+    const rendered = await renderUsers(admin, options)
+    const confirm = await openReset(rendered.user, agent.name)
+    await rendered.user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
+    const passwordDialog = await screen.findByRole('alertdialog', { name: `New password for ${agent.name}` })
+    return { ...rendered, passwordDialog }
+  }
+
+  it('Copy says "Copied" for 2 seconds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { user, passwordDialog } = await resetAgent({ userEventOptions: { advanceTimers: vi.advanceTimersByTime } })
+    // userEvent.setup() installs a test clipboard on navigator, so spy on that one
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText')
+
+    await user.click(within(passwordDialog).getByRole('button', { name: 'Copy' }))
+    expect(writeText).toHaveBeenCalledWith('NewTemp42pass')
+    expect(within(passwordDialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(2000))
+    expect(within(passwordDialog).getByRole('button', { name: 'Copy' })).toBeInTheDocument()
+  })
+
+  it('says so when copying fails', async () => {
+    const { user, passwordDialog } = await resetAgent()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'))
+
+    await user.click(within(passwordDialog).getByRole('button', { name: 'Copy' }))
+    expect(await within(passwordDialog).findByRole('alert')).toHaveTextContent("Couldn't copy")
+  })
+
+  it('Escape does not close the password dialog; Done does, and the password is gone for good', async () => {
+    const { user, passwordDialog } = await resetAgent()
+
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('alertdialog', { name: `New password for ${agent.name}` })).toBeInTheDocument()
+
+    await user.click(within(passwordDialog).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('NewTemp42pass')).not.toBeInTheDocument()
+  })
+
+  it('with email set up, says the link was emailed and shows no password', async () => {
+    mockApi()
+    mockEditAndReset({
+      reset: () => HttpResponse.json({ user: { ...employee, must_change_password: true }, password_delivery: 'email' }),
+    })
+    const { user } = await renderUsers(admin)
+    const confirm = await openReset(user, employee.name)
+    await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
+
+    expect(await screen.findByText(invitedNotice(employee))).toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Temporary password/i)).not.toBeInTheDocument()
+    // The row now waits for the new password, so it offers a fresh link
+    expect(within(rowFor(employee.name)).getByRole('button', { name: `Resend link to ${employee.name}` })).toBeInTheDocument()
+  })
+
   it('shows a failed reset in the confirm dialog', async () => {
     mockApi()
     mockEditAndReset({
@@ -745,7 +801,7 @@ describe('Job title', () => {
     await user.type(field, '  QA Tester ')
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
 
-    await screen.findByRole('alertdialog')
+    await screen.findByText(/A link to set the password was emailed to/)
     expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, department_id: 3, job_title: 'QA Tester', role: 'employee' }])
     expect(within(rowFor(NEW_USER.name)).getByText('QA Tester')).toBeInTheDocument()
   })
@@ -826,5 +882,87 @@ describe('Job title', () => {
 
     expect(field).toHaveAccessibleDescription('Job title must be 100 characters or less')
     expect(patches).toEqual([])
+  })
+})
+
+describe('Resend link', () => {
+  // Have not set a password yet (e.g. just created)
+  const invited = buildUser({ name: 'Nora Invited', role: 'employee', email: 'nora@ticketflow.local', must_change_password: true })
+  const invitedAgent = buildUser({ name: 'Ilir Invited', role: 'agent', email: 'ilir@ticketflow.local', must_change_password: true })
+  const invitedInactive = buildUser({
+    name: 'Drita Inactive',
+    role: 'employee',
+    email: 'drita@ticketflow.local',
+    must_change_password: true,
+    is_active: false,
+  })
+  const LIST = [admin, invited, invitedAgent, invitedInactive, employee]
+  const resendButton = (name) => within(rowFor(name)).queryByRole('button', { name: `Resend link to ${name}` })
+
+  function mockResend(answer) {
+    const calls = []
+    server.use(
+      http.post(`${API}/users/:id/resend-link`, ({ params }) => {
+        calls.push(Number(params.id))
+        if (answer) return answer()
+        const current = LIST.find((u) => u.id === Number(params.id))
+        return HttpResponse.json({ user: current, password_delivery: 'email' })
+      }),
+    )
+    return calls
+  }
+
+  it('admin: only on active accounts that have not set a password yet', async () => {
+    mockApi({ users: LIST })
+    await renderUsers(admin)
+    await screen.findByRole('table')
+    expect(resendButton(invited.name)).toBeInTheDocument()
+    expect(resendButton(invitedAgent.name)).toBeInTheDocument()
+    expect(resendButton(invitedInactive.name)).not.toBeInTheDocument()
+    expect(resendButton(employee.name)).not.toBeInTheDocument()
+    expect(resendButton(admin.name)).not.toBeInTheDocument()
+  })
+
+  it('never when email is not set up', async () => {
+    mockApi({ users: LIST, delivery: 'temporary_password' })
+    await renderUsers(admin)
+    await screen.findByRole('table')
+    expect(resendButton(invited.name)).not.toBeInTheDocument()
+    expect(resendButton(invitedAgent.name)).not.toBeInTheDocument()
+  })
+
+  it('HR: employees only', async () => {
+    mockApi({ users: [hr, ...LIST] })
+    await renderUsers(hr)
+    await screen.findByRole('table')
+    expect(resendButton(invited.name)).toBeInTheDocument()
+    expect(resendButton(invitedAgent.name)).not.toBeInTheDocument()
+  })
+
+  it('sends POST /users/:id/resend-link and says a new link went out', async () => {
+    mockApi({ users: LIST })
+    const calls = mockResend()
+    const { user } = await renderUsers(admin)
+    await screen.findByRole('table')
+    await user.click(resendButton(invited.name))
+
+    expect(
+      await screen.findByText(`${invitedNotice(invited)} The previous link no longer works.`),
+    ).toBeInTheDocument()
+    expect(calls).toEqual([invited.id])
+  })
+
+  it("shows the backend's refusal (e.g. 409 the user already set a password)", async () => {
+    mockApi({ users: LIST })
+    mockResend(() =>
+      HttpResponse.json(
+        { message: 'This user has already set a password. Use Reset password instead', code: 'PASSWORD_ALREADY_SET' },
+        { status: 409 },
+      ),
+    )
+    const { user } = await renderUsers(admin)
+    await screen.findByRole('table')
+    await user.click(resendButton(invited.name))
+    expect(await screen.findByRole('alert')).toHaveTextContent('This user has already set a password. Use Reset password instead')
   })
 })
