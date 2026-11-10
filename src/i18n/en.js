@@ -2,8 +2,8 @@
 // _other are the singular and plural forms of the same message (picked by the `count` parameter).
 const en = {
   // Login: notices shown above the form
-  'login.sessionExpired': 'Your session has expired. Please log in again.',
-  'login.wrongCredentials': 'Incorrect email or password.',
+  'login.sessionExpired': 'Your session has ended. Please sign in again.',
+  'login.wrongCredentials': 'Wrong email or password',
   'login.unreachable': "Couldn't reach the server. Please try again.",
   'login.locked': 'Too many failed attempts. Your account is locked. Try again in {time}.',
   'login.lockedNoTime': 'Your account is temporarily locked. Try again later or contact your administrator or HR.',

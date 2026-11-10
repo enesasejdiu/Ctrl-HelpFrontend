@@ -187,7 +187,7 @@ describe('Login', () => {
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'not-my-password')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(/^Incorrect email or password\.$/)
+      expect(await screen.findByRole('alert')).toHaveTextContent(/^Wrong email or password$/)
       expect(router.state.location.pathname).toBe('/login')
       expect(screen.getByLabelText('Work email')).toHaveValue('employee1@ticketflow.local')
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
@@ -221,7 +221,7 @@ describe('Login', () => {
       expect(await screen.findByText(/Couldn't reach the server/)).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-      expect(await screen.findByText('Incorrect email or password.')).toBeInTheDocument()
+      expect(await screen.findByText('Wrong email or password')).toBeInTheDocument()
       expect(screen.getAllByRole('alert')).toHaveLength(1)
       expect(screen.queryByText(/Couldn't reach the server/)).not.toBeInTheDocument()
     })
@@ -234,7 +234,7 @@ describe('Login', () => {
       })
 
       const notice = screen.getByRole('status')
-      expect(notice).toHaveTextContent('Your session has expired. Please log in again.')
+      expect(notice).toHaveTextContent('Your session has ended. Please sign in again.')
       expect(notice).toHaveClass('alert--info')
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       // Gone from the URL, so a reload or bookmark doesn't show it again; the page to return to is kept
@@ -245,7 +245,7 @@ describe('Login', () => {
 
     it('keeps other query parameters', async () => {
       const { router } = await renderLogin({ route: '/login?reason=session_expired&lang=en' })
-      expect(screen.getByRole('status')).toHaveTextContent('Your session has expired.')
+      expect(screen.getByRole('status')).toHaveTextContent('Your session has ended.')
       await waitFor(() => expect(router.state.location.search).toBe('?lang=en'))
     })
 
@@ -256,7 +256,7 @@ describe('Login', () => {
       first.unmount()
 
       await renderLogin({ route: reloadedUrl })
-      expect(screen.queryByText(/session has expired/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/session has ended/)).not.toBeInTheDocument()
     })
 
     it.each(['', '?reason=unknown', '?reason=%3Cimg%20src%3Dx%3E', '?reason=constructor', '?reason=toString'])(
@@ -277,8 +277,8 @@ describe('Login', () => {
 
       await fillAndSubmit(user, 'employee1@ticketflow.local', 'password123')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password.')
-      expect(screen.queryByText(/session has expired/)).not.toBeInTheDocument()
+      expect(await screen.findByRole('alert')).toHaveTextContent('Wrong email or password')
+      expect(screen.queryByText(/session has ended/)).not.toBeInTheDocument()
     })
 
     it('after logging in, goes back to the page the user was on', async () => {

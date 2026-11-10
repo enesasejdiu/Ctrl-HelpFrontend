@@ -139,3 +139,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Password delivery from the backend: one-time links (48h, /set-password?token=…, token removed from the URL) for new accounts and resets when email is set up, the temporary password otherwise; Resend link
 - [x] "Forgot password" page; e2e run in temporary-password mode
 - [x] Audit log page (Admin): filter by user, action and date
+- [x] Lockout and session-expired messages on the login page

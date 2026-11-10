@@ -72,12 +72,12 @@ test('a session that ends mid-way: back to /login saying so, and back to the pag
   await context.clearCookies({ name: 'tf_session' })
   await page.getByRole('link', { name: /My profile/ }).click()
 
-  await expect(page.getByRole('status')).toHaveText('Your session has expired. Please log in again.')
+  await expect(page.getByRole('status')).toHaveText('Your session has ended. Please sign in again.')
   // The reason is taken out of the URL, so a reload doesn't repeat it
   await expect(page).toHaveURL('/login')
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
-  await expect(page.getByText('Your session has expired.')).toHaveCount(0)
+  await expect(page.getByText('Your session has ended.')).toHaveCount(0)
 
   // Signing in again returns to the page the request failed on
   await page.getByLabel('Work email').fill(USERS.user.email)
@@ -97,7 +97,7 @@ test('logging out yourself shows no session-expired message', async ({ page }) =
 
   await expect(page).toHaveURL('/login')
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
-  await expect(page.getByText('Your session has expired.')).toHaveCount(0)
+  await expect(page.getByText('Your session has ended.')).toHaveCount(0)
 })
 
 test('a request that changes something is sent with the CSRF header and no Authorization header', async ({ page, uniq }) => {
@@ -123,4 +123,35 @@ test('a request that changes something is sent with the CSRF header and no Autho
   // Same origin: the page calls its own /api, which the dev server forwards to the backend
   expect(new URL(request.url()).origin).toBe(new URL(page.url()).origin)
   await expect(page.getByRole('heading', { name: `Session check ${uniq}` })).toBeVisible()
+})
+
+test("an admin resets a signed-in user's password: the user's next click lands on sign-in with the message", async ({
+  browser,
+  api,
+  uniq,
+}) => {
+  const account = await api.createReadyEmployee(`Reset While Signed In ${uniq}`, `${uniq}@test.local`)
+
+  // The user, signed in in their own browser
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await context.newPage()
+  try {
+    await page.goto('/login')
+    await page.getByLabel('Work email').fill(account.email)
+    await page.getByLabel('Password', { exact: true }).fill(account.password)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible()
+    await page.waitForLoadState('networkidle')
+
+    // Meanwhile an admin resets that password, which ends all of the user's sessions on the server
+    await api.resetPassword(account.email)
+
+    // The user's next click asks the API for something and gets 401
+    await page.getByRole('link', { name: /My profile/ }).click()
+    await expect(page).toHaveURL('/login')
+    await expect(page.getByRole('status')).toHaveText('Your session has ended. Please sign in again.')
+    await expect(page.getByRole('alert')).toHaveCount(0)
+  } finally {
+    await context.close()
+  }
 })
