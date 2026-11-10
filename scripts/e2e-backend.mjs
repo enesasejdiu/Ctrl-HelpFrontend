@@ -20,8 +20,10 @@ import {
   DB_SERVER,
   E2E_DB_PREFIX,
   FRONTEND_URL,
+  MAIL_OUTBOX_DIR,
   TEST_SETTINGS,
   assertE2eDbName,
+  mailOutboxFor,
 } from './e2e-env.mjs'
 
 const command = process.argv[2] || 'start'
@@ -56,6 +58,10 @@ const backendEnv = {
   DB_PASSWORD: DB_SERVER.password,
   DB_NAME,
   CLIENT_URL: FRONTEND_URL,
+  // Emails: NODE_ENV=test never sends any; each one is saved here instead, with links to this run's frontend
+  APP_URL: FRONTEND_URL,
+  MAIL_OUTBOX_DIR,
+  IT_NOTIFY_EMAIL: '',
   DOTENV_CONFIG_QUIET: 'true',
 }
 
@@ -74,6 +80,7 @@ async function drop() {
   const connection = await connect()
   try {
     await dropDatabase(connection, DB_NAME)
+    fs.rmSync(MAIL_OUTBOX_DIR, { recursive: true, force: true })
     log(`Dropped "${DB_NAME}"`)
   } finally {
     await connection.end()
@@ -88,6 +95,7 @@ async function cleanup({ all = false } = {}) {
       const createdAt = Number(name.slice(E2E_DB_PREFIX.length).split('_')[0])
       if (all || !createdAt || Date.now() - createdAt > STALE_AFTER_MS) {
         await dropDatabase(connection, name)
+        fs.rmSync(mailOutboxFor(name), { recursive: true, force: true })
         log(`Dropped leftover "${name}"`)
       }
     }

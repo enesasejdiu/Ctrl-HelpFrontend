@@ -12,6 +12,7 @@ const en = {
   'login.rateLimited': 'Too many attempts. Please wait {time} and try again.',
   'login.rateLimitedNoTime': 'Too many attempts. Please wait a few minutes and try again.',
   'login.rateLimitEnded': 'You can try signing in again now.',
+  'login.passwordSet': 'Password set, please log in.',
 
   // Login: form validation (the same rules the backend checks)
   'login.emailRequired': 'Email is required',

@@ -5,6 +5,7 @@
 // interfere. The database is wiped and reseeded once per run, when the backend starts.
 import { test as base, expect, type APIRequestContext } from '@playwright/test'
 import { API_URL } from '../../scripts/e2e-env.mjs'
+import { setPasswordLink } from './mail'
 import { PASSWORD, USERS, type Role } from './users'
 
 // Ids from the backend seed (categories and priorities are fixed reference data)
@@ -71,31 +72,27 @@ export class Api {
     })
   }
 
-  // Creates an employee account as the admin; returns its email and the one-time temporary password
-  async createEmployee(name: string, email: string): Promise<{ email: string; password: string }> {
-    const { user, temporaryPassword } = await this.send('post', 'users', 'admin', { name, email, role: 'employee' })
-    return { email: user.email, password: temporaryPassword }
+  // Creates an employee account as the admin; returns its email and the set-password link the backend emailed it
+  // (read from this run's mail folder: no password is ever returned)
+  async createEmployee(name: string, email: string): Promise<{ email: string; link: string }> {
+    const { user } = await this.send('post', 'users', 'admin', { name, email, role: 'employee' })
+    return { email: user.email, link: await setPasswordLink(user.email) }
   }
 
-  // Creates an employee who can sign in straight away: the account is made with a temporary password, which is then
-  // replaced through the API (POST auth/change-password), so must_change_password is off and a login isn't sent to
-  // /set-password. Returns the email and the password now in use. Nothing is deleted afterwards: each run's database
-  // is dropped at the end, and the unique email keeps the account away from every other test.
+  // Creates an employee who can sign in straight away: the account is made, and its password is set with the emailed
+  // link through the API (POST auth/set-password), so must_change_password is off and a login isn't sent to
+  // /set-password. Returns the email and the password. Nothing is deleted afterwards: each run's database is dropped
+  // at the end, and the unique email keeps the account away from every other test.
   async createReadyEmployee(name: string, email: string, password = 'ReadyPassword123') {
     const account = await this.createEmployee(name, email)
+    const linkToken = new URL(account.link).searchParams.get('token')
     const http = await this.newContext()
     try {
-      const login = await http.post('auth/login', { data: account })
+      const set = await http.post('auth/set-password', { data: { new_password: password, token: linkToken } })
+      expect(set, `set own password for ${account.email}`).toBeOK()
+      const login = await http.post('auth/login', { data: { email: account.email, password } })
       expect(login, `first login as ${account.email}`).toBeOK()
-      const { cookies } = await http.storageState()
-      const csrf = cookies.find((cookie) => cookie.name === 'tf_csrf')?.value ?? ''
-      const change = await http.post('auth/change-password', {
-        headers: { 'X-CSRF-Token': csrf },
-        data: { currentPassword: account.password, newPassword: password },
-      })
-      expect(change, `set own password for ${account.email}`).toBeOK()
-      const me = await http.get('auth/me')
-      expect(await me.json(), 'must_change_password is off').toMatchObject({ must_change_password: false })
+      expect((await login.json()).user, 'must_change_password is off').toMatchObject({ must_change_password: false })
     } finally {
       await http.dispose()
     }

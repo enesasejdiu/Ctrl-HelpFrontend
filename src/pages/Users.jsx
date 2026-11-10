@@ -2,8 +2,10 @@
 // Lists every account (GET /users). Admins can add, edit and reset anyone, change roles and activate/deactivate
 // accounts. HR sees everyone but can only do this for employees, and never changes roles (the backend enforces both).
 // On your own row you can edit your details, but not your role, active status or password (use Change password).
-// "Add user" (POST /users) and "Reset password" (POST /users/:id/reset-password) show a temporary password once.
-import { KeyRound, Pencil, UserPlus, Users as UsersIcon } from 'lucide-react'
+// "Add user" (POST /users) emails the new user a set-password link; nobody sees a password. Until they have set one,
+// their row has "Resend invite" (POST /users/:id/resend-invite: a new link, the old one stops working).
+// "Reset password" (POST /users/:id/reset-password) still shows a temporary password once.
+import { KeyRound, Mail, Pencil, UserPlus, Users as UsersIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import client, { errorMessage } from '../api/client'
 import ResetPasswordDialog from '../components/ResetPasswordDialog'
@@ -23,8 +25,10 @@ export default function Users() {
   const [savingId, setSavingId] = useState(null) // the row being saved, so its controls are disabled
   // The open form or confirm dialog: { type: 'add' } | { type: 'edit', user } | { type: 'reset', user } | null
   const [dialog, setDialog] = useState(null)
-  // { title?, name, email, password } after a create or reset. Only kept while its dialog is open, then cleared.
+  // { title?, name, email, password } after a reset. Only kept while its dialog is open, then cleared.
   const [shownPassword, setShownPassword] = useState(null)
+  // "Invitation sent to …" after Add user or Resend invite
+  const [notice, setNotice] = useState('')
   const isHr = me?.role === 'hr'
   // The button that opened the current dialog. Every dialog sends focus back to it when it closes, even when one
   // dialog replaces another (form → password dialog), where "what had focus when I opened" is already gone.
@@ -32,6 +36,7 @@ export default function Users() {
 
   function openDialog(event, next) {
     trigger.current = event.currentTarget
+    setNotice('')
     setDialog(next)
   }
 
@@ -66,12 +71,13 @@ export default function Users() {
 
   const replaceUser = (user) => setUsers((current) => current.map((u) => (u.id === user.id ? user : u)))
 
-  // Add: the new account goes to the top of the list (newest first, like GET /users), then its password is shown.
-  // Edit: the row is updated in place; if you edited yourself, the top bar shows the new name too.
-  function handleSaved({ user, temporaryPassword }) {
+  // Add: the new account goes to the top of the list (newest first, like GET /users), and the page says where the
+  // set-password link went. Edit: the row is updated in place; if you edited yourself, the top bar shows the new name.
+  function handleSaved({ user }) {
+    setActionError('')
     if (dialog.type === 'add') {
       setUsers((current) => [user, ...(current || [])])
-      setShownPassword({ name: user.name, email: user.email, password: temporaryPassword })
+      setNotice(`${user.name}'s account is ready. We emailed ${user.email} a link to set a password (valid for 72 hours).`)
     } else {
       replaceUser(user)
       if (user.id === me.id) updateSession({
@@ -84,6 +90,21 @@ export default function Users() {
         })
     }
     setDialog(null)
+  }
+
+  async function resendInvite(u) {
+    setSavingId(u.id)
+    setActionError('')
+    setNotice('')
+    try {
+      const { data } = await client.post(`/users/${u.id}/resend-invite`)
+      replaceUser(data.user)
+      setNotice(`We emailed ${u.email} a new link to set a password. The previous link no longer works.`)
+    } catch (err) {
+      setActionError(errorMessage(err))
+    } finally {
+      setSavingId(null)
+    }
   }
 
   function handleReset({ user, temporaryPassword }) {
@@ -144,6 +165,11 @@ export default function Users() {
             <Alert>{loadError || actionError}</Alert>
           </div>
         )}
+        {notice && !loadError && !actionError && (
+          <div className="card__section">
+            <Alert tone="info">{notice}</Alert>
+          </div>
+        )}
 
         {users === null && !loadError ? (
           <Spinner label="Loading users…" />
@@ -178,6 +204,8 @@ export default function Users() {
                     const canReset = canManage && !isMe
                     const canToggle = canManage && !isMe
                     const canChangeRole = !isMe && !isHr
+                    // Not set a password yet (a new account, or a reset one): a fresh link can be sent
+                    const canResendInvite = canManage && !isMe && u.is_active && u.must_change_password
                     return (
                       <tr key={u.id} className={u.is_active ? undefined : 'is-inactive'}>
                         <td>
@@ -244,6 +272,19 @@ export default function Users() {
                                 <Pencil size={14} aria-hidden="true" />
                                 <span className="row-actions__text">Edit</span>
                               </button>
+                              {canResendInvite && (
+                                <button
+                                  type="button"
+                                  className="btn btn--sm btn--secondary btn--icon"
+                                  disabled={saving}
+                                  onClick={() => resendInvite(u)}
+                                  aria-label={`Resend invite to ${u.name}`}
+                                  title="Resend invite"
+                                >
+                                  <Mail size={14} aria-hidden="true" />
+                                  <span className="row-actions__text">Resend invite</span>
+                                </button>
+                              )}
                               {canReset && (
                                 <button
                                   type="button"

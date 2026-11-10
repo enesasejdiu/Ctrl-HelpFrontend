@@ -1,10 +1,11 @@
 // App.jsx – all routes of TicketFlow.
-// Public: /login. Everything else needs a login; /change-password has its own full-page frame, the rest renders
+// Public: /login, and /set-password?token=... (the link emailed to a new account). Everything else needs a login;
+// /change-password has its own full-page frame, the rest renders
 // inside <Layout>. /admin is admin-only; /admin/users and /admin/departments are for admins and HR.
 // A URL that matches no route shows "Page not found" (NotFoundPage), logged in or not; real routes keep their guards.
 // Development builds also have /__crash pages for trying the error screens (see pages/DevCrash.jsx).
 import { Suspense, lazy } from 'react'
-import { Navigate, Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useSearchParams } from 'react-router'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { Spinner } from './components/Ui'
@@ -12,6 +13,7 @@ import ChangePassword from './pages/ChangePassword'
 import DevCrash from './pages/DevCrash'
 import Departments from './pages/Departments'
 import SetPassword from './pages/SetPassword'
+import SetPasswordWithLink from './pages/SetPasswordWithLink'
 import Login from './pages/Login'
 import NewTicket from './pages/NewTicket'
 import NotFoundPage from './pages/NotFoundPage'
@@ -23,10 +25,28 @@ import Users from './pages/Users'
 // The dashboard pulls in the chart library, so it's only downloaded when an admin opens it
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 
+// /set-password is two pages. With ?token= it is the public page for an emailed set-password link; without, the
+// logged-in page for a temporary password (inside the Layout, like the other pages), whose child route is below.
+function SetPasswordRoute() {
+  const [searchParams] = useSearchParams()
+  // The emailed link's one-time token (not a login token: it only lets this person set their first password)
+  const linkToken = searchParams.get('token')
+  if (linkToken) return <SetPasswordWithLink linkToken={linkToken} />
+  return (
+    <ProtectedRoute>
+      <Layout />
+    </ProtectedRoute>
+  )
+}
+
 function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/set-password" element={<SetPasswordRoute />}>
+        {/* After logging in with a temporary password, the only page until a new one is chosen */}
+        <Route index element={<SetPassword />} />
+      </Route>
       {/* Dev only: outside the Layout, so only the full-page fallback catches it */}
       {import.meta.env.DEV && <Route path="/__crash/app" element={<DevCrash kind="app" />} />}
 
@@ -36,8 +56,6 @@ function App() {
         <Route path="/change-password" element={<ChangePassword />} />
 
         <Route element={<Layout />}>
-          {/* After logging in with a temporary password, the only page until a new one is chosen */}
-          <Route path="/set-password" element={<SetPassword />} />
           <Route path="/tickets" element={<TicketList />} />
           <Route path="/tickets/new" element={<NewTicket />} />
           <Route path="/tickets/:id" element={<TicketDetail />} />

@@ -10,6 +10,7 @@
 // never used, and assertE2eDbName() refuses any name that doesn't start with "ticketflow_e2e_".
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -61,6 +62,10 @@ export const API_PORT = Number(process.env.E2E_API_PORT)
 export const FRONTEND_PORT = Number(process.env.E2E_WEB_PORT)
 export const API_URL = `http://localhost:${API_PORT}/api`
 export const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`
+// Where this run's backend saves every email it sends (as .json files), so tests can open set-password links.
+// Removed with the database.
+export const mailOutboxFor = (dbName) => path.join(os.tmpdir(), 'ticketflow-e2e-mail', assertE2eDbName(dbName))
+export const MAIL_OUTBOX_DIR = mailOutboxFor(DB_NAME)
 
 // The database server: E2E_DB_* if set (CI), otherwise the backend's .env (your normal MySQL/MariaDB)
 const backendEnv = loadEnvFile(path.join(BACKEND_DIR, '.env'))

@@ -177,6 +177,10 @@ npx playwright test e2e/hr-flow.spec.ts --project=chromium   # one file, one bro
    already running, so a dev server can't be picked up by mistake
 3. drops the database at the end, also when tests fail (`e2e/global-teardown.ts`)
 
+No email ever leaves the machine: the e2e backend runs with `NODE_ENV=test` and saves every email it "sends" as a
+`.json` file in a folder of its own (`MAIL_OUTBOX_DIR`, in the system temp folder, removed with the database).
+Tests read new accounts' set-password links from there (`e2e/support/mail.ts`).
+
 Every step refuses to run unless the database name starts with `ticketflow_e2e_`. The database server is the one in
 the backend's `.env` (for example MariaDB from XAMPP); only the name is different. Set `E2E_DB_HOST`, `E2E_DB_PORT`,
 `E2E_DB_USER` and `E2E_DB_PASSWORD` to use another server, as CI does with MySQL 8.4. The backend must be checked out
@@ -212,12 +216,13 @@ These accounts come from the backend's demo data. They all use the password `pas
 | -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
 | `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
 | `/change-password` | Logged-in users | Change your own password (key button in the top bar) |
-| `/set-password` | Users with a temporary password | Choose your own password after the first login (or a reset); every other page redirects here until it's done |
+| `/set-password?token=…` | Everyone (the emailed link) | A new account sets its first password with the link from its email; the link is checked first (expired, used or replaced links say so), then sign-in opens with "Password set, please log in." |
+| `/set-password` | Users with a temporary password | Choose your own password after a reset; every other page redirects here until it's done |
 | `/tickets`     | Logged-in users | Ticket list with search and filters; employees see their own tickets, staff see all of them     |
 | `/tickets/new` | Logged-in users | Report a problem                                                                                |
 | `/tickets/:id` | Logged-in users | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs |
 | `/admin`       | Admins          | Dashboard with statistics, charts and performance tables                                        |
-| `/admin/users` | Admins and HR   | Add and edit users, reset passwords (a temporary password is shown once), change roles, activate or deactivate accounts; HR: employees only |
+| `/admin/users` | Admins and HR   | Add users (they get an emailed set-password link; "Resend invite" sends a new one), edit users, reset passwords (a temporary password is shown once), change roles, activate or deactivate accounts; HR: employees only |
 
 Employees can only open their own tickets. `/` opens `/tickets`.
 
@@ -295,7 +300,7 @@ src/
     PasswordInput.jsx    Password field with a show/hide button
     ProtectedRoute.jsx   Sends logged-out users to /login, temporary passwords to /set-password, and checks roles
     ResetPasswordDialog.jsx  Asks before resetting a user's password
-    TemporaryPasswordDialog.jsx  Shows a new temporary password once, with Copy and a warning
+    TemporaryPasswordDialog.jsx  Shows a reset's temporary password once, with Copy and a warning
     Ui.jsx               Avatar, spinner, alert, empty state and page header
     UserDialog.jsx       "Add user" and "Edit user" form on the Users page
   errors/
@@ -325,6 +330,7 @@ src/
     NewTicket.jsx        New ticket form
     NotFoundPage.jsx     An address that matches no route: "Page not found" in the layout, or a public frame
     SetPassword.jsx      "Set your password" after logging in with a temporary password
+    SetPasswordWithLink.jsx  /set-password?token=…: a new account sets its password with the emailed link
     TicketDetail.jsx     One ticket: comments, management boxes, info and history
     TicketList.jsx       Ticket list with filters
     Users.jsx            User management at /admin/users
