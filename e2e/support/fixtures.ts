@@ -13,25 +13,38 @@ export const PRIORITY = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const
 
 export type Ticket = { id: number; title: string; status: string }
 
+// A logged-in role: its own request context (so its own cookie jar with tf_session) and the tf_csrf value to send
+type Session = { http: APIRequestContext; csrf: string }
+
 export class Api {
-  private tokens = new Map<Role, string>()
+  private sessions = new Map<Role, Session>()
 
-  constructor(private readonly http: APIRequestContext) {}
+  constructor(private readonly newContext: () => Promise<APIRequestContext>) {}
 
-  // Logs in through the API (cached per role) and returns the token
-  async loginAs(role: Role): Promise<string> {
-    const cached = this.tokens.get(role)
+  // Logs in through the API once per role, like the browser does: the backend sets the session cookies in that
+  // role's context, which sends them on every later request. Changes also need tf_csrf as the X-CSRF-Token header.
+  async loginAs(role: Role): Promise<Session> {
+    const cached = this.sessions.get(role)
     if (cached) return cached
-    const response = await this.http.post('auth/login', { data: { email: USERS[role].email, password: PASSWORD } })
+    const http = await this.newContext()
+    const response = await http.post('auth/login', { data: { email: USERS[role].email, password: PASSWORD } })
     expect(response, `login as ${role}`).toBeOK()
-    const { token } = await response.json()
-    this.tokens.set(role, token)
-    return token
+    const { cookies } = await http.storageState()
+    const csrf = cookies.find((cookie) => cookie.name === 'tf_csrf')?.value
+    expect(csrf, `tf_csrf cookie after logging in as ${role}`).toBeTruthy()
+    const session = { http, csrf: csrf as string }
+    this.sessions.set(role, session)
+    return session
+  }
+
+  async dispose() {
+    for (const { http } of this.sessions.values()) await http.dispose()
   }
 
   private async send(method: 'get' | 'post' | 'patch', url: string, as: Role, data?: unknown) {
-    const headers = { Authorization: `Bearer ${await this.loginAs(as)}` }
-    const response = await this.http[method](url, { headers, data })
+    const { http, csrf } = await this.loginAs(as)
+    const headers = method === 'get' ? {} : { 'X-CSRF-Token': csrf }
+    const response = await http[method](url, { headers, data })
     expect(response, `${method.toUpperCase()} ${url} as ${as}`).toBeOK()
     return response.json()
   }
@@ -72,9 +85,9 @@ export class Api {
 
 export const test = base.extend<{ api: Api; uniq: string }>({
   api: async ({ playwright }, use) => {
-    const http = await playwright.request.newContext({ baseURL: `${API_URL}/` })
-    await use(new Api(http))
-    await http.dispose()
+    const api = new Api(() => playwright.request.newContext({ baseURL: `${API_URL}/` }))
+    await use(api)
+    await api.dispose()
   },
 
   // A name unique to this test and run, e.g. "e2e-lq3k9z-4f2a"; prefix test data with it and search for it
