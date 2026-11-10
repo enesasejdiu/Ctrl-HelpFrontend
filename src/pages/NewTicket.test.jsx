@@ -51,15 +51,11 @@ describe('NewTicket', () => {
     expect(titleField()).toHaveValue('')
     expect(titleField()).toHaveAccessibleDescription('Up to 150 characters')
     const category = screen.getByRole('combobox', { name: 'Category' })
-    expect(within(category).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      'Choose a category…',
-      'Hardware',
-      'Software',
-      'Network',
-      'Access',
-      'Email',
-      'Other',
-    ])
+    expect(
+      within(category)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Choose a category…', 'Hardware', 'Software', 'Network', 'Access', 'Email', 'Other'])
 
     const priority = screen.getByRole('group', { name: 'Priority' })
     expect(within(priority).getAllByRole('radio')).toHaveLength(4)

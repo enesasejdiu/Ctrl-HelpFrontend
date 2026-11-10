@@ -59,7 +59,11 @@ export default function DepartmentDialog({ department = null, onSaved, onCancel,
             Cancel
           </button>
           <button type="submit" form="department-form" className="btn btn--primary" disabled={saving || unchanged}>
-            {saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <SubmitIcon size={16} aria-hidden="true" />}
+            {saving ? (
+              <LoaderCircle size={16} className="spin" aria-hidden="true" />
+            ) : (
+              <SubmitIcon size={16} aria-hidden="true" />
+            )}
             {submitLabel}
           </button>
         </>

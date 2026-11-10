@@ -16,7 +16,12 @@ const admin = buildUser({ name: 'Admin User', role: 'admin', email: 'admin@ticke
 const hr = buildUser({ name: 'Hana Rexhepi', role: 'hr', email: 'hr@ticketflow.local' })
 const agent = buildUser({ name: 'Arben Krasniqi', role: 'agent', email: 'agent1@ticketflow.local' })
 const employee = buildUser({ name: 'Liridon Gashi', role: 'employee', email: 'employee1@ticketflow.local' })
-const inactiveEmployee = buildUser({ name: 'Vjosa Hoxha', role: 'employee', email: 'employee2@ticketflow.local', is_active: false })
+const inactiveEmployee = buildUser({
+  name: 'Vjosa Hoxha',
+  role: 'employee',
+  email: 'employee2@ticketflow.local',
+  is_active: false,
+})
 const USERS = [admin, hr, agent, employee, inactiveEmployee]
 
 const NEW_USER = { name: 'Besa Morina', email: 'besa.morina@ticketflow.local', department: 'Sales' } // picked by name
@@ -100,7 +105,8 @@ describe('Users page access (real App routes)', () => {
     server.use(http.get(`${API}/tickets`, () => HttpResponse.json([])))
   })
 
-  const renderApp = (me) => renderWithProviders(null, { route: '/admin/users', routes: [{ path: '*', element: <App /> }], user: me })
+  const renderApp = (me) =>
+    renderWithProviders(null, { route: '/admin/users', routes: [{ path: '*', element: <App /> }], user: me })
 
   it.each([
     ['an admin', admin],
@@ -146,7 +152,11 @@ describe('Users table', () => {
     expect(within(rowFor('Admin User')).queryByRole('combobox')).not.toBeInTheDocument()
     const hrSelect = within(rowFor('Hana Rexhepi')).getByRole('combobox', { name: 'Role for Hana Rexhepi' })
     expect(hrSelect).toHaveValue('hr')
-    expect(within(hrSelect).getAllByRole('option').map((o) => o.textContent)).toEqual(['Employee', 'IT Staff', 'HR', 'Admin'])
+    expect(
+      within(hrSelect)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Employee', 'IT Staff', 'HR', 'Admin'])
     expect(within(rowFor('Arben Krasniqi')).getByRole('button', { name: 'Deactivate' })).toBeInTheDocument()
   })
 
@@ -175,7 +185,11 @@ describe('Add user form', () => {
 
     const role = within(dialog).getByLabelText('Role')
     expect(role).toHaveValue('employee')
-    expect(within(role).getAllByRole('option').map((o) => o.textContent)).toEqual(['Employee', 'IT Staff', 'HR', 'Admin'])
+    expect(
+      within(role)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Employee', 'IT Staff', 'HR', 'Admin'])
     // The name field gets focus first
     expect(within(dialog).getByLabelText('Full name')).toHaveFocus()
   })
@@ -246,7 +260,9 @@ describe('Add user form', () => {
 
     expect(await within(dialog).findByText('Department not found')).toBeInTheDocument()
     expect(within(dialog).getByLabelText(/Department/)).toHaveAccessibleDescription('Department not found')
-    expect(within(dialog).getByLabelText('Full name')).toHaveAccessibleDescription('Name must be 100 characters or less')
+    expect(within(dialog).getByLabelText('Full name')).toHaveAccessibleDescription(
+      'Name must be 100 characters or less',
+    )
     expect(within(dialog).getByRole('alert')).toHaveTextContent('nickname is not allowed')
     // Nothing was created, so the form stays open with what was typed
     expect(within(dialog).getByLabelText('Email')).toHaveValue(NEW_USER.email)
@@ -262,7 +278,9 @@ describe('Add user form', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
 
     await waitFor(() =>
-      expect(within(dialog).getByLabelText('Email')).toHaveAccessibleDescription('An account with this email already exists'),
+      expect(within(dialog).getByLabelText('Email')).toHaveAccessibleDescription(
+        'An account with this email already exists',
+      ),
     )
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -372,7 +390,9 @@ describe('after Add user (email set up): the emailed link', () => {
 
     // Added to the list without reloading it, at the top, with "Resend link" (it has no password yet)
     expect(rowFor(NEW_USER.name)).toBeInTheDocument()
-    expect(within(rowFor(NEW_USER.name)).getByRole('button', { name: `Resend link to ${NEW_USER.name}` })).toBeInTheDocument()
+    expect(
+      within(rowFor(NEW_USER.name)).getByRole('button', { name: `Resend link to ${NEW_USER.name}` }),
+    ).toBeInTheDocument()
     expect(screen.getByText('6 users · 5 active')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add user' })).toHaveFocus()
   })
@@ -488,7 +508,9 @@ describe('Edit user form', () => {
     const dialog = await openEdit(user, agent.name)
 
     await within(dialog).findByRole('option', { name: 'Sales' })
-    const options = within(within(dialog).getByLabelText(/Department/)).getAllByRole('option').map((o) => o.textContent)
+    const options = within(within(dialog).getByLabelText(/Department/))
+      .getAllByRole('option')
+      .map((o) => o.textContent)
     expect(options).toEqual(['No department', ...DEPARTMENTS.map((d) => d.name)])
   })
 
@@ -555,7 +577,10 @@ describe('Edit user form', () => {
     mockApi()
     let answer = () =>
       HttpResponse.json(
-        { message: 'Name must be 100 characters or less', errors: [{ field: 'name', message: 'Name must be 100 characters or less' }] },
+        {
+          message: 'Name must be 100 characters or less',
+          errors: [{ field: 'name', message: 'Name must be 100 characters or less' }],
+        },
         { status: 400 },
       )
     mockEditAndReset({ patch: () => answer() })
@@ -565,7 +590,9 @@ describe('Edit user form', () => {
     await user.type(within(dialog).getByLabelText('Full name'), ' Jr')
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() =>
-      expect(within(dialog).getByLabelText('Full name')).toHaveAccessibleDescription('Name must be 100 characters or less'),
+      expect(within(dialog).getByLabelText('Full name')).toHaveAccessibleDescription(
+        'Name must be 100 characters or less',
+      ),
     )
 
     answer = () => HttpResponse.json({ message: 'An account with this email already exists' }, { status: 409 })
@@ -573,7 +600,9 @@ describe('Edit user form', () => {
     await user.type(within(dialog).getByLabelText('Email'), agent.email)
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() =>
-      expect(within(dialog).getByLabelText('Email')).toHaveAccessibleDescription('An account with this email already exists'),
+      expect(within(dialog).getByLabelText('Email')).toHaveAccessibleDescription(
+        'An account with this email already exists',
+      ),
     )
     // The row keeps its saved values
     expect(within(rowFor(employee.name)).getByText(employee.email)).toBeInTheDocument()
@@ -623,7 +652,9 @@ describe('Reset password', () => {
     const { user } = await renderUsers(admin)
     let confirm = await openReset(user, agent.name)
 
-    expect(confirm).toHaveTextContent(`Reset ${agent.name}'s password? Their current password stops working immediately.`)
+    expect(confirm).toHaveTextContent(
+      `Reset ${agent.name}'s password? Their current password stops working immediately.`,
+    )
     // Cancel has focus first, so Enter alone can't reset by accident
     expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus()
     await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
@@ -655,14 +686,19 @@ describe('Reset password', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.queryByText('NewTemp42pass')).not.toBeInTheDocument()
-    expect(within(rowFor(employee.name)).getByRole('button', { name: `Reset password for ${employee.name}` })).toHaveFocus()
+    expect(
+      within(rowFor(employee.name)).getByRole('button', { name: `Reset password for ${employee.name}` }),
+    ).toHaveFocus()
   })
 
   it('shows "Resetting…" and blocks closing while the request runs', async () => {
     mockApi()
     const pending = deferred()
     mockEditAndReset({
-      reset: async () => (await pending.promise, HttpResponse.json({ user: { ...agent, must_change_password: true }, temporaryPassword: 'Abc123def456' })),
+      reset: async () => (
+        await pending.promise,
+        HttpResponse.json({ user: { ...agent, must_change_password: true }, temporaryPassword: 'Abc123def456' })
+      ),
     })
     const { user } = await renderUsers(admin)
     const confirm = await openReset(user, agent.name)
@@ -732,7 +768,9 @@ describe('Reset password', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.queryByText(/Temporary password/i)).not.toBeInTheDocument()
     // The row now waits for the new password, so it offers a fresh link
-    expect(within(rowFor(employee.name)).getByRole('button', { name: `Resend link to ${employee.name}` })).toBeInTheDocument()
+    expect(
+      within(rowFor(employee.name)).getByRole('button', { name: `Resend link to ${employee.name}` }),
+    ).toBeInTheDocument()
   })
 
   it('shows a failed reset in the confirm dialog', async () => {
@@ -743,12 +781,19 @@ describe('Reset password', () => {
     const { user } = await renderUsers(hr)
     const confirm = await openReset(user, employee.name)
     await user.click(within(confirm).getByRole('button', { name: 'Reset password' }))
-    expect(await within(confirm).findByRole('alert')).toHaveTextContent('HR can only reset passwords of employee accounts')
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent(
+      'HR can only reset passwords of employee accounts',
+    )
   })
 })
 
 describe('Job title', () => {
-  const accountant = buildUser({ name: 'Besa Morina', role: 'employee', email: 'besa@ticketflow.local', job_title: 'Accountant' })
+  const accountant = buildUser({
+    name: 'Besa Morina',
+    role: 'employee',
+    email: 'besa@ticketflow.local',
+    job_title: 'Accountant',
+  })
   const LIST = [admin, accountant, employee]
 
   // GET /users with `accountant` in it, and a PATCH that answers like the backend: an empty job title is saved as null
@@ -788,7 +833,9 @@ describe('Job title', () => {
     expect(field).toHaveAttribute('maxLength', '100')
     expect(field).not.toBeRequired()
     // Right after Department in the form
-    const labels = within(dialog).getAllByText(/^(Full name|Email|Department|Job title|Role)/, { selector: 'label, .field__label' })
+    const labels = within(dialog).getAllByText(/^(Full name|Email|Department|Job title|Role)/, {
+      selector: 'label, .field__label',
+    })
     expect(labels.map((l) => l.textContent.replace('Optional', '').trim())).toEqual([
       'Full name',
       'Email',
@@ -802,7 +849,9 @@ describe('Job title', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create user' }))
 
     await screen.findByText(/A link to set the password was emailed to/)
-    expect(posted).toEqual([{ name: NEW_USER.name, email: NEW_USER.email, department_id: 3, job_title: 'QA Tester', role: 'employee' }])
+    expect(posted).toEqual([
+      { name: NEW_USER.name, email: NEW_USER.email, department_id: 3, job_title: 'QA Tester', role: 'employee' },
+    ])
     expect(within(rowFor(NEW_USER.name)).getByText('QA Tester')).toBeInTheDocument()
   })
 
@@ -851,7 +900,10 @@ describe('Job title', () => {
     server.use(
       http.patch(`${API}/users/:id`, () =>
         HttpResponse.json(
-          { message: 'Job title must be 255 characters or less', errors: [{ field: 'job_title', message: 'Job title must be 255 characters or less' }] },
+          {
+            message: 'Job title must be 255 characters or less',
+            errors: [{ field: 'job_title', message: 'Job title must be 255 characters or less' }],
+          },
           { status: 400 },
         ),
       ),
@@ -887,8 +939,18 @@ describe('Job title', () => {
 
 describe('Resend link', () => {
   // Have not set a password yet (e.g. just created)
-  const invited = buildUser({ name: 'Nora Invited', role: 'employee', email: 'nora@ticketflow.local', must_change_password: true })
-  const invitedAgent = buildUser({ name: 'Ilir Invited', role: 'agent', email: 'ilir@ticketflow.local', must_change_password: true })
+  const invited = buildUser({
+    name: 'Nora Invited',
+    role: 'employee',
+    email: 'nora@ticketflow.local',
+    must_change_password: true,
+  })
+  const invitedAgent = buildUser({
+    name: 'Ilir Invited',
+    role: 'agent',
+    email: 'ilir@ticketflow.local',
+    must_change_password: true,
+  })
   const invitedInactive = buildUser({
     name: 'Drita Inactive',
     role: 'employee',
@@ -946,9 +1008,7 @@ describe('Resend link', () => {
     await screen.findByRole('table')
     await user.click(resendButton(invited.name))
 
-    expect(
-      await screen.findByText(`${invitedNotice(invited)} The previous link no longer works.`),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(`${invitedNotice(invited)} The previous link no longer works.`)).toBeInTheDocument()
     expect(calls).toEqual([invited.id])
   })
 
@@ -963,6 +1023,8 @@ describe('Resend link', () => {
     const { user } = await renderUsers(admin)
     await screen.findByRole('table')
     await user.click(resendButton(invited.name))
-    expect(await screen.findByRole('alert')).toHaveTextContent('This user has already set a password. Use Reset password instead')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This user has already set a password. Use Reset password instead',
+    )
   })
 })

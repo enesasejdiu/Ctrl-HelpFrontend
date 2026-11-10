@@ -26,7 +26,8 @@ function validate(form) {
   if (!form.name.trim()) errors.name = 'Name is required'
   if (!form.email.trim()) errors.email = 'Email is required'
   else if (!EMAIL_FORMAT.test(form.email.trim())) errors.email = 'Enter a valid email'
-  if (form.job_title.trim().length > JOB_TITLE_MAX) errors.job_title = `Job title must be ${JOB_TITLE_MAX} characters or less`
+  if (form.job_title.trim().length > JOB_TITLE_MAX)
+    errors.job_title = `Job title must be ${JOB_TITLE_MAX} characters or less`
   return errors
 }
 
@@ -76,7 +77,8 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
   // out an empty job title.
   function changes() {
     const { job_title: jobTitle, ...next } = cleaned(form)
-    if (!isEdit) return { ...next, ...(jobTitle && { job_title: jobTitle }), role: canPickRole ? next.role : 'employee' }
+    if (!isEdit)
+      return { ...next, ...(jobTitle && { job_title: jobTitle }), role: canPickRole ? next.role : 'employee' }
     next.job_title = jobTitle
     const saved = {
       name: user.name,
@@ -170,7 +172,11 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
             Cancel
           </button>
           <button type="submit" form="user-form" className="btn btn--primary" disabled={saving || unchanged}>
-            {saving ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <SubmitIcon size={16} aria-hidden="true" />}
+            {saving ? (
+              <LoaderCircle size={16} className="spin" aria-hidden="true" />
+            ) : (
+              <SubmitIcon size={16} aria-hidden="true" />
+            )}
             {saving ? savingLabel : submitLabel}
           </button>
         </>
@@ -227,7 +233,9 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
             disabled={departments === null && !departmentsError}
             {...errorProps('department_id')}
           >
-            <option value="">{departments === null && !departmentsError ? 'Loading departments…' : 'No department'}</option>
+            <option value="">
+              {departments === null && !departmentsError ? 'Loading departments…' : 'No department'}
+            </option>
             {departmentOptions.map((d) => (
               <option key={d.id} value={String(d.id)}>
                 {d.name}
@@ -260,7 +268,13 @@ export default function UserDialog({ user = null, onSaved, onCancel, returnFocus
         {canPickRole ? (
           <div className="field">
             <label htmlFor="user-role">Role</label>
-            <select id="user-role" className="select" value={form.role} onChange={update('role')} {...errorProps('role')}>
+            <select
+              id="user-role"
+              className="select"
+              value={form.role}
+              onChange={update('role')}
+              {...errorProps('role')}
+            >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
                   {ROLE_LABELS[role]}

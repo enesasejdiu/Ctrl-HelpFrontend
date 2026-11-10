@@ -40,7 +40,8 @@ export default function ChangePassword() {
       : '/tickets'
 
   function validate() {
-    if (!current) return ['current-password', forced ? 'Temporary password is required' : 'Current password is required']
+    if (!current)
+      return ['current-password', forced ? 'Temporary password is required' : 'Current password is required']
     const problem = newPasswordProblem(next)
     if (problem) return ['new-password', problem]
     if (next === current) return ['new-password', 'New password must be different from the current one']

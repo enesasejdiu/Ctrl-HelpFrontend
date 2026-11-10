@@ -35,7 +35,11 @@ export default function ResetPasswordDialog({ user, onReset, onCancel, returnFoc
             Cancel
           </button>
           <button type="button" className="btn btn--primary" onClick={reset} disabled={resetting}>
-            {resetting ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <KeyRound size={16} aria-hidden="true" />}
+            {resetting ? (
+              <LoaderCircle size={16} className="spin" aria-hidden="true" />
+            ) : (
+              <KeyRound size={16} aria-hidden="true" />
+            )}
             {resetting ? 'Resetting…' : 'Reset password'}
           </button>
         </>
@@ -43,9 +47,7 @@ export default function ResetPasswordDialog({ user, onReset, onCancel, returnFoc
     >
       <div className="form">
         {error && <Alert>{error}</Alert>}
-        <p>
-          Reset {user.name}&apos;s password? Their current password stops working immediately.
-        </p>
+        <p>Reset {user.name}&apos;s password? Their current password stops working immediately.</p>
       </div>
     </Modal>
   )

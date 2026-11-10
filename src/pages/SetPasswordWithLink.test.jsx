@@ -22,7 +22,12 @@ function mockApi({ validate, set, purpose = 'setup' } = {}) {
       const token = new URL(request.url).searchParams.get('token')
       calls.validated.push(token)
       if (validate) return validate(token)
-      return HttpResponse.json({ status: 'valid', purpose, email: 'nora@ticketflow.local', expires_at: '2026-11-12T10:00:00Z' })
+      return HttpResponse.json({
+        status: 'valid',
+        purpose,
+        email: 'nora@ticketflow.local',
+        expires_at: '2026-11-12T10:00:00Z',
+      })
     }),
     http.post(`${API}/auth/set-password`, async ({ request }) => {
       const body = await request.json()
@@ -44,7 +49,10 @@ async function openLink(options = {}) {
 
 const field = (label) => screen.getByLabelText(label)
 const submit = () => screen.getByRole('button', { name: 'Set password' })
-const rule = (name) => within(screen.getByRole('list', { name: 'Password rules' })).getByText(name).closest('li')
+const rule = (name) =>
+  within(screen.getByRole('list', { name: 'Password rules' }))
+    .getByText(name)
+    .closest('li')
 const referrerMeta = () => document.head.querySelector('meta[name="referrer"]')
 
 async function typePasswords(user, next, confirm = next) {
@@ -98,7 +106,10 @@ describe('Set your password (one-time link)', () => {
   it('shows "Checking your link…" while the check runs', async () => {
     const pending = deferred()
     mockApi({
-      validate: async () => (await pending.promise, HttpResponse.json({ status: 'valid', purpose: 'setup', email: 'n@x.local' })),
+      validate: async () => (
+        await pending.promise,
+        HttpResponse.json({ status: 'valid', purpose: 'setup', email: 'n@x.local' })
+      ),
     })
     await openLink()
     expect(await screen.findByText('Checking your link…')).toBeInTheDocument()
@@ -167,7 +178,8 @@ describe('Set your password (one-time link)', () => {
 
   it('a link that stopped working meanwhile (e.g. used in another tab) switches to its message', async () => {
     mockApi({
-      set: () => HttpResponse.json({ message: 'This link has already been used.', code: 'TOKEN_USED' }, { status: 400 }),
+      set: () =>
+        HttpResponse.json({ message: 'This link has already been used.', code: 'TOKEN_USED' }, { status: 400 }),
     })
     const { user } = await openLink()
     await screen.findByRole('button', { name: 'Set password' })

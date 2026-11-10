@@ -93,7 +93,8 @@ export default function Users() {
       else setShownPassword({ name: user.name, email: user.email, password: temporaryPassword })
     } else {
       replaceUser(user)
-      if (user.id === me.id) updateSession({
+      if (user.id === me.id)
+        updateSession({
           ...me,
           name: user.name,
           email: user.email,
@@ -127,7 +128,12 @@ export default function Users() {
       setNotice(emailedNotice(user.email))
       return
     }
-    setShownPassword({ title: `New password for ${user.name}`, name: user.name, email: user.email, password: temporaryPassword })
+    setShownPassword({
+      title: `New password for ${user.name}`,
+      name: user.name,
+      email: user.email,
+      password: temporaryPassword,
+    })
   }
 
   const activeCount = users?.filter((u) => u.is_active).length || 0
@@ -150,10 +156,20 @@ export default function Users() {
       />
 
       {(dialog?.type === 'add' || dialog?.type === 'edit') && (
-        <UserDialog user={dialog.user ?? null} onSaved={handleSaved} onCancel={() => setDialog(null)} returnFocusRef={trigger} />
+        <UserDialog
+          user={dialog.user ?? null}
+          onSaved={handleSaved}
+          onCancel={() => setDialog(null)}
+          returnFocusRef={trigger}
+        />
       )}
       {dialog?.type === 'reset' && (
-        <ResetPasswordDialog user={dialog.user} onReset={handleReset} onCancel={() => setDialog(null)} returnFocusRef={trigger} />
+        <ResetPasswordDialog
+          user={dialog.user}
+          onReset={handleReset}
+          onCancel={() => setDialog(null)}
+          returnFocusRef={trigger}
+        />
       )}
       {shownPassword && (
         <TemporaryPasswordDialog
@@ -222,7 +238,8 @@ export default function Users() {
                     const canToggle = canManage && !isMe
                     const canChangeRole = !isMe && !isHr
                     // Still waiting for their password (a new account, or a reset one): with email, a fresh link
-                    const canResendLink = delivery === 'email' && canManage && !isMe && u.is_active && u.must_change_password
+                    const canResendLink =
+                      delivery === 'email' && canManage && !isMe && u.is_active && u.must_change_password
                     return (
                       <tr key={u.id} className={u.is_active ? undefined : 'is-inactive'}>
                         <td>

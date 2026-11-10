@@ -72,7 +72,10 @@ export default function SetPassword() {
 
   return (
     <>
-      <PageHeader title="Set your password" subtitle="Your account uses a temporary password. Choose your own to continue." />
+      <PageHeader
+        title="Set your password"
+        subtitle="Your account uses a temporary password. Choose your own to continue."
+      />
 
       <form className="card card--padded form set-password" onSubmit={handleSubmit} noValidate>
         {error && <Alert>{error}</Alert>}

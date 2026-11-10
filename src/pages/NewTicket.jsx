@@ -191,7 +191,9 @@ export default function NewTicket() {
               <li>Use a short title that says what is broken.</li>
               <li>Include any error message exactly as it appears.</li>
               <li>Say where you are and which device you use.</li>
-              <li>Pick <strong>Critical</strong> only when work is blocked for many people.</li>
+              <li>
+                Pick <strong>Critical</strong> only when work is blocked for many people.
+              </li>
             </ul>
           </aside>
         </div>

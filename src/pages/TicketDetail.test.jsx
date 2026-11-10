@@ -22,7 +22,11 @@ async function renderTicket(role) {
     http.get(`${API}/tickets/42`, () => HttpResponse.json(ticket)),
     http.get(`${API}/users/agents`, () => HttpResponse.json([])),
   )
-  return renderWithProviders(<TicketDetail />, { route: '/tickets/42', path: '/tickets/:id', user: buildUser({ role }) })
+  return renderWithProviders(<TicketDetail />, {
+    route: '/tickets/42',
+    path: '/tickets/:id',
+    user: buildUser({ role }),
+  })
 }
 
 describe('Ticket detail per role', () => {

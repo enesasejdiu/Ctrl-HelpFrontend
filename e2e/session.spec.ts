@@ -24,7 +24,10 @@ async function expectNoTokenVisible(page: Page) {
 const sessionCookie = async (context: BrowserContext) =>
   (await context.cookies()).find((cookie) => cookie.name === 'tf_session')
 
-test('log in, reload and stay logged in, log out; the token is never visible to the page', async ({ page, context }) => {
+test('log in, reload and stay logged in, log out; the token is never visible to the page', async ({
+  page,
+  context,
+}) => {
   await page.goto('/login')
   await expectNoTokenVisible(page)
 
@@ -100,7 +103,10 @@ test('logging out yourself shows no session-expired message', async ({ page }) =
   await expect(page.getByText('Your session has ended.')).toHaveCount(0)
 })
 
-test('a request that changes something is sent with the CSRF header and no Authorization header', async ({ page, uniq }) => {
+test('a request that changes something is sent with the CSRF header and no Authorization header', async ({
+  page,
+  uniq,
+}) => {
   await page.goto('/login')
   await page.getByLabel('Work email').fill(USERS.user.email)
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
@@ -113,7 +119,9 @@ test('a request that changes something is sent with the CSRF header and no Autho
   // Priorities are cards with a hidden radio inside; click the card like a user does
   await page.getByRole('group', { name: 'Priority' }).getByText('Medium', { exact: true }).click()
   await page.getByRole('textbox', { name: 'Description' }).fill('Checks how the request is sent.')
-  const created = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/tickets'))
+  const created = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().endsWith('/api/tickets'),
+  )
   await page.getByRole('button', { name: 'Submit ticket' }).click()
 
   const request = await created

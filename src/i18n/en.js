@@ -30,8 +30,10 @@ const en = {
   'forgot.sending': 'Sending…',
   'forgot.sentTitle': 'Check your email',
   'forgot.sent': "If there's an active account for that email, we've sent it a link to choose a new password.",
-  'forgot.sentHelp': 'Your current password keeps working until you use the link. No email? Check the spam folder, or ask your administrator or HR.',
-  'forgot.notAvailable': "Password reset by email isn't available. Ask your administrator or HR to reset your password.",
+  'forgot.sentHelp':
+    'Your current password keeps working until you use the link. No email? Check the spam folder, or ask your administrator or HR.',
+  'forgot.notAvailable':
+    "Password reset by email isn't available. Ask your administrator or HR to reset your password.",
   'forgot.rateLimited': 'Too many requests. Wait a few minutes and try again.',
   'forgot.backToSignIn': 'Back to sign in',
 

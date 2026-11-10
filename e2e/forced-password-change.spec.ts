@@ -10,7 +10,6 @@ import { authFile } from './support/users'
 
 test.use({ storageState: authFile('admin') })
 
-
 // Adds an employee; the page says the link was emailed, and no password is shown
 async function addUser(page: Page, name: string, email: string) {
   await page.goto('/admin/users')
@@ -19,7 +18,9 @@ async function addUser(page: Page, name: string, email: string) {
   await dialog.getByLabel('Full name').fill(name)
   await dialog.getByLabel('Email').fill(email)
   await dialog.getByRole('button', { name: 'Create user' }).click()
-  await expect(page.getByRole('status')).toHaveText(`A link to set the password was emailed to ${email}. It expires in 48 hours.`)
+  await expect(page.getByRole('status')).toHaveText(
+    `A link to set the password was emailed to ${email}. It expires in 48 hours.`,
+  )
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
 }
 
@@ -48,7 +49,6 @@ async function setPasswordWithLink(page: Page, link: string, next: string) {
   await expect(page).toHaveURL('/login')
   await expect(page.getByRole('status')).toHaveText('Password set, please log in.')
 }
-
 
 // "Change password" (/change-password): changing your own password later, from the top bar
 async function choosePassword(page: Page, current: string, next: string) {
@@ -158,8 +158,13 @@ test('a password reset during a session ends it; the user chooses a new password
   // Admin resets it while the user is still signed in: no password is shown, a link is emailed
   await page.reload()
   await page.getByRole('button', { name: `Reset password for ${name}` }).click()
-  await page.getByRole('alertdialog', { name: 'Reset password' }).getByRole('button', { name: 'Reset password' }).click()
-  await expect(page.getByRole('status')).toHaveText(`A link to set the password was emailed to ${email}. It expires in 48 hours.`)
+  await page
+    .getByRole('alertdialog', { name: 'Reset password' })
+    .getByRole('button', { name: 'Reset password' })
+    .click()
+  await expect(page.getByRole('status')).toHaveText(
+    `A link to set the password was emailed to ${email}. It expires in 48 hours.`,
+  )
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
   const link = await setPasswordLink(email, { after: before })
   expect(sentMail().at(-1)?.subject).toBe('Reset your TicketFlow password')
