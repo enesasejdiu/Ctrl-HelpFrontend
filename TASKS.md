@@ -136,4 +136,6 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Component and Playwright tests: HR adds an employee → employee sets password → creates a ticket (built by Aulona in PR #17; "My tickets" and admin checks added)
 - [x] Lockout and rate-limit messages on the login page
 - [x] HR navigation checked
+- [x] Password delivery from the backend: one-time links (48h, /set-password?token=…, token removed from the URL) for new accounts and resets when email is set up, the temporary password otherwise; Resend link
+- [x] "Forgot password" page; e2e run in temporary-password mode
 - [x] Audit log page (Admin): filter by user, action and date

@@ -1,5 +1,6 @@
 // UserDialog.jsx – the "Add user" and "Edit user" form on the Users page.
-// Add (no `user`): POST /users, then onSaved({ user, temporaryPassword }) so the page can show the password once.
+// Add (no `user`): POST /users, then onSaved(response): { user, password_delivery } plus temporaryPassword when the
+// backend has no email set up; the Users page shows the password once or says a link was emailed.
 // Edit (`user` given): prefilled; PATCH /users/:id with only the fields that changed, then onSaved({ user }).
 // The role is a dropdown only for admins, and never on their own account; otherwise it is shown as fixed text
 // (HR can only create employees and can never change roles).

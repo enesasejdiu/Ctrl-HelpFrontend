@@ -1,20 +1,20 @@
 // hr-flow.spec.ts – the HR flow from start to finish, against the real backend on this run's throwaway database:
-// an admin creates an HR account → HR sets their own password → HR's navigation → HR adds an employee (Employee only)
-// and can't touch agents or admins → the employee sets a password and creates a ticket → HR can't open /admin and
+// an admin creates an HR account → HR sets their own password with the emailed link → HR's navigation → HR adds an
+// employee (Employee only) and can't touch agents or admins → the employee sets a password with their link and
+// creates a ticket → HR can't open /admin and
 // can't see that ticket, while the employee finds it in "My tickets" and the admin can see and open it.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './support/fixtures'
+import { setPasswordLink } from './support/mail'
 import { authFile } from './support/users'
 
 test.use({ storageState: authFile('admin') })
 
-// Reads the one-time password from the dialog and closes it
-async function takeTemporaryPassword(page: Page) {
-  const dialog = page.getByRole('alertdialog')
-  const password = (await dialog.locator('code').textContent())?.trim() ?? ''
-  expect(password).toMatch(/^[A-Za-z0-9]{12,}$/)
-  await dialog.getByRole('button', { name: 'Done' }).click()
-  return password
+// After Add user the page says the set-password link was emailed (no password is shown); returns that link
+async function emailedLink(page: Page, email: string) {
+  await expect(page.getByRole('status')).toContainText(`A link to set the password was emailed to ${email}`)
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
+  return setPasswordLink(email)
 }
 
 async function signIn(page: Page, email: string, password: string) {
@@ -24,14 +24,15 @@ async function signIn(page: Page, email: string, password: string) {
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 
-// "Set your password" after the first sign-in with a temporary password
-async function setOwnPassword(page: Page, temporary: string, next: string) {
-  await expect(page).toHaveURL('/set-password')
+// The emailed link: choose a password, then sign in with it on the page it ends on
+async function setOwnPassword(page: Page, link: string, email: string, next: string) {
+  await page.goto(link)
   await expect(page.getByRole('heading', { name: 'Set your password' })).toBeVisible()
-  await page.getByLabel('Temporary password').fill(temporary)
   await page.getByLabel('New password', { exact: true }).fill(next)
   await page.getByLabel('Confirm new password').fill(next)
   await page.getByRole('button', { name: 'Set password' }).click()
+  await expect(page.getByRole('status')).toHaveText('Password set, please log in.')
+  await signIn(page, email, next)
   await expect(page).toHaveURL('/tickets')
 }
 
@@ -55,7 +56,7 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   const employeeEmail = `employee.${uniq}@test.local`
   const ticketTitle = `${uniq} Monitor flickers`
 
-  // 1. An admin creates the HR account and copies the temporary password from the dialog
+  // 1. An admin creates the HR account; the HR person gets a set-password link by email
   await admin.goto('/admin/users')
   await admin.getByRole('button', { name: 'Add user' }).click()
   const addHr = admin.getByRole('dialog', { name: 'Add user' })
@@ -63,12 +64,11 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   await addHr.getByLabel('Email').fill(hrEmail)
   await addHr.getByLabel('Role').selectOption({ label: 'HR' })
   await addHr.getByRole('button', { name: 'Create user' }).click()
-  const hrTemporary = await takeTemporaryPassword(admin)
+  const hrLink = await emailedLink(admin, hrEmail)
 
-  // 2. HR signs in and has to set their own password first
+  // 2. HR sets their own password with the link, then signs in
   const { context: hrContext, page: hr } = await freshPage(browser)
-  await signIn(hr, hrEmail, hrTemporary)
-  await setOwnPassword(hr, hrTemporary, 'HrOwnPassword1')
+  await setOwnPassword(hr, hrLink, hrEmail, 'HrOwnPassword1')
 
   // 3. HR's navigation: Tickets, New ticket, Users, Departments and the profile link; no Dashboard
   const nav = hr.getByRole('navigation', { name: 'Main' })
@@ -88,7 +88,7 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   await addEmployee.getByLabel('Full name').fill(employeeName)
   await addEmployee.getByLabel('Email').fill(employeeEmail)
   await addEmployee.getByRole('button', { name: 'Create user' }).click()
-  const employeeTemporary = await takeTemporaryPassword(hr)
+  const employeeLink = await emailedLink(hr, employeeEmail)
   const employeeRow = hr.getByRole('row').filter({ hasText: employeeEmail })
   await expect(employeeRow.getByText('Employee', { exact: true })).toBeVisible()
 
@@ -100,10 +100,9 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   }
   await expect(employeeRow.getByRole('button', { name: `Edit ${employeeName}` })).toBeVisible()
 
-  // 5. The employee signs in, sets a password and creates a ticket
+  // 5. The employee sets a password with their link, signs in and creates a ticket
   const { context: employeeContext, page: employee } = await freshPage(browser)
-  await signIn(employee, employeeEmail, employeeTemporary)
-  await setOwnPassword(employee, employeeTemporary, 'EmployeeOwn1')
+  await setOwnPassword(employee, employeeLink, employeeEmail, 'EmployeeOwn1')
   await employee.goto('/tickets/new')
   await employee.getByRole('textbox', { name: 'Title' }).fill(ticketTitle)
   await employee.getByRole('combobox', { name: 'Category' }).selectOption('Hardware')
