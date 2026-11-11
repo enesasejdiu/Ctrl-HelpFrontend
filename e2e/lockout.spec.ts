@@ -4,8 +4,9 @@
 //
 // Backend rules (Ctrl-HelpBackend src/routes/auth.js):
 // - The 5th wrong password itself locks the account and answers 423 ACCOUNT_LOCKED; attempts 1–4 answer 401.
-// - The lock lasts 15 minutes. That's a constant in the backend with no test setting, so the "lock runs out" test is
-//   skipped rather than waiting 15 minutes.
+// - The lock lasts 15 minutes, except in tests: the e2e backend runs with LOCKOUT_MINUTES=1 (e2e/.env.test), so the
+//   "lock runs out" test only waits about a minute. The tests read the length from the 423 response
+//   (retryAfterMinutes), never assume it.
 // - The per-IP login rate limit (429) is off when NODE_ENV=test, which the e2e backend always uses
 //   (scripts/e2e-backend.mjs), so it can't fire before the lockout. Production keeps it.
 //
@@ -17,15 +18,24 @@ import en from '../src/i18n/en.js'
 import { expect, test } from './support/fixtures'
 
 const MAX_FAILED = 5
-const LOCK_MINUTES = 15
 
 // The app's own message texts (src/i18n/en.js), as patterns: {time} may be any of the given times
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 function message(key: keyof typeof en, time = '') {
   return new RegExp(`^${escape(en[key]).replace(escape('{time}'), time)}`)
 }
-// "about 15 minutes", or 14 if a minute ticks over during the test
-const LOCK_TIME = `about 1[45] minutes`
+// The time left as the page shows it (src/utils/wait.js formatWait), for a lock of `minutes`: "m:ss" when it is 5
+// minutes or less, otherwise "about N minutes" (or one less, if a minute ticks over during the test)
+function lockTime(minutes: number) {
+  if (minutes <= 5) return `[0-${minutes}]:[0-5]\\d`
+  return `about (${minutes - 1}|${minutes}) minutes`
+}
+// The lock's length in minutes, from a 423 ACCOUNT_LOCKED response
+async function lockMinutes(response: Response) {
+  const body = await response.json()
+  expect(body).toMatchObject({ code: 'ACCOUNT_LOCKED', retryAfterMinutes: expect.any(Number) })
+  return body.retryAfterMinutes as number
+}
 const WRONG_CREDENTIALS = en['login.wrongCredentials']
 
 const isLoginRequest = (response: Response) =>
@@ -39,14 +49,19 @@ async function submitPassword(page: Page, password: string) {
   return response
 }
 
-// Locks an account through the API, checking each answer: 401 four times, then 423 on the 5th
+// Locks an account through the API, checking each answer: 401 four times, then 423 on the 5th. Returns the lock's
+// length in minutes, as the backend reports it.
 async function lockThroughApi(playwright: PlaywrightWorkerArgs['playwright'], email: string) {
   const http = await playwright.request.newContext({ baseURL: `${API_URL}/` })
   try {
+    let minutes = 0
     for (let attempt = 1; attempt <= MAX_FAILED; attempt += 1) {
       const response = await http.post('auth/login', { data: { email, password: `wrong-password-${attempt}` } })
       expect(response.status(), `wrong password #${attempt}`).toBe(attempt < MAX_FAILED ? 401 : 423)
+      if (attempt === MAX_FAILED) minutes = (await response.json()).retryAfterMinutes
     }
+    expect(minutes).toBeGreaterThan(0)
+    return minutes
   } finally {
     await http.dispose()
   }
@@ -76,18 +91,19 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
     // Attempt 5 locks the account, and already says so
     const response = await submitPassword(page, `wrong-password-${MAX_FAILED}`)
     expect(response.status()).toBe(423)
-    expect(await response.json()).toMatchObject({ code: 'ACCOUNT_LOCKED', retryAfterMinutes: LOCK_MINUTES })
+    const minutes = await lockMinutes(response)
     const retryAfter = Number(response.headers()['retry-after'])
-    expect(retryAfter).toBeGreaterThan((LOCK_MINUTES - 1) * 60)
-    expect(retryAfter).toBeLessThanOrEqual(LOCK_MINUTES * 60)
+    expect(retryAfter).toBeGreaterThan((minutes - 1) * 60)
+    expect(retryAfter).toBeLessThanOrEqual(minutes * 60)
 
     // The message is in the alert live region, with the time left and who can help
+    const time = lockTime(minutes)
     const alert = page.getByRole('alert')
-    await expect(alert).toContainText(message('login.locked', LOCK_TIME))
+    await expect(alert).toContainText(message('login.locked', time))
     await expect(alert).toContainText(en['login.lockedHelp'])
-    await expect(alert.getByRole('timer')).toHaveText(new RegExp(`^${LOCK_TIME}$`))
+    await expect(alert.getByRole('timer')).toHaveText(new RegExp(`^${time}$`))
     // The button is blocked and says for how long
-    await expect(page.getByRole('button', { name: message('login.tryAgainIn', LOCK_TIME) })).toBeDisabled()
+    await expect(page.getByRole('button', { name: message('login.tryAgainIn', time) })).toBeDisabled()
     await expect(page.getByRole('button', { name: en['login.submit'] })).toHaveCount(0)
     // Still on the login page, and no session
     await expect(page).toHaveURL('/login')
@@ -111,8 +127,9 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
     await page.getByLabel('Work email').fill(account.email)
     const response = await submitPassword(page, account.password)
     expect(response.status()).toBe(423)
-    await expect(page.getByRole('alert')).toContainText(message('login.locked', LOCK_TIME))
-    await expect(page.getByRole('button', { name: message('login.tryAgainIn', LOCK_TIME) })).toBeDisabled()
+    const time = lockTime(await lockMinutes(response))
+    await expect(page.getByRole('alert')).toContainText(message('login.locked', time))
+    await expect(page.getByRole('button', { name: message('login.tryAgainIn', time) })).toBeDisabled()
     await expect(page).toHaveURL('/login')
     expect(await isLoggedIn(page)).toBe(false)
   })
@@ -142,8 +159,10 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
 
     await page.goto('/login')
     await page.getByLabel('Work email').fill(locked.email)
-    expect((await submitPassword(page, locked.password)).status()).toBe(423)
-    await expect(page.getByRole('button', { name: message('login.tryAgainIn', LOCK_TIME) })).toBeDisabled()
+    const response = await submitPassword(page, locked.password)
+    expect(response.status()).toBe(423)
+    const time = lockTime(await lockMinutes(response))
+    await expect(page.getByRole('button', { name: message('login.tryAgainIn', time) })).toBeDisabled()
 
     // The lock belongs to that account, so another email gets the button back and the message goes
     await page.getByLabel('Work email').fill(`someone.else.${uniq}@test.local`)
@@ -152,11 +171,29 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
     await expect(page.getByRole('timer')).toHaveCount(0)
   })
 
-  test('the lock runs out and the correct password works again', async () => {
-    test.skip(
-      true,
-      `The lock lasts ${LOCK_MINUTES} minutes (LOCK_MINUTES in the backend's src/routes/auth.js) and there is no test ` +
-        'setting to shorten it. Needs a backend option such as LOGIN_LOCK_SECONDS for the test environment.',
-    )
+  test('the lock runs out and the correct password works again', async ({ page, api, uniq, playwright }) => {
+    const account = await api.createReadyEmployee(`Lock ends ${uniq}`, `lock.ends.${uniq}@test.local`)
+    const minutes = await lockThroughApi(playwright, account.email)
+    // The e2e backend locks for 1 minute (LOCKOUT_MINUTES in e2e/.env.test); anything longer would make this test wait
+    expect(minutes, 'LOCKOUT_MINUTES=1 for the e2e backend').toBe(1)
+    test.setTimeout(minutes * 60_000 + 60_000)
+
+    // While locked, the right password is refused and the page counts down
+    await page.goto('/login')
+    await page.getByLabel('Work email').fill(account.email)
+    expect((await submitPassword(page, account.password)).status()).toBe(423)
+    await expect(page.getByRole('timer')).toBeVisible()
+
+    // When the countdown reaches zero the page says so and gives the button back (no fixed wait: it follows the page)
+    await expect(page.getByText(en['login.lockEnded'])).toBeVisible({ timeout: minutes * 60_000 + 15_000 })
+    await expect(page.getByRole('button', { name: en['login.submit'] })).toBeEnabled()
+    await expect(page.getByRole('timer')).toHaveCount(0)
+
+    // The lock has run out on the server too: the right password works and signs in
+    const response = await submitPassword(page, account.password)
+    expect(response.status()).toBe(200)
+    await expect(page).toHaveURL('/tickets')
+    await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible()
+    expect(await isLoggedIn(page)).toBe(true)
   })
 })
