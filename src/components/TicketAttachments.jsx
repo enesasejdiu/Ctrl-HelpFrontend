@@ -91,9 +91,7 @@ export default function TicketAttachments({ ticket, reload }) {
 
       {failed.length > 0 && !busy && (
         <Alert tone="warning">
-          <p>
-            {failed.length === 1 ? "This file wasn't uploaded:" : `These ${failed.length} files weren't uploaded:`}
-          </p>
+          <p>{failed.length === 1 ? "This file wasn't uploaded:" : `These ${failed.length} files weren't uploaded:`}</p>
           <ul className="upload-failures">
             {failed.map(({ file, error }) => (
               <li key={`${file.name}-${file.size}-${file.lastModified}`}>{error}</li>

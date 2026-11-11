@@ -13,7 +13,8 @@ export function downloadUrl(attachmentId) {
 // What went wrong with one file, as a sentence that names it
 export function uploadErrorMessage(file, err) {
   const data = err?.response?.data
-  if (data?.code === 'FILE_TOO_LARGE' && data.max_bytes) return `${file.name} is larger than ${formatBytes(data.max_bytes)}`
+  if (data?.code === 'FILE_TOO_LARGE' && data.max_bytes)
+    return `${file.name} is larger than ${formatBytes(data.max_bytes)}`
   const message = errorMessage(err)
   // Most backend messages already name the file ("photo.png: this file type isn't allowed"); add it when they don't
   return message.includes(file.name) ? message : `${file.name}: ${message}`
