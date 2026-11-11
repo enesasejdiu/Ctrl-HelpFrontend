@@ -4,7 +4,14 @@
 // (`files`, `onChange`) and does the upload; the backend checks every file again.
 import { Paperclip, X } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
-import { ACCEPT, MAX_FILES_PER_UPLOAD, MAX_FILE_BYTES, attachmentIcon, fileProblem, formatBytes } from '../utils/attachments'
+import {
+  ACCEPT,
+  MAX_FILES_PER_UPLOAD,
+  MAX_FILE_BYTES,
+  attachmentIcon,
+  fileProblem,
+  formatBytes,
+} from '../utils/attachments'
 
 const sameFile = (a, b) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified
 
@@ -32,7 +39,8 @@ export default function AttachmentDropzone({ files, onChange, max = MAX_FILES_PE
       const problem = fileProblem(file)
       if (problem) refused.push(problem)
       else if (next.some((chosen) => sameFile(chosen, file))) continue
-      else if (next.length >= max) refused.push(`${file.name}: you can add at most ${max} ${max === 1 ? 'file' : 'files'} here`)
+      else if (next.length >= max)
+        refused.push(`${file.name}: you can add at most ${max} ${max === 1 ? 'file' : 'files'} here`)
       else next.push(file)
     }
     setProblems(refused)

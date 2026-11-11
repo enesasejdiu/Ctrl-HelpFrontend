@@ -190,3 +190,128 @@ describe('NewTicket', () => {
     expect(screen.queryByRole('button', { name: /submit/i })).not.toBeInTheDocument()
   })
 })
+
+// ---- Attachments: the ticket is created first, then each file is uploaded on its own ----
+describe('NewTicket attachments', () => {
+  const pngFile = () => new File(['png-bytes'], 'screen.png', { type: 'image/png' })
+  const pdfFile = () => new File(['%PDF-1.4'], 'invoice.pdf', { type: 'application/pdf' })
+
+  // POST /tickets/99/attachments, one file per request (field "files"); `refuse` names files the backend refuses.
+  // Returns the uploaded file names, in order.
+  function mockUploads({ refuse = {}, hold } = {}) {
+    const uploaded = []
+    server.use(
+      http.post(`${API}/tickets/99/attachments`, async ({ request }) => {
+        const form = await request.formData()
+        const files = form.getAll('files')
+        expect(files).toHaveLength(1)
+        const [sent] = files
+        if (hold) await hold.promise
+        if (refuse[sent.name]) return HttpResponse.json(refuse[sent.name], { status: refuse[sent.name].status })
+        uploaded.push(sent.name)
+        return HttpResponse.json(
+          [{ id: uploaded.length, original_name: sent.name, mime_type: sent.type, size_bytes: sent.size }],
+          { status: 201 },
+        )
+      }),
+    )
+    return uploaded
+  }
+
+  async function renderWithFiles(files) {
+    const result = await renderForm()
+    await fillValidForm(result.user)
+    await result.user.upload(screen.getByLabelText(/Attachments/), files)
+    return result
+  }
+
+  it('the dropzone sits under Description and is optional', async () => {
+    await renderForm()
+    const description = descriptionField()
+    const dropzone = screen.getByLabelText(/Attachments/)
+    // eslint-disable-next-line no-bitwise
+    expect(description.compareDocumentPosition(dropzone) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('Optional', { selector: '.dropzone-field .field__optional' })).toBeInTheDocument()
+  })
+
+  it('creates the ticket, then uploads every file, then opens the ticket', async () => {
+    const created = mockCreate()
+    const uploaded = mockUploads()
+    const { user, router } = await renderWithFiles([pngFile(), pdfFile()])
+
+    await user.click(submitButton())
+
+    expect(await screen.findByRole('heading', { name: 'Ticket 99' })).toBeInTheDocument()
+    expect(created).toHaveLength(1)
+    expect(uploaded).toEqual(['screen.png', 'invoice.pdf'])
+    expect(router.state.location.state).toBeNull()
+  })
+
+  it("shows each file's progress while uploading, and the button says so", async () => {
+    mockCreate()
+    const hold = deferred()
+    mockUploads({ hold })
+    const { user } = await renderWithFiles([pngFile()])
+
+    await user.click(submitButton())
+
+    const progress = await screen.findByRole('list', { name: 'Uploading attachments' })
+    expect(within(progress).getByText('screen.png')).toBeInTheDocument()
+    expect(within(progress).getByRole('progressbar', { name: 'Uploading screen.png' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Uploading files…' })).toBeDisabled()
+    hold.resolve()
+    expect(await screen.findByRole('heading', { name: 'Ticket 99' })).toBeInTheDocument()
+  })
+
+  it('a refused file does not stop the others; the ticket page gets the failures (with the reason) to try again', async () => {
+    mockCreate()
+    const uploaded = mockUploads({
+      refuse: {
+        'screen.png': {
+          status: 400,
+          message: "screen.png: this file type isn't allowed",
+          code: 'UNSUPPORTED_FILE_TYPE',
+        },
+      },
+    })
+    const { user, router } = await renderWithFiles([pngFile(), pdfFile()])
+
+    await user.click(submitButton())
+
+    expect(await screen.findByRole('heading', { name: 'Ticket 99' })).toBeInTheDocument()
+    expect(uploaded).toEqual(['invoice.pdf'])
+    const { failedUploads } = router.state.location.state
+    expect(failedUploads).toHaveLength(1)
+    expect(failedUploads[0].file.name).toBe('screen.png')
+    expect(failedUploads[0].error).toBe("screen.png: this file type isn't allowed")
+  })
+
+  it('a 413 names the file and the limit the backend sent', async () => {
+    mockCreate()
+    mockUploads({
+      refuse: {
+        'screen.png': {
+          status: 413,
+          message: 'Each file can be at most 200 KB',
+          code: 'FILE_TOO_LARGE',
+          max_bytes: 204800,
+        },
+      },
+    })
+    const { user, router } = await renderWithFiles([pngFile()])
+
+    await user.click(submitButton())
+    await screen.findByRole('heading', { name: 'Ticket 99' })
+    expect(router.state.location.state.failedUploads[0].error).toBe('screen.png is larger than 200 KB')
+  })
+
+  it('without files nothing is uploaded', async () => {
+    mockCreate()
+    const uploaded = mockUploads()
+    const { user } = await renderForm()
+    await fillValidForm(user)
+    await user.click(submitButton())
+    await screen.findByRole('heading', { name: 'Ticket 99' })
+    expect(uploaded).toEqual([])
+  })
+})

@@ -80,7 +80,8 @@ export function auditSummary({ action, details }) {
     case 'attachment_deleted':
       // "invoice.pdf (12.5 KB) · ticket #42"
       return [
-        d.file_name && (typeof d.size_bytes === 'number' ? `${d.file_name} (${formatBytes(d.size_bytes)})` : d.file_name),
+        d.file_name &&
+          (typeof d.size_bytes === 'number' ? `${d.file_name} (${formatBytes(d.size_bytes)})` : d.file_name),
         d.ticket_id && `ticket #${d.ticket_id}`,
       ]
         .filter(Boolean)
