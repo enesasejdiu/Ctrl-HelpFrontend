@@ -29,6 +29,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Every file must match the Prettier style in .prettierrc.json (fix locally with npm run format)
+      - run: npm run format:check
       # oxlint (the project's linter); any warning fails the job
       - run: npm run lint -- --max-warnings=0 --format=github
 

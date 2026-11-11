@@ -87,7 +87,10 @@ test('a reset shows a new temporary password and ends the user’s session', asy
   await expect(user).toHaveURL('/tickets')
 
   await page.getByRole('button', { name: `Reset password for ${name}` }).click()
-  await page.getByRole('alertdialog', { name: 'Reset password' }).getByRole('button', { name: 'Reset password' }).click()
+  await page
+    .getByRole('alertdialog', { name: 'Reset password' })
+    .getByRole('button', { name: 'Reset password' })
+    .click()
   const second = await takeTemporaryPassword(page)
 
   await user.reload()

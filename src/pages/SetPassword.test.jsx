@@ -32,7 +32,10 @@ async function renderApp(route, user = buildUser({ must_change_password: true })
 
 const field = (label) => screen.getByLabelText(label)
 const submit = () => screen.getByRole('button', { name: 'Set password' })
-const rule = (name) => within(screen.getByRole('list', { name: 'Password rules' })).getByText(name).closest('li')
+const rule = (name) =>
+  within(screen.getByRole('list', { name: 'Password rules' }))
+    .getByText(name)
+    .closest('li')
 
 describe('Set your password', () => {
   it.each(['/tickets', '/tickets/new', '/tickets/7', '/change-password', '/somewhere-else'])(
@@ -42,7 +45,9 @@ describe('Set your password', () => {
       const { router } = await renderApp(route)
       expect(await screen.findByRole('heading', { name: 'Set your password' })).toBeInTheDocument()
       expect(router.state.location.pathname).toBe('/set-password')
-      expect(screen.getByText('Your account uses a temporary password. Choose your own to continue.')).toBeInTheDocument()
+      expect(
+        screen.getByText('Your account uses a temporary password. Choose your own to continue.'),
+      ).toBeInTheDocument()
     },
   )
 
@@ -87,7 +92,10 @@ describe('Set your password', () => {
     const { user } = await renderApp('/set-password')
     await screen.findByRole('heading', { name: 'Set your password' })
 
-    const met = () => ['At least 10 characters', 'A letter', 'A number', 'Both new passwords match'].filter((n) => rule(n).classList.contains('is-met'))
+    const met = () =>
+      ['At least 10 characters', 'A letter', 'A number', 'Both new passwords match'].filter((n) =>
+        rule(n).classList.contains('is-met'),
+      )
     expect(met()).toEqual([])
     expect(rule('A letter')).toHaveTextContent('(not yet)')
     expect(submit()).toBeDisabled()
@@ -179,7 +187,9 @@ describe('Set your password', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Password changed')
     expect(bodies).toEqual([{ currentPassword: TEMPORARY, newPassword: GOOD }])
     // The menu is back, and other pages open again
-    expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'New ticket' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'New ticket' }),
+    ).toBeInTheDocument()
     await act(() => router.navigate('/tickets/new'))
     expect(await screen.findByRole('heading', { name: 'New ticket' })).toBeInTheDocument()
   })
@@ -201,4 +211,3 @@ describe('Set your password', () => {
     expect(session.user).toBeNull() // POST /auth/logout ended the session
   })
 })
-

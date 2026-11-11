@@ -73,9 +73,7 @@ describe('Forgot password', () => {
   })
 
   it('without email on the backend (409 EMAIL_NOT_CONFIGURED) it says to ask an administrator or HR', async () => {
-    mockForgot(() =>
-      HttpResponse.json({ message: 'from the server', code: 'EMAIL_NOT_CONFIGURED' }, { status: 409 }),
-    )
+    mockForgot(() => HttpResponse.json({ message: 'from the server', code: 'EMAIL_NOT_CONFIGURED' }, { status: 409 }))
     const { user } = await renderAt('/forgot-password')
     await user.type(emailField(), 'a@ticketflow.local')
     await user.click(send())
@@ -96,7 +94,10 @@ describe('Forgot password', () => {
   it("shows the backend's email error under the field", async () => {
     mockForgot(() =>
       HttpResponse.json(
-        { message: 'Email must be 150 characters or less', errors: [{ field: 'email', message: 'Email must be 150 characters or less' }] },
+        {
+          message: 'Email must be 150 characters or less',
+          errors: [{ field: 'email', message: 'Email must be 150 characters or less' }],
+        },
         { status: 400 },
       ),
     )

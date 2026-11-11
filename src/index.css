@@ -136,7 +136,9 @@ textarea {
   color: var(--text-muted);
   font-weight: 500;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .nav-link:hover {
@@ -453,7 +455,11 @@ a.topbar__profile:hover {
   font-size: 14px;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.05s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.05s;
 }
 
 .btn:active:not(:disabled) {
@@ -468,7 +474,9 @@ a.topbar__profile:hover {
 .btn--primary {
   background: var(--primary);
   color: #fff;
-  box-shadow: var(--shadow-xs), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  box-shadow:
+    var(--shadow-xs),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
 }
 
 .btn--primary:hover:not(:disabled) {
@@ -591,7 +599,9 @@ a.topbar__profile:hover {
   border-radius: var(--radius-sm);
   background: var(--surface);
   box-shadow: var(--shadow-xs);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .auth .input {
@@ -842,7 +852,10 @@ fieldset.field {
   border-radius: var(--radius);
   background: var(--surface);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
 }
 
 .option-card:hover {
@@ -1204,13 +1217,48 @@ fieldset.field {
 }
 
 /* Status colors */
-.badge--status-open { --badge-fg: #1d4ed8; --badge-bg: #eff6ff; --badge-ring: #bfdbfe; --badge-dot: #3b82f6; }
-.badge--status-assigned { --badge-fg: #6d28d9; --badge-bg: #f5f3ff; --badge-ring: #ddd6fe; --badge-dot: #8b5cf6; }
-.badge--status-in_progress { --badge-fg: #b45309; --badge-bg: #fffbeb; --badge-ring: #fde68a; --badge-dot: #f59e0b; }
-.badge--status-waiting_for_user { --badge-fg: #be185d; --badge-bg: #fdf2f8; --badge-ring: #fbcfe8; --badge-dot: #ec4899; }
-.badge--status-resolved { --badge-fg: #047857; --badge-bg: #ecfdf5; --badge-ring: #a7f3d0; --badge-dot: #10b981; }
-.badge--status-closed { --badge-fg: #4b5563; --badge-bg: #f3f4f6; --badge-ring: #e5e7eb; --badge-dot: #9ca3af; }
-.badge--status-reopened { --badge-fg: #c2410c; --badge-bg: #fff7ed; --badge-ring: #fed7aa; --badge-dot: #f97316; }
+.badge--status-open {
+  --badge-fg: #1d4ed8;
+  --badge-bg: #eff6ff;
+  --badge-ring: #bfdbfe;
+  --badge-dot: #3b82f6;
+}
+.badge--status-assigned {
+  --badge-fg: #6d28d9;
+  --badge-bg: #f5f3ff;
+  --badge-ring: #ddd6fe;
+  --badge-dot: #8b5cf6;
+}
+.badge--status-in_progress {
+  --badge-fg: #b45309;
+  --badge-bg: #fffbeb;
+  --badge-ring: #fde68a;
+  --badge-dot: #f59e0b;
+}
+.badge--status-waiting_for_user {
+  --badge-fg: #be185d;
+  --badge-bg: #fdf2f8;
+  --badge-ring: #fbcfe8;
+  --badge-dot: #ec4899;
+}
+.badge--status-resolved {
+  --badge-fg: #047857;
+  --badge-bg: #ecfdf5;
+  --badge-ring: #a7f3d0;
+  --badge-dot: #10b981;
+}
+.badge--status-closed {
+  --badge-fg: #4b5563;
+  --badge-bg: #f3f4f6;
+  --badge-ring: #e5e7eb;
+  --badge-dot: #9ca3af;
+}
+.badge--status-reopened {
+  --badge-fg: #c2410c;
+  --badge-bg: #fff7ed;
+  --badge-ring: #fed7aa;
+  --badge-dot: #f97316;
+}
 
 /* Priority: plain text with signal bars; filled bars = level */
 .badge--priority {
@@ -1233,16 +1281,35 @@ fieldset.field {
   background: var(--border-strong);
 }
 
-.priority-bars i:nth-child(1) { height: 4px; }
-.priority-bars i:nth-child(2) { height: 7px; }
-.priority-bars i:nth-child(3) { height: 10px; }
-.priority-bars i:nth-child(4) { height: 12px; }
+.priority-bars i:nth-child(1) {
+  height: 4px;
+}
+.priority-bars i:nth-child(2) {
+  height: 7px;
+}
+.priority-bars i:nth-child(3) {
+  height: 10px;
+}
+.priority-bars i:nth-child(4) {
+  height: 12px;
+}
 
-.badge--priority-low .priority-bars i:nth-child(-n + 1) { background: #64748b; }
-.badge--priority-medium .priority-bars i:nth-child(-n + 2) { background: #3b82f6; }
-.badge--priority-high .priority-bars i:nth-child(-n + 3) { background: #f97316; }
-.badge--priority-critical .priority-bars i { background: #dc2626; }
-.badge--priority-critical { color: #b91c1c; font-weight: 600; }
+.badge--priority-low .priority-bars i:nth-child(-n + 1) {
+  background: #64748b;
+}
+.badge--priority-medium .priority-bars i:nth-child(-n + 2) {
+  background: #3b82f6;
+}
+.badge--priority-high .priority-bars i:nth-child(-n + 3) {
+  background: #f97316;
+}
+.badge--priority-critical .priority-bars i {
+  background: #dc2626;
+}
+.badge--priority-critical {
+  color: #b91c1c;
+  font-weight: 600;
+}
 
 .badge--overdue {
   height: 20px;
@@ -1651,8 +1718,18 @@ fieldset.field {
   background: var(--primary-soft);
 }
 
-.badge--active { --badge-fg: #047857; --badge-bg: #ecfdf5; --badge-ring: #a7f3d0; --badge-dot: #10b981; }
-.badge--inactive { --badge-fg: #4b5563; --badge-bg: #f3f4f6; --badge-ring: #e5e7eb; --badge-dot: #9ca3af; }
+.badge--active {
+  --badge-fg: #047857;
+  --badge-bg: #ecfdf5;
+  --badge-ring: #a7f3d0;
+  --badge-dot: #10b981;
+}
+.badge--inactive {
+  --badge-fg: #4b5563;
+  --badge-bg: #f3f4f6;
+  --badge-ring: #e5e7eb;
+  --badge-dot: #9ca3af;
+}
 
 .table tbody tr.is-inactive td {
   color: var(--text-faint);

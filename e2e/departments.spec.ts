@@ -30,10 +30,24 @@ test('add a user in a department, then move them to another one and then to none
 
   // Survives a reload: it was saved as department_id and comes back with the joined name
   await page.reload()
-  await expect(page.getByRole('row').filter({ hasText: name }).getByRole('cell', { name: 'Operations', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('row').filter({ hasText: name }).getByRole('cell', { name: 'Operations', exact: true }),
+  ).toBeVisible()
 
-  await page.getByRole('row').filter({ hasText: name }).getByRole('button', { name: `Edit ${name}` }).click()
-  await page.getByRole('dialog', { name: `Edit ${name}` }).getByLabel(/Department/).selectOption({ label: 'No department' })
-  await page.getByRole('dialog', { name: `Edit ${name}` }).getByRole('button', { name: 'Save changes' }).click()
-  await expect(page.getByRole('row').filter({ hasText: name }).getByRole('cell', { name: '—', exact: true })).toBeVisible()
+  await page
+    .getByRole('row')
+    .filter({ hasText: name })
+    .getByRole('button', { name: `Edit ${name}` })
+    .click()
+  await page
+    .getByRole('dialog', { name: `Edit ${name}` })
+    .getByLabel(/Department/)
+    .selectOption({ label: 'No department' })
+  await page
+    .getByRole('dialog', { name: `Edit ${name}` })
+    .getByRole('button', { name: 'Save changes' })
+    .click()
+  await expect(
+    page.getByRole('row').filter({ hasText: name }).getByRole('cell', { name: '—', exact: true }),
+  ).toBeVisible()
 })

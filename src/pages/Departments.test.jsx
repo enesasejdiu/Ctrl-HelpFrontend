@@ -18,7 +18,8 @@ const TAKEN = { message: 'A department with this name already exists', code: 'DE
 // A /departments API backed by an in-memory list. Returns the list and every write request it received.
 function mockDepartments(initial = DEPARTMENTS) {
   const state = { list: initial.map((d) => ({ ...d })), requests: [] }
-  const taken = (name, exceptId) => state.list.some((d) => d.id !== exceptId && d.name.toLowerCase() === name.toLowerCase())
+  const taken = (name, exceptId) =>
+    state.list.some((d) => d.id !== exceptId && d.name.toLowerCase() === name.toLowerCase())
   let nextId = 100
   server.use(
     http.get(`${API}/departments`, () => HttpResponse.json(state.list)),
@@ -45,7 +46,11 @@ function mockDepartments(initial = DEPARTMENTS) {
       const department = state.list.find((d) => d.id === id)
       if (department.user_count > 0) {
         return HttpResponse.json(
-          { message: 'Move the users out of this department before deleting it', code: 'DEPARTMENT_NOT_EMPTY', user_count: department.user_count },
+          {
+            message: 'Move the users out of this department before deleting it',
+            code: 'DEPARTMENT_NOT_EMPTY',
+            user_count: department.user_count,
+          },
           { status: 409 },
         )
       }
@@ -75,7 +80,12 @@ function rows() {
   return within(screen.getByRole('table'))
     .getAllByRole('row')
     .slice(1)
-    .map((row) => within(row).getAllByRole('cell').slice(0, 2).map((cell) => cell.textContent))
+    .map((row) =>
+      within(row)
+        .getAllByRole('cell')
+        .slice(0, 2)
+        .map((cell) => cell.textContent),
+    )
 }
 
 describe('Departments page', () => {

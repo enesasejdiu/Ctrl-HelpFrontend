@@ -37,9 +37,9 @@ The app runs at http://localhost:5173. The dev server forwards `/api` to the bac
 
 ### Environment variables
 
-| Variable           | Description                                                              | Value for local development |
-| ------------------ | ------------------------------------------------------------------------ | --------------------------- |
-| `VITE_API_URL`     | Base URL of the backend API, as the browser calls it                     | `/api`                      |
+| Variable           | Description                                                                      | Value for local development |
+| ------------------ | -------------------------------------------------------------------------------- | --------------------------- |
+| `VITE_API_URL`     | Base URL of the backend API, as the browser calls it                             | `/api`                      |
 | `API_PROXY_TARGET` | Where the dev (and preview) server's `/api` proxy forwards to. Not in the bundle | `http://localhost:5050`     |
 
 An older `.env` with `VITE_API_URL=http://localhost:5050/api` still works locally (the cookies are for `localhost`
@@ -83,13 +83,13 @@ cleanup above), sets an `Authorization` header, or reads a token.
 
 One notice at a time above the login form, the latest event winning:
 
-| Backend answer | Message | Button |
-| --- | --- | --- |
-| 401 | Wrong email or password (never says whether the email exists) | enabled |
-| 423 `ACCOUNT_LOCKED` | Too many failed attempts. Your account is locked. Try again in {time}. Plus a note that an administrator or HR can reset the password | disabled for that email until the time is up; another email gets it back |
-| 429 `RATE_LIMITED` with `Retry-After` | Too many attempts. Please wait {time} and try again. | disabled until the time is up |
-| 429 without `Retry-After` | Too many attempts. Please wait a few minutes and try again. | enabled |
-| no answer, or 5xx | Couldn't reach the server. Please try again. | enabled |
+| Backend answer                        | Message                                                                                                                               | Button                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 401                                   | Wrong email or password (never says whether the email exists)                                                                         | enabled                                                                  |
+| 423 `ACCOUNT_LOCKED`                  | Too many failed attempts. Your account is locked. Try again in {time}. Plus a note that an administrator or HR can reset the password | disabled for that email until the time is up; another email gets it back |
+| 429 `RATE_LIMITED` with `Retry-After` | Too many attempts. Please wait {time} and try again.                                                                                  | disabled until the time is up                                            |
+| 429 without `Retry-After`             | Too many attempts. Please wait a few minutes and try again.                                                                           | enabled                                                                  |
+| no answer, or 5xx                     | Couldn't reach the server. Please try again.                                                                                          | enabled                                                                  |
 
 {time} counts down from an end time (taken from `Retry-After`, or the 423 body's `retryAfterMinutes`): "about N
 minutes" above 5 minutes, then m:ss. When it reaches zero the button comes back with "You can try signing in again
@@ -137,18 +137,18 @@ in real browsers.
 
 ### Scripts
 
-| Command                 | Description                           |
-| ----------------------- | ------------------------------------- |
-| `npm run dev`           | Start the dev server                  |
-| `npm run build`         | Build for production (`dist/`)        |
-| `npm run preview`       | Preview the production build          |
-| `npm run lint`          | Lint the code with oxlint             |
-| `npm test`              | Run the unit and component tests once |
-| `npm run test:watch`    | Re-run the tests on every file change |
-| `npm run test:coverage` | Run the tests with a coverage report  |
-| `npm run e2e`           | Run the end-to-end tests (Playwright) on a throwaway database |
+| Command                           | Description                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                     | Start the dev server                                                                                    |
+| `npm run build`                   | Build for production (`dist/`)                                                                          |
+| `npm run preview`                 | Preview the production build                                                                            |
+| `npm run lint`                    | Lint the code with oxlint                                                                               |
+| `npm test`                        | Run the unit and component tests once                                                                   |
+| `npm run test:watch`              | Re-run the tests on every file change                                                                   |
+| `npm run test:coverage`           | Run the tests with a coverage report                                                                    |
+| `npm run e2e`                     | Run the end-to-end tests (Playwright) on a throwaway database                                           |
 | `npm run e2e:temporary-passwords` | The e2e tests for the backend without email (temporary passwords), on a throwaway database of their own |
-| `npm run e2e:cleanup`   | Drop any `ticketflow_e2e_*` database a crashed run left behind |
+| `npm run e2e:cleanup`             | Drop any `ticketflow_e2e_*` database a crashed run left behind                                          |
 
 ### Running tests
 
@@ -217,18 +217,18 @@ These accounts come from the backend's demo data. They all use the password `pas
 
 ## Pages
 
-| Route          | Who can open it | What it does                                                                                    |
-| -------------- | --------------- | ----------------------------------------------------------------------------------------------- |
-| `/login`       | Everyone        | Sign in, with buttons that fill in the demo accounts                                            |
-| `/forgot-password` | Everyone | "Forgot password?" from sign-in: asks the backend to email a one-time reset link (the same answer for any address; the current password keeps working until the link is used). Without email on the backend it says to ask an administrator or HR |
-| `/change-password` | Logged-in users | Change your own password (key button in the top bar) |
-| `/set-password?token=…` | Everyone (the emailed link) | A one-time link (48 hours) for a new account or an Admin/HR reset, when the backend has email set up. The token is taken out of the address bar at once (not kept in history or sent as a Referer; the page also sets `Referrer-Policy: no-referrer`), the link is checked (expired, used or replaced links say to ask an administrator or HR for a new one), then sign-in opens with "Password set, please log in." |
-| `/set-password` | Users with a temporary password | Choose your own password after a reset; every other page redirects here until it's done |
-| `/tickets`     | Logged-in users | Ticket list with search and filters; employees see their own tickets, staff see all of them     |
-| `/tickets/new` | Logged-in users | Report a problem                                                                                |
-| `/tickets/:id` | Logged-in users | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs |
-| `/admin`       | Admins          | Dashboard with statistics, charts and performance tables                                        |
-| `/admin/users` | Admins and HR   | Add and edit users, reset passwords, change roles, activate or deactivate accounts; HR: employees only. After Add user or a reset, the backend's `password_delivery` decides what you see: `email` → "A link to set the password was emailed to …" (and "Resend link" on rows still waiting), `temporary_password` → the temporary password, shown once |
+| Route                   | Who can open it                 | What it does                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`                | Everyone                        | Sign in, with buttons that fill in the demo accounts                                                                                                                                                                                                                                                                                                                                                                 |
+| `/forgot-password`      | Everyone                        | "Forgot password?" from sign-in: asks the backend to email a one-time reset link (the same answer for any address; the current password keeps working until the link is used). Without email on the backend it says to ask an administrator or HR                                                                                                                                                                    |
+| `/change-password`      | Logged-in users                 | Change your own password (key button in the top bar)                                                                                                                                                                                                                                                                                                                                                                 |
+| `/set-password?token=…` | Everyone (the emailed link)     | A one-time link (48 hours) for a new account or an Admin/HR reset, when the backend has email set up. The token is taken out of the address bar at once (not kept in history or sent as a Referer; the page also sets `Referrer-Policy: no-referrer`), the link is checked (expired, used or replaced links say to ask an administrator or HR for a new one), then sign-in opens with "Password set, please log in." |
+| `/set-password`         | Users with a temporary password | Choose your own password after a reset; every other page redirects here until it's done                                                                                                                                                                                                                                                                                                                              |
+| `/tickets`              | Logged-in users                 | Ticket list with search and filters; employees see their own tickets, staff see all of them                                                                                                                                                                                                                                                                                                                          |
+| `/tickets/new`          | Logged-in users                 | Report a problem                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `/tickets/:id`          | Logged-in users                 | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs                                                                                                                                                                                                                                                                                                                      |
+| `/admin`                | Admins                          | Dashboard with statistics, charts and performance tables                                                                                                                                                                                                                                                                                                                                                             |
+| `/admin/users`          | Admins and HR                   | Add and edit users, reset passwords, change roles, activate or deactivate accounts; HR: employees only. After Add user or a reset, the backend's `password_delivery` decides what you see: `email` → "A link to set the password was emailed to …" (and "Resend link" on rows still waiting), `temporary_password` → the temporary password, shown once                                                              |
 
 Employees can only open their own tickets. `/` opens `/tickets`.
 
@@ -249,7 +249,7 @@ Employees can only open their own tickets. `/` opens `/tickets`.
 - Addresses that match no route are reported to Sentry, when it's configured, as "info" events with the path only
   and no user. Missing records aren't reported.
 - **Status code:** this is a single-page app, so the server answers every page address with `index.html` and status
-  200; only the app knows which addresses exist. Missing *files* are different: see Hosting.
+  200; only the app knows which addresses exist. Missing _files_ are different: see Hosting.
 
 ### Hosting
 
@@ -286,7 +286,6 @@ location /api/ {
     proxy_pass http://127.0.0.1:5050;
 }
 ```
-
 
 ## Project structure
 

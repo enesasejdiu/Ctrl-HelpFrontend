@@ -28,7 +28,12 @@ const SERIES_2 = '#eb6834'
 const AXIS = { fontSize: 12, fill: '#6b7280' }
 const GRID = '#eef0f3'
 const TOOLTIP = {
-  contentStyle: { borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxShadow: '0 4px 12px rgb(16 24 40 / 0.08)' },
+  contentStyle: {
+    borderRadius: 8,
+    border: '1px solid #e5e7eb',
+    fontSize: 13,
+    boxShadow: '0 4px 12px rgb(16 24 40 / 0.08)',
+  },
   labelStyle: { fontWeight: 600, color: '#111827' },
   cursor: { fill: 'rgb(79 70 229 / 0.06)' },
 }
@@ -142,7 +147,16 @@ export default function AdminDashboard() {
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={statusData} margin={{ top: 20, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke={GRID} />
-              <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={false} interval={0} angle={-25} textAnchor="end" height={60} />
+              <XAxis
+                dataKey="name"
+                tick={AXIS}
+                tickLine={false}
+                axisLine={false}
+                interval={0}
+                angle={-25}
+                textAnchor="end"
+                height={60}
+              />
               <YAxis allowDecimals={false} tick={AXIS} tickLine={false} axisLine={false} />
               <Tooltip {...TOOLTIP} formatter={(value) => [value, 'Tickets']} />
               <Bar dataKey="count" fill={SERIES_1} radius={[4, 4, 0, 0]} maxBarSize={40}>
@@ -177,9 +191,31 @@ export default function AdminDashboard() {
                 cursor={{ stroke: '#d1d5db', strokeWidth: 1 }}
                 labelFormatter={(_, payload) => `Week ${payload?.[0]?.payload.week ?? ''}`}
               />
-              <Legend verticalAlign="top" align="right" iconType="plainline" height={32} wrapperStyle={{ fontSize: 13 }} />
-              <Line type="monotone" dataKey="created" name="Created" stroke={SERIES_1} strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 5 }} />
-              <Line type="monotone" dataKey="resolved" name="Resolved" stroke={SERIES_2} strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 5 }} />
+              <Legend
+                verticalAlign="top"
+                align="right"
+                iconType="plainline"
+                height={32}
+                wrapperStyle={{ fontSize: 13 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="created"
+                name="Created"
+                stroke={SERIES_1}
+                strokeWidth={2}
+                dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                activeDot={{ r: 5 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="resolved"
+                name="Resolved"
+                stroke={SERIES_2}
+                strokeWidth={2}
+                dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                activeDot={{ r: 5 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -211,7 +247,9 @@ export default function AdminDashboard() {
                 ))}
                 {stats.byAgent.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="text-muted">No active staff yet.</td>
+                    <td colSpan={4} className="text-muted">
+                      No active staff yet.
+                    </td>
                   </tr>
                 )}
               </tbody>

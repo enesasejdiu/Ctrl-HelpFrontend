@@ -42,7 +42,11 @@ export default function DeleteDepartmentDialog({ department, onDeleted, onRefuse
             Cancel
           </button>
           <button type="button" className="btn btn--danger" onClick={remove} disabled={deleting || refused}>
-            {deleting ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
+            {deleting ? (
+              <LoaderCircle size={16} className="spin" aria-hidden="true" />
+            ) : (
+              <Trash2 size={16} aria-hidden="true" />
+            )}
             {deleting ? 'Deleting…' : 'Delete'}
           </button>
         </>

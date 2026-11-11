@@ -125,7 +125,9 @@ function TicketPage({ id }) {
               {ticket.resolution && (
                 <section className="card card--padded card--resolution">
                   {/* A reopened ticket keeps its old note, but that note no longer describes a fix */}
-                  <h2 className="panel-title">{DONE_STATUSES.includes(ticket.status) ? 'Resolution' : 'Previous resolution'}</h2>
+                  <h2 className="panel-title">
+                    {DONE_STATUSES.includes(ticket.status) ? 'Resolution' : 'Previous resolution'}
+                  </h2>
                   <p className="user-text">{ticket.resolution}</p>
                 </section>
               )}
@@ -355,7 +357,12 @@ function ManageBox({ ticket, reload }) {
       ) : ticket.assigned_to === user.id ? (
         <p className="text-muted">This ticket is assigned to you.</p>
       ) : (
-        <button type="button" className="btn btn--secondary btn--block" disabled={busy} onClick={() => assignTo(user.id)}>
+        <button
+          type="button"
+          className="btn btn--secondary btn--block"
+          disabled={busy}
+          onClick={() => assignTo(user.id)}
+        >
           <ButtonIcon busy={busy} icon={UserPlus} />
           Take this ticket
         </button>
@@ -479,7 +486,8 @@ function HistoryBox({ history }) {
             ) : (
               <>
                 changed {HISTORY_FIELDS[entry.field_changed] || entry.field_changed}:{' '}
-                {historyValue(entry.field_changed, entry.old_value)} → {historyValue(entry.field_changed, entry.new_value)}
+                {historyValue(entry.field_changed, entry.old_value)} →{' '}
+                {historyValue(entry.field_changed, entry.new_value)}
               </>
             )}
             <time dateTime={entry.changed_at}>{formatDate(entry.changed_at)}</time>

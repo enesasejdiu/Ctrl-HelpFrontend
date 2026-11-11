@@ -64,9 +64,7 @@ export default function TemporaryPasswordDialog({ name, email, password, title, 
 
         <div className="notice notice--warning" role="note">
           <TriangleAlert size={18} aria-hidden="true" />
-          <p>
-            This password is shown only once. Give it to the user securely; they must change it at first login.
-          </p>
+          <p>This password is shown only once. Give it to the user securely; they must change it at first login.</p>
         </div>
       </div>
     </Modal>

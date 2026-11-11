@@ -108,7 +108,11 @@ export class Api {
   }
 
   // Changes a ticket's status as staff (employees may only close/reopen)
-  setStatus(id: number, status: string, { resolution, as = 'agent' }: { resolution?: string; as?: Role } = {}): Promise<Ticket> {
+  setStatus(
+    id: number,
+    status: string,
+    { resolution, as = 'agent' }: { resolution?: string; as?: Role } = {},
+  ): Promise<Ticket> {
     return this.send('patch', `tickets/${id}/status`, as, { status, resolution })
   }
 }

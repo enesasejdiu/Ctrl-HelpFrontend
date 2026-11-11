@@ -12,10 +12,38 @@ const employee = buildUser({ role: 'employee' })
 const hr = buildUser({ name: 'Hana Rexhepi', role: 'hr' })
 
 const TICKETS = [
-  buildTicket({ title: 'Printer jammed on 3rd floor', status: 'open', priority: 'High', category: 'Hardware', is_overdue: true }),
-  buildTicket({ title: 'VPN keeps disconnecting', status: 'in_progress', priority: 'Medium', category: 'Network', assignee_id: agent.id, assignee_name: agent.name }),
-  buildTicket({ title: 'Outlook crashes on start', status: 'open', priority: 'Low', category: 'Email', assignee_id: 77, assignee_name: 'Drita Berisha' }),
-  buildTicket({ title: 'Printer drivers missing', description: 'Need the Canon driver', status: 'resolved', priority: 'Medium', category: 'Software', assignee_id: agent.id, assignee_name: agent.name }),
+  buildTicket({
+    title: 'Printer jammed on 3rd floor',
+    status: 'open',
+    priority: 'High',
+    category: 'Hardware',
+    is_overdue: true,
+  }),
+  buildTicket({
+    title: 'VPN keeps disconnecting',
+    status: 'in_progress',
+    priority: 'Medium',
+    category: 'Network',
+    assignee_id: agent.id,
+    assignee_name: agent.name,
+  }),
+  buildTicket({
+    title: 'Outlook crashes on start',
+    status: 'open',
+    priority: 'Low',
+    category: 'Email',
+    assignee_id: 77,
+    assignee_name: 'Drita Berisha',
+  }),
+  buildTicket({
+    title: 'Printer drivers missing',
+    description: 'Need the Canon driver',
+    status: 'resolved',
+    priority: 'Medium',
+    category: 'Software',
+    assignee_id: agent.id,
+    assignee_name: agent.name,
+  }),
 ]
 const ALL_TITLES = TICKETS.map((t) => t.title)
 

@@ -33,7 +33,9 @@ export default function TicketList() {
   const searchTimer = useRef(null)
 
   // Only send the filters this role is allowed to use
-  const filterKeys = isStaff ? ['q', 'status', 'priority', 'category', 'assigned', 'overdue'] : ['q', 'status', 'priority', 'category']
+  const filterKeys = isStaff
+    ? ['q', 'status', 'priority', 'category', 'assigned', 'overdue']
+    : ['q', 'status', 'priority', 'category']
   const filters = Object.fromEntries(filterKeys.map((key) => [key, params.get(key) || '']))
   const queryString = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString()
   const hasFilters = queryString !== ''
@@ -127,13 +129,23 @@ export default function TicketList() {
               aria-label="Search tickets"
             />
             {search && (
-              <button type="button" className="search-input__clear" onClick={() => changeSearch('', 0)} aria-label="Clear search">
+              <button
+                type="button"
+                className="search-input__clear"
+                onClick={() => changeSearch('', 0)}
+                aria-label="Clear search"
+              >
                 <X size={14} aria-hidden="true" />
               </button>
             )}
           </div>
 
-          <select className="select" value={filters.status} onChange={(e) => setFilter('status', e.target.value)} aria-label="Status">
+          <select
+            className="select"
+            value={filters.status}
+            onChange={(e) => setFilter('status', e.target.value)}
+            aria-label="Status"
+          >
             <option value="">All statuses</option>
             {STATUSES.map((status) => (
               <option key={status} value={status}>
@@ -142,7 +154,12 @@ export default function TicketList() {
             ))}
           </select>
 
-          <select className="select" value={filters.priority} onChange={(e) => setFilter('priority', e.target.value)} aria-label="Priority">
+          <select
+            className="select"
+            value={filters.priority}
+            onChange={(e) => setFilter('priority', e.target.value)}
+            aria-label="Priority"
+          >
             <option value="">All priorities</option>
             {meta.priorities.map((p) => (
               <option key={p.id} value={p.id}>
@@ -151,7 +168,12 @@ export default function TicketList() {
             ))}
           </select>
 
-          <select className="select" value={filters.category} onChange={(e) => setFilter('category', e.target.value)} aria-label="Category">
+          <select
+            className="select"
+            value={filters.category}
+            onChange={(e) => setFilter('category', e.target.value)}
+            aria-label="Category"
+          >
             <option value="">All categories</option>
             {meta.categories.map((c) => (
               <option key={c.id} value={c.id}>
@@ -234,7 +256,9 @@ export default function TicketList() {
               )
             }
           >
-            {hasFilters ? 'Try a different search or remove some filters.' : 'When you report a problem, it shows up here.'}
+            {hasFilters
+              ? 'Try a different search or remove some filters.'
+              : 'When you report a problem, it shows up here.'}
           </EmptyState>
         ) : (
           tickets && (

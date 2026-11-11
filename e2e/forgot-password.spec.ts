@@ -59,5 +59,9 @@ test('an address without an account gets the same answer, and no email', async (
   await expect(page.getByRole('status')).toContainText(ANSWER)
   // Give the backend's background work a moment, then check nothing went out
   await page.waitForTimeout(1000)
-  expect(sentMail().slice(before).filter((m) => m.to === `nobody.${uniq}@test.local`)).toEqual([])
+  expect(
+    sentMail()
+      .slice(before)
+      .filter((m) => m.to === `nobody.${uniq}@test.local`),
+  ).toEqual([])
 })

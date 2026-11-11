@@ -84,7 +84,11 @@ export default function ForgotPassword() {
           )}
         </div>
         <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={sending}>
-          {sending ? <LoaderCircle size={18} className="spin" aria-hidden="true" /> : <Mail size={18} aria-hidden="true" />}
+          {sending ? (
+            <LoaderCircle size={18} className="spin" aria-hidden="true" />
+          ) : (
+            <Mail size={18} aria-hidden="true" />
+          )}
           {sending ? t('forgot.sending') : t('forgot.submit')}
         </button>
       </form>
