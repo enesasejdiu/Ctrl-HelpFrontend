@@ -47,13 +47,32 @@ const TICKETS = [
 ]
 const ALL_TITLES = TICKETS.map((t) => t.title)
 
-// Fake backend filtering, mirroring GET /api/tickets. Returns the list of query strings it was called with.
+const PAGING = ['page', 'pageSize', 'sort', 'order']
+// Sort keys like the backend's: priority by level, the rest by their value
+const sortValue = {
+  priority: (t) => t.priority_id,
+  created_at: (t) => t.created_at,
+  updated_at: (t) => t.updated_at ?? t.created_at,
+  status: (t) => t.status,
+  title: (t) => t.title.toLowerCase(),
+}
+// The paging part ({ page, pageSize, sort?, order? }) of every request since the last mockTickets()
+let pagingRequests = []
+
+// Fake backend filtering, sorting and paging, mirroring GET /api/tickets (always answers { items, total, page,
+// pageSize }). Returns the FILTER part of every query string it was called with (paging left out; see pagingRequests).
 function mockTickets(tickets = TICKETS, { currentUser = agent } = {}) {
   const queries = []
+  pagingRequests = []
   server.use(
     http.get(`${API}/tickets`, ({ request }) => {
       const params = new URL(request.url).searchParams
-      queries.push(params.toString())
+      const filters = new URLSearchParams(params)
+      for (const key of PAGING) filters.delete(key)
+      queries.push(filters.toString())
+      pagingRequests.push(
+        Object.fromEntries(PAGING.filter((key) => params.has(key)).map((key) => [key, params.get(key)])),
+      )
       const q = params.get('q')?.toLowerCase()
       const result = tickets.filter(
         (t) =>
@@ -65,7 +84,16 @@ function mockTickets(tickets = TICKETS, { currentUser = agent } = {}) {
           (params.get('assigned') !== 'unassigned' || t.assignee_id === null) &&
           (!q || `${t.title} ${t.description}`.toLowerCase().includes(q)),
       )
-      return HttpResponse.json(result)
+      const sort = params.get('sort')
+      if (sort) {
+        const value = sortValue[sort]
+        const direction = params.get('order') === 'desc' ? -1 : 1
+        result.sort((a, b) => (value(a) < value(b) ? -direction : value(a) > value(b) ? direction : 0))
+      }
+      const page = Number(params.get('page') || 1)
+      const pageSize = Number(params.get('pageSize') || 25)
+      const items = result.slice((page - 1) * pageSize, page * pageSize)
+      return HttpResponse.json({ items, total: result.length, page, pageSize })
     }),
   )
   return queries
@@ -97,10 +125,10 @@ describe('TicketList', () => {
 
       expect(screen.getByText('Loading tickets…')).toBeInTheDocument()
       await expectTitles(ALL_TITLES)
-      expect(screen.getByText('4 tickets')).toBeInTheDocument()
+      expect(screen.getByText('Showing 1–4 of 4')).toBeInTheDocument()
       expect(screen.getByText('· 1 overdue')).toBeInTheDocument()
       // The count is announced to screen readers when it changes
-      expect(screen.getByText('4 tickets')).toHaveAttribute('aria-live', 'polite')
+      expect(screen.getByText('Showing 1–4 of 4')).toHaveAttribute('aria-live', 'polite')
     })
 
     it('shows each ticket’s details in its row', async () => {
@@ -113,7 +141,7 @@ describe('TicketList', () => {
       expect(within(row).getByText('Network')).toBeInTheDocument()
       expect(within(row).getByText('Arben Krasniqi')).toBeInTheDocument()
       expect(within(row).getByText('2h ago')).toBeInTheDocument()
-      expect(screen.getByText('1 ticket')).toBeInTheDocument()
+      expect(screen.getByText('Showing 1–1 of 1')).toBeInTheDocument()
     })
 
     it('shows an empty state with a link to report a problem', async () => {
@@ -340,5 +368,192 @@ describe('TicketList', () => {
       await expectTitles(['Printer jammed on 3rd floor', 'Outlook crashes on start'])
       expect(queries).toEqual(['status=open'])
     })
+  })
+})
+
+// ---- Paging and sorting (GET /tickets?page=&pageSize=&sort=&order=, answering { items, total, page, pageSize }) ----
+const PRIORITY_NAMES = ['Low', 'Medium', 'High', 'Critical']
+// 30 tickets: "Ticket 01" … "Ticket 30", created one hour apart (Ticket 30 newest), priorities taking turns
+const MANY = Array.from({ length: 30 }, (_, i) =>
+  buildTicket({
+    title: `Ticket ${String(i + 1).padStart(2, '0')}`,
+    status: 'open',
+    priority: PRIORITY_NAMES[i % 4],
+    created_at: new Date(Date.UTC(2026, 10, 1, i)).toISOString(),
+  }),
+)
+const pager = () => screen.getByRole('navigation', { name: 'Ticket pages' })
+const header = (name) => screen.getByRole('columnheader', { name: new RegExp(`^${name}`) })
+
+describe('TicketList paging and sorting', () => {
+  it('always asks for a page: page 1 of 25 by default, and says what is shown', async () => {
+    mockTickets(MANY)
+    await renderList()
+
+    await expectTitles(MANY.slice(0, 25).map((t) => t.title))
+    expect(pagingRequests).toEqual([{ page: '1', pageSize: '25' }])
+    expect(screen.getByText('Showing 1–25 of 30')).toHaveAttribute('aria-live', 'polite')
+    expect(within(pager()).getByText('Page 1 of 2')).toBeInTheDocument()
+    expect(within(pager()).getByRole('button', { name: 'Previous' })).toBeDisabled()
+  })
+
+  it('Next and Previous move through the pages and keep the page in the URL', async () => {
+    mockTickets(MANY)
+    const { user, router } = await renderList()
+    await expectTitles(MANY.slice(0, 25).map((t) => t.title))
+
+    await user.click(within(pager()).getByRole('button', { name: 'Next' }))
+    await expectTitles(MANY.slice(25).map((t) => t.title))
+    expect(currentParams(router)).toEqual({ page: '2' })
+    expect(screen.getByText('Showing 26–30 of 30')).toBeInTheDocument()
+    expect(within(pager()).getByText('Page 2 of 2')).toBeInTheDocument()
+    expect(within(pager()).getByRole('button', { name: 'Next' })).toBeDisabled()
+
+    await user.click(within(pager()).getByRole('button', { name: 'Previous' }))
+    await expectTitles(MANY.slice(0, 25).map((t) => t.title))
+    expect(currentParams(router)).toEqual({})
+  })
+
+  it('the page size picker: 25, 50 or 100, back to page 1', async () => {
+    mockTickets(MANY)
+    const { user, router } = await renderList({ route: '/tickets?page=2' })
+    await expectTitles(MANY.slice(25).map((t) => t.title))
+
+    const size = within(pager()).getByLabelText('Per page')
+    expect([...size.options].map((o) => o.value)).toEqual(['25', '50', '100'])
+    await user.selectOptions(size, '50')
+
+    await expectTitles(MANY.map((t) => t.title))
+    expect(currentParams(router)).toEqual({ pageSize: '50' })
+    expect(within(pager()).getByText('Page 1 of 1')).toBeInTheDocument()
+  })
+
+  it('column headers sort: an arrow, aria-sort, and clicking again flips the order', async () => {
+    mockTickets(MANY)
+    const { user, router } = await renderList()
+    await expectTitles(MANY.slice(0, 25).map((t) => t.title))
+    expect(header('Priority')).toHaveAttribute('aria-sort', 'none')
+
+    // Priority starts with the most urgent first
+    await user.click(within(header('Priority')).getByRole('button'))
+    await waitFor(() => expect(currentParams(router)).toEqual({ sort: 'priority', order: 'desc' }))
+    expect(header('Priority')).toHaveAttribute('aria-sort', 'descending')
+    await waitFor(() => expect(shownTitles()[0]).toBe('Ticket 04')) // the first Critical one
+    expect(pagingRequests.at(-1)).toEqual({ page: '1', pageSize: '25', sort: 'priority', order: 'desc' })
+
+    await user.click(within(header('Priority')).getByRole('button'))
+    await waitFor(() => expect(header('Priority')).toHaveAttribute('aria-sort', 'ascending'))
+    expect(currentParams(router)).toEqual({ sort: 'priority', order: 'asc' })
+
+    // Another column: its own first order (A–Z for the title), and the others go back to unsorted
+    await user.click(within(header('Title')).getByRole('button'))
+    await waitFor(() => expect(header('Title')).toHaveAttribute('aria-sort', 'ascending'))
+    expect(header('Priority')).toHaveAttribute('aria-sort', 'none')
+  })
+
+  it('sorting goes back to page 1', async () => {
+    mockTickets(MANY)
+    const { user, router } = await renderList({ route: '/tickets?page=2' })
+    await expectTitles(MANY.slice(25).map((t) => t.title))
+
+    await user.click(within(header('Created')).getByRole('button'))
+    await waitFor(() => expect(currentParams(router)).toEqual({ sort: 'created_at', order: 'desc' }))
+    await waitFor(() => expect(shownTitles()[0]).toBe('Ticket 30'))
+  })
+
+  it('page, size, sort, order and filters in the URL are used on load (a reload keeps them)', async () => {
+    mockTickets(MANY)
+    await renderList({ route: '/tickets?status=open&page=2&pageSize=25&sort=title&order=desc' })
+
+    await expectTitles(['Ticket 05', 'Ticket 04', 'Ticket 03', 'Ticket 02', 'Ticket 01'])
+    expect(pagingRequests).toEqual([{ page: '2', pageSize: '25', sort: 'title', order: 'desc' }])
+    expect(header('Title')).toHaveAttribute('aria-sort', 'descending')
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('open')
+  })
+
+  it('changing a filter goes back to page 1 and keeps the sort', async () => {
+    mockTickets(MANY)
+    const { user, router } = await renderList({ route: '/tickets?page=2&sort=title&order=asc' })
+    await expectTitles(MANY.slice(25).map((t) => t.title))
+    await waitForMeta()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'Critical')
+
+    await waitFor(() => expect(currentParams(router)).toEqual({ priority: '4', sort: 'title', order: 'asc' }))
+    expect(pagingRequests.at(-1)).toEqual({ page: '1', pageSize: '25', sort: 'title', order: 'asc' })
+  })
+
+  it('"Clear filters" keeps the page size and the sort', async () => {
+    mockTickets(MANY)
+    const { user, router } = await renderList({ route: '/tickets?status=open&pageSize=50&sort=title&order=asc&page=1' })
+    await expectTitles(MANY.map((t) => t.title))
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    await waitFor(() => expect(currentParams(router)).toEqual({ pageSize: '50', sort: 'title', order: 'asc' }))
+  })
+
+  it('an empty page past the end (e.g. after tickets were closed or deleted) goes to the last page', async () => {
+    mockTickets(MANY)
+    const { router } = await renderList({ route: '/tickets?page=5' })
+
+    await expectTitles(MANY.slice(25).map((t) => t.title))
+    expect(currentParams(router)).toEqual({ page: '2' })
+    expect(pagingRequests.map((r) => r.page)).toEqual(['5', '2'])
+  })
+
+  it('invalid paging values in the URL are not sent: the defaults are', async () => {
+    mockTickets(MANY)
+    await renderList({ route: '/tickets?page=abc&pageSize=33&sort=password&order=up' })
+
+    await expectTitles(MANY.slice(0, 25).map((t) => t.title))
+    expect(pagingRequests).toEqual([{ page: '1', pageSize: '25' }])
+  })
+
+  it("the backend's 400 is shown with its details, and can be reset", async () => {
+    mockTickets(MANY)
+    server.use(
+      http.get(`${API}/tickets`, ({ request }) => {
+        if (new URL(request.url).searchParams.get('sort') === 'title') {
+          return HttpResponse.json(
+            {
+              message: 'Invalid query',
+              errors: [{ field: 'sort', message: 'Sort must be one of created_at, priority' }],
+            },
+            { status: 400 },
+          )
+        }
+        return HttpResponse.json({ items: MANY.slice(0, 25), total: 30, page: 1, pageSize: 25 })
+      }),
+    )
+    const { user, router } = await renderList({ route: '/tickets?sort=title&order=asc' })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Invalid query')
+    expect(alert).toHaveTextContent('sort: Sort must be one of created_at, priority')
+    await user.click(within(alert).getByRole('button', { name: 'Reset sorting and pages' }))
+
+    await waitFor(() => expect(currentParams(router)).toEqual({}))
+    await expectTitles(MANY.slice(0, 25).map((t) => t.title))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('on phones the sort is a dropdown (the header row is hidden there); it sets the same URL values', async () => {
+    mockTickets(MANY)
+    const { user, router } = await renderList()
+    await expectTitles(MANY.slice(0, 25).map((t) => t.title))
+
+    await user.selectOptions(screen.getByLabelText('Sort by'), 'priority:desc')
+    await waitFor(() => expect(currentParams(router)).toEqual({ sort: 'priority', order: 'desc' }))
+    expect(screen.getByLabelText('Sort by')).toHaveValue('priority:desc')
+
+    await user.selectOptions(screen.getByLabelText('Sort by'), '')
+    await waitFor(() => expect(currentParams(router)).toEqual({}))
+  })
+
+  it('no pages bar when there are no tickets', async () => {
+    mockTickets([])
+    await renderList()
+    await screen.findByText('No tickets found.')
+    expect(screen.queryByRole('navigation', { name: 'Ticket pages' })).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,6 @@
 // Users.jsx – user management at /admin/users (admins and HR).
-// Lists every account (GET /users). Admins can add, edit and reset anyone, change roles and activate/deactivate
+// Lists the accounts a page at a time (GET /users?page=&pageSize=&sort=&order=, kept in the URL; see
+// utils/pagination.js), sortable by name, email, role, department and join date. Admins can add, edit and reset anyone, change roles and activate/deactivate
 // accounts. HR sees everyone but can only do this for employees, and never changes roles (the backend enforces both).
 // On your own row you can edit your details, but not your role, active status or password (use Change password).
 // "Add user" (POST /users) and "Reset password" (POST /users/:id/reset-password) deliver the password the way the
@@ -9,20 +10,54 @@
 // old one stops working). GET /meta says whether email is set up, so the button only shows when it can work.
 import { KeyRound, Mail, Pencil, UserPlus, Users as UsersIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import client, { errorMessage } from '../api/client'
+import Pagination from '../components/Pagination'
 import ResetPasswordDialog from '../components/ResetPasswordDialog'
+import SortHeader from '../components/SortHeader'
+import SortSelect from '../components/SortSelect'
 import TemporaryPasswordDialog from '../components/TemporaryPasswordDialog'
 import UserDialog from '../components/UserDialog'
 import { Alert, Avatar, EmptyState, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS, formatDate } from '../utils/format'
+import {
+  PAGING_KEYS,
+  badRequestDetails,
+  fallbackPage,
+  pagedResult,
+  pagingQuery,
+  rangeLabel,
+  readPaging,
+  withPaging,
+} from '../utils/pagination'
 
 const ROLES = Object.keys(ROLE_LABELS)
 
+// What the list can be sorted by (the backend accepts the same), and the order a column starts with
+const USER_SORTS = ['name', 'email', 'role', 'department', 'created_at']
+const FIRST_ORDER = { name: 'asc', email: 'asc', role: 'asc', department: 'asc', created_at: 'desc' }
+const SORT_FIELDS = [
+  { field: 'name', label: 'Name' },
+  { field: 'email', label: 'Email' },
+  { field: 'department', label: 'Department' },
+  { field: 'role', label: 'Role' },
+  { field: 'created_at', label: 'Joined' },
+]
+
 export default function Users() {
   const { user: me, updateUser: updateSession } = useAuth()
-  const [users, setUsers] = useState(null) // null until the first load finishes
+  const [params, setParams] = useSearchParams()
+  const paging = readPaging(params, USER_SORTS)
+  const queryString = new URLSearchParams(pagingQuery(paging)).toString()
+  // The current page: { items, total, page, pageSize }; null until the first load finishes
+  const [result, setResult] = useState(null)
+  const users = result?.items ?? null
+  const setUsers = (update) => setResult((current) => current && { ...current, items: update(current.items) })
+  // Raised to load the current page again (after adding a user, who may belong on another page)
+  const [reloadKey, setReloadKey] = useState(0)
   const [loadError, setLoadError] = useState('')
+  const [badRequest, setBadRequest] = useState(null)
   const [actionError, setActionError] = useState('')
   const [savingId, setSavingId] = useState(null) // the row being saved, so its controls are disabled
   // The open form or confirm dialog: { type: 'add' } | { type: 'edit', user } | { type: 'reset', user } | null
@@ -44,11 +79,47 @@ export default function Users() {
     setDialog(next)
   }
 
+  // Loads the page in the URL; an empty page past the end (the list got shorter) goes to the new last page
+  const requestedPage = paging.page
+  const requestedPageSize = paging.pageSize
+  // setParams changes identity when the URL changes; read it from a ref so the load doesn't run twice
+  const setParamsRef = useRef(setParams)
   useEffect(() => {
+    setParamsRef.current = setParams
+  })
+  useEffect(() => {
+    const controller = new AbortController()
     client
-      .get('/users')
-      .then(({ data }) => setUsers(data))
-      .catch((err) => setLoadError(errorMessage(err)))
+      .get(`/users?${queryString}`, { signal: controller.signal })
+      .then(({ data }) => {
+        const page = pagedResult(data, { page: requestedPage, pageSize: requestedPageSize })
+        const fallback = fallbackPage(page, requestedPage)
+        if (fallback !== null) {
+          setParamsRef.current((current) => withPaging(current, { page: fallback }), { replace: true })
+          return
+        }
+        setLoadError('')
+        setBadRequest(null)
+        setResult(page)
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return
+        setLoadError(errorMessage(err))
+        setBadRequest(badRequestDetails(err))
+      })
+    return () => controller.abort()
+  }, [queryString, requestedPage, requestedPageSize, reloadKey])
+
+  const setPage = (page) => setParams((current) => withPaging(current, { page }))
+  const setPageSize = (pageSize) => setParams((current) => withPaging(current, { pageSize }), { replace: true })
+  const setSort = (sort, order) => setParams((current) => withPaging(current, { sort, order }), { replace: true })
+  const resetPaging = () =>
+    setParams((current) => withPaging(current, Object.fromEntries(PAGING_KEYS.map((key) => [key, '']))), {
+      replace: true,
+    })
+  const pagingProps = { sort: paging.sort, order: paging.order, onSort: setSort }
+
+  useEffect(() => {
     // Only decides whether "Resend link" is offered; if it fails, the button simply stays hidden
     client
       .get('/meta')
@@ -83,12 +154,14 @@ export default function Users() {
 
   const replaceUser = (user) => setUsers((current) => current.map((u) => (u.id === user.id ? user : u)))
 
-  // Add: the new account goes to the top of the list (newest first, like GET /users), and the page says where the
-  // set-password link went. Edit: the row is updated in place; if you edited yourself, the top bar shows the new name.
+  // Add: the new account shows at the top at once, then the current page is loaded again (where it really belongs
+  // depends on the sort and the page), and the page says where the set-password link went. Edit: the row is updated in place; if you edited yourself, the top bar shows the new
+  // name.
   function handleSaved({ user, temporaryPassword, password_delivery: passwordDelivery }) {
     setActionError('')
     if (dialog.type === 'add') {
-      setUsers((current) => [user, ...(current || [])])
+      setResult((current) => current && { ...current, items: [user, ...current.items], total: current.total + 1 })
+      setReloadKey((key) => key + 1)
       if (passwordDelivery === 'email') setNotice(emailedNotice(user.email))
       else setShownPassword({ name: user.name, email: user.email, password: temporaryPassword })
     } else {
@@ -137,6 +210,7 @@ export default function Users() {
   }
 
   const activeCount = users?.filter((u) => u.is_active).length || 0
+  const total = result?.total ?? 0
 
   return (
     <>
@@ -184,18 +258,37 @@ export default function Users() {
 
       <section className="card">
         <div className="results-bar">
-          <span>
+          <span aria-live="polite">
             {users === null
               ? loadError
                 ? 'Users could not be loaded'
                 : 'Loading users…'
-              : `${users.length} ${users.length === 1 ? 'user' : 'users'} · ${activeCount} active`}
+              : `${rangeLabel({ page: result.page, pageSize: result.pageSize, total, count: users.length })} · ${activeCount} active${total > users.length ? ' on this page' : ''}`}
           </span>
+          <SortSelect fields={SORT_FIELDS} firstOrder={FIRST_ORDER} {...pagingProps} />
         </div>
 
         {(loadError || actionError) && (
           <div className="card__section">
-            <Alert>{loadError || actionError}</Alert>
+            <Alert>
+              {badRequest && !actionError ? (
+                <>
+                  <p>{badRequest.message}</p>
+                  {badRequest.details.length > 0 && (
+                    <ul className="alert__list">
+                      {badRequest.details.map((detail) => (
+                        <li key={detail}>{detail}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <button type="button" className="link-button" onClick={resetPaging}>
+                    Reset sorting and pages
+                  </button>
+                </>
+              ) : (
+                actionError || loadError
+              )}
+            </Alert>
           </div>
         )}
         {notice && !loadError && !actionError && (
@@ -214,12 +307,22 @@ export default function Users() {
               <table className="table table--stack">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Department</th>
-                    <th>Role</th>
+                    <SortHeader field="name" label="Name" firstOrder={FIRST_ORDER.name} {...pagingProps} />
+                    <SortHeader field="email" label="Email" firstOrder={FIRST_ORDER.email} {...pagingProps} />
+                    <SortHeader
+                      field="department"
+                      label="Department"
+                      firstOrder={FIRST_ORDER.department}
+                      {...pagingProps}
+                    />
+                    <SortHeader field="role" label="Role" firstOrder={FIRST_ORDER.role} {...pagingProps} />
                     <th>Status</th>
-                    <th>Joined</th>
+                    <SortHeader
+                      field="created_at"
+                      label="Joined"
+                      firstOrder={FIRST_ORDER.created_at}
+                      {...pagingProps}
+                    />
                     <th className="table__actions">
                       <span className="sr-only">Actions</span>
                     </th>
@@ -352,6 +455,17 @@ export default function Users() {
               </table>
             </div>
           )
+        )}
+
+        {users && total > 0 && (
+          <Pagination
+            label="User pages"
+            page={result.page}
+            pageSize={result.pageSize}
+            total={total}
+            onPage={setPage}
+            onPageSize={setPageSize}
+          />
         )}
       </section>
     </>
