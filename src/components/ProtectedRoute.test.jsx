@@ -173,8 +173,9 @@ describe('ProtectedRoute', () => {
       await renderWithProviders(null, { route: '/tickets', routes: appRoutes({ loginElement: <Login /> }) })
 
       expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
-      // Give any stray request a chance to go out before checking that none did
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Give any stray request a chance to go out before checking that none did (inside act: the sign-in page's
+      // GET /auth/config answer arrives meanwhile)
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
       expect(logouts).toHaveLength(0)
     })
 
@@ -366,8 +367,9 @@ describe('ProtectedRoute', () => {
       await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Wrong email or password')
-      // Only the startup check and the login: no retry loop of /auth/me
-      expect(requests).toEqual(['/api/auth/me', '/api/auth/login'])
+      // Only the startup check and the login: no retry loop of /auth/me (the sign-in page's GET /auth/config, for the
+      // "Forgot password?" link, aside)
+      expect(requests.filter((path) => path !== '/api/auth/config')).toEqual(['/api/auth/me', '/api/auth/login'])
     })
   })
 

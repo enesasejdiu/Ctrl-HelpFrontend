@@ -140,3 +140,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] "Forgot password" page; e2e run in temporary-password mode
 - [x] Audit log page (Admin): filter by user, action and date
 - [x] Lockout and session-expired messages on the login page
+- [x] "Forgot password" v2: link only when email is set up (`GET /auth/config`), one confirmation for every answer, 429 countdown, 1-hour links that point back to /forgot-password when expired or used

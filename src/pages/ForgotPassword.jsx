@@ -1,15 +1,17 @@
-// ForgotPassword.jsx – "Forgot password" at /forgot-password, linked from the sign-in page. Public.
-// POST /auth/forgot-password { email }: the backend always gives the same answer, whether or not the address has an
-// account (so this page can't be used to find out who has one), and emails an active account a one-time reset link.
-// The current password keeps working until that link is used. When the backend has no email set up it answers
-// 409 EMAIL_NOT_CONFIGURED, and the page says to ask an administrator or HR instead.
-import { LoaderCircle, Mail } from 'lucide-react'
-import { useState } from 'react'
+// ForgotPassword.jsx – "Forgot password" at /forgot-password, linked from the sign-in page when email is set up. Public.
+// POST /auth/forgot-password { email }. Whatever happened on the server (an account or not, an email sent or not),
+// the page shows the same confirmation, so it can't be used to find out who has an account. Only two answers differ,
+// and neither depends on an account: 422 (the email's format; shown under the field) and 429 (too many requests from
+// this address; a countdown from Retry-After, with the button disabled until it ends). When the server can't be
+// reached at all, it says so, because then nothing was asked.
+import { Clock, LoaderCircle, Mail } from 'lucide-react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
-import client, { errorMessage } from '../api/client'
+import client from '../api/client'
 import AuthShell from '../components/AuthShell'
 import { Alert } from '../components/Ui'
-import { t } from '../i18n'
+import { t, tNodes } from '../i18n'
+import { formatWait, retryAfterSeconds } from '../utils/wait'
 
 // Loose "something@something.tld" check; the backend does the strict validation
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -19,26 +21,56 @@ export default function ForgotPassword() {
   // The sign-in page passes on what was typed there
   const [email, setEmail] = useState(() => (typeof location.state?.email === 'string' ? location.state.email : ''))
   const [fieldError, setFieldError] = useState('')
-  const [error, setError] = useState('') // anything that isn't about the field
-  const [sentMessage, setSentMessage] = useState('') // the backend's answer once it is sent
+  const [error, setError] = useState('') // the server couldn't be reached
+  const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
+  // 429: when the wait is over (an absolute time, so the countdown stays right in a background tab), or null
+  const [until, setUntil] = useState(null)
+  const [limited, setLimited] = useState(false) // 429 without a known length
+  const [now, setNow] = useState(() => Date.now())
+  const waiting = until !== null && now < until
+
+  useEffect(() => {
+    if (until === null) return undefined
+    const tick = () => {
+      const time = Date.now()
+      setNow(time)
+      if (time >= until) setUntil(null)
+    }
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [until])
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (sending || waiting) return
     setError('')
+    setLimited(false)
     if (!email.trim()) return setFieldError(t('login.emailRequired'))
     if (!EMAIL_PATTERN.test(email.trim())) return setFieldError(t('login.emailInvalid'))
     setFieldError('')
     setSending(true)
     try {
-      const { data } = await client.post('/auth/forgot-password', { email: email.trim() })
-      setSentMessage(data.message || t('forgot.sent'))
+      await client.post('/auth/forgot-password', { email: email.trim() })
+      setSent(true)
     } catch (err) {
-      const { status, data } = err.response || {}
-      if (data?.code === 'EMAIL_NOT_CONFIGURED') setError(t('forgot.notAvailable'))
-      else if (status === 429) setError(t('forgot.rateLimited'))
-      else if (status === 400 && data?.errors?.some((e) => e.field === 'email')) setFieldError(data.message)
-      else setError(errorMessage(err))
+      const response = err.response
+      if (!response) {
+        setError(t('forgot.unreachable'))
+      } else if (response.status === 422) {
+        setFieldError(response.data?.errors?.find((e) => e.field === 'email')?.message ?? t('login.emailInvalid'))
+      } else if (response.status === 429) {
+        const seconds = retryAfterSeconds(response)
+        if (seconds) {
+          setNow(Date.now())
+          setUntil(Date.now() + seconds * 1000)
+        } else {
+          setLimited(true)
+        }
+      } else {
+        // Anything else still gets the same confirmation: the page never hints at what happened on the server
+        setSent(true)
+      }
     } finally {
       setSending(false)
     }
@@ -46,10 +78,10 @@ export default function ForgotPassword() {
 
   const backToSignIn = <Link to="/login">{t('forgot.backToSignIn')}</Link>
 
-  if (sentMessage) {
+  if (sent) {
     return (
       <AuthShell title={t('forgot.sentTitle')} footer={backToSignIn}>
-        <Alert tone="info">{sentMessage}</Alert>
+        <Alert tone="info">{t('forgot.sent')}</Alert>
         <p className="auth__note">{t('forgot.sentHelp')}</p>
       </AuthShell>
     )
@@ -59,6 +91,21 @@ export default function ForgotPassword() {
     <AuthShell title={t('forgot.title')} subtitle={t('forgot.subtitle')} footer={backToSignIn}>
       <form className="form" onSubmit={handleSubmit} noValidate>
         {error && <Alert>{error}</Alert>}
+        {(waiting || limited) && (
+          <Alert tone="warning">
+            {waiting ? (
+              <>
+                {tNodes('forgot.rateLimited', { time: <span role="timer">{formatWait(until - now)}</span> }).map(
+                  (part, index) => (
+                    <Fragment key={index}>{part}</Fragment>
+                  ),
+                )}
+              </>
+            ) : (
+              t('forgot.rateLimitedNoTime')
+            )}
+          </Alert>
+        )}
         <div className="field">
           <label htmlFor="forgot-email">{t('forgot.emailLabel')}</label>
           <input
@@ -83,13 +130,22 @@ export default function ForgotPassword() {
             </span>
           )}
         </div>
-        <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={sending}>
-          {sending ? (
-            <LoaderCircle size={18} className="spin" aria-hidden="true" />
+        <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={sending || waiting}>
+          {waiting ? (
+            <>
+              <Clock size={18} aria-hidden="true" />
+              {t('forgot.tryAgainIn', { time: formatWait(until - now) })}
+            </>
           ) : (
-            <Mail size={18} aria-hidden="true" />
+            <>
+              {sending ? (
+                <LoaderCircle size={18} className="spin" aria-hidden="true" />
+              ) : (
+                <Mail size={18} aria-hidden="true" />
+              )}
+              {sending ? t('forgot.sending') : t('forgot.submit')}
+            </>
           )}
-          {sending ? t('forgot.sending') : t('forgot.submit')}
         </button>
       </form>
     </AuthShell>

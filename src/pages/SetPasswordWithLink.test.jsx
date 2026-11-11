@@ -1,5 +1,5 @@
-// SetPasswordWithLink.test.jsx – /set-password?token=..., the page a one-time link opens (a new account's setup link
-// or an Admin/HR reset link). Public (no login): it takes the token out of the URL, checks the link, says what to do
+// SetPasswordWithLink.test.jsx – /set-password?token=..., the page a one-time link opens (a new account's setup link,
+// an Admin/HR reset link, or a "Forgot password" link). Public (no login): it takes the token out of the URL, checks the link, says what to do
 // when a link can't be used, sets the password with the live rule checklist, and ends on the sign-in page with
 // "Password set, please log in." Rendered through the real App routes, so the /set-password split (link page vs. the
 // logged-in temporary-password page) is the one the app uses.
@@ -81,6 +81,14 @@ describe('Set your password (one-time link)', () => {
     expect(screen.getByText('Your password was reset. Choose a new one for nora@ticketflow.local.')).toBeInTheDocument()
   })
 
+  it('a "Forgot password" link asks for a new password', async () => {
+    mockApi({ purpose: 'forgot' })
+    await openLink()
+    expect(await screen.findByRole('heading', { name: 'Choose a new password' })).toBeInTheDocument()
+    expect(screen.getByText('Choose a new password for nora@ticketflow.local.')).toBeInTheDocument()
+    expect(screen.queryByText(/was reset/)).not.toBeInTheDocument()
+  })
+
   it('takes the token out of the URL (history and Referer) and sets no-referrer while the page is open', async () => {
     const calls = mockApi()
     const { router } = await openLink()
@@ -132,6 +140,28 @@ describe('Set your password (one-time link)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(ASK)
     expect(screen.getByRole('link', { name: 'Go to sign in' })).toHaveAttribute('href', '/login')
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['expired', 'This link has expired'],
+    ['used', 'This link has already been used'],
+  ])('a "Forgot password" link that is %s links back to /forgot-password', async (status, title) => {
+    mockApi({
+      validate: () =>
+        HttpResponse.json({
+          status,
+          purpose: 'forgot',
+          message: 'from the server',
+          code: `TOKEN_${status.toUpperCase()}`,
+        }),
+    })
+    await openLink()
+
+    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Reset links work for 1 hour and only once.')
+    expect(alert).not.toHaveTextContent(ASK)
+    expect(within(alert).getByRole('link', { name: 'Request a new link' })).toHaveAttribute('href', '/forgot-password')
   })
 
   it('a failed check (server down) is shown as an error', async () => {
@@ -189,6 +219,20 @@ describe('Set your password (one-time link)', () => {
     expect(await screen.findByRole('heading', { name: 'This link has already been used' })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(ASK)
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
+
+  it('a "Forgot password" link that expired meanwhile still links back to /forgot-password', async () => {
+    mockApi({
+      purpose: 'forgot',
+      set: () => HttpResponse.json({ message: 'This link has expired.', code: 'TOKEN_EXPIRED' }, { status: 400 }),
+    })
+    const { user } = await openLink()
+    await screen.findByRole('button', { name: 'Set password' })
+    await typePasswords(user, GOOD)
+    await user.click(submit())
+
+    expect(await screen.findByRole('heading', { name: 'This link has expired' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Request a new link' })).toHaveAttribute('href', '/forgot-password')
   })
 
   it("shows the backend's password rule (422) under the field", async () => {
