@@ -1,6 +1,7 @@
 // audit.js – display helpers for the audit log page: a readable label for each action, a short summary of an entry's
 // details, and which actions are warnings. The actions and their details are defined by the backend
 // (GET /api/audit, see "Audit log" in the backend README).
+import { formatBytes } from './attachments'
 import { ROLE_LABELS } from './format'
 
 const ACTION_LABELS = {
@@ -16,6 +17,8 @@ const ACTION_LABELS = {
   role_changed: 'Role changed',
   user_activated: 'User activated',
   user_deactivated: 'User deactivated',
+  attachment_uploaded: 'File attached',
+  attachment_deleted: 'Attachment deleted',
 }
 
 // Shown in the warning colour: someone failed to get in
@@ -73,6 +76,15 @@ export function auditSummary({ action, details }) {
         : ''
     case 'role_changed':
       return d.from && d.to ? `${roleLabel(d.from)} → ${roleLabel(d.to)}` : ''
+    case 'attachment_uploaded':
+    case 'attachment_deleted':
+      // "invoice.pdf (12.5 KB) · ticket #42"
+      return [
+        d.file_name && (typeof d.size_bytes === 'number' ? `${d.file_name} (${formatBytes(d.size_bytes)})` : d.file_name),
+        d.ticket_id && `ticket #${d.ticket_id}`,
+      ]
+        .filter(Boolean)
+        .join(' · ')
     default:
       return ''
   }

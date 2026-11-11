@@ -14,6 +14,8 @@ const ACTIONS = [
   ['role_changed', 'Role changed'],
   ['user_activated', 'User activated'],
   ['user_deactivated', 'User deactivated'],
+  ['attachment_uploaded', 'File attached'],
+  ['attachment_deleted', 'Attachment deleted'],
 ]
 
 describe('actionLabel', () => {
@@ -53,6 +55,12 @@ describe('auditSummary', () => {
     ['role_changed', { from: 'employee', to: 'agent' }, 'Employee → IT Staff'],
     ['user_activated', null, ''],
     ['user_deactivated', null, ''],
+    [
+      'attachment_uploaded',
+      { ticket_id: 42, file_name: 'invoice.pdf', mime_type: 'application/pdf', size_bytes: 12800 },
+      'invoice.pdf (12.5 KB) · ticket #42',
+    ],
+    ['attachment_deleted', { ticket_id: 7, file_name: 'notes.txt', size_bytes: 900 }, 'notes.txt (900 bytes) · ticket #7'],
   ])('%s %j → "%s"', (action, details, summary) => {
     expect(auditSummary({ action, details })).toBe(summary)
   })

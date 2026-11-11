@@ -72,6 +72,11 @@ export const PASSWORD_DELIVERY =
 export const mailOutboxFor = (dbName) => path.join(os.tmpdir(), 'ticketflow-e2e-mail', assertE2eDbName(dbName))
 export const MAIL_OUTBOX_DIR = mailOutboxFor(DB_NAME)
 
+// Attachment files of this run (the backend's UPLOAD_DIR): a temporary folder per run database, never the backend's
+// real uploads/ folder. Deleted together with the database (scripts/e2e-backend.mjs drop / cleanup).
+export const uploadDirFor = (dbName) => path.join(os.tmpdir(), 'ticketflow-e2e-uploads', assertE2eDbName(dbName))
+export const UPLOAD_DIR = uploadDirFor(DB_NAME)
+
 // The database server: E2E_DB_* if set (CI), otherwise the backend's .env (your normal MySQL/MariaDB)
 const backendEnv = loadEnvFile(path.join(BACKEND_DIR, '.env'))
 export const DB_SERVER = {

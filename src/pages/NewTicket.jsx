@@ -1,11 +1,16 @@
 // NewTicket.jsx – the "report a problem" form at /tickets/new.
 // Categories and priorities come from GET /meta; priority defaults to Medium.
-// After saving, the user lands on the new ticket's page.
+// Files can be attached under the description. On submit the ticket is created first, then each file is uploaded on
+// its own, with progress. The user then lands on the new ticket's page; files that failed are passed along (navigation
+// state, `failedUploads`), so that page can show them with "Try again". The ticket exists either way.
 import { ArrowLeft, LoaderCircle, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { uploadFiles } from '../api/attachments'
 import client, { errorMessage } from '../api/client'
+import AttachmentDropzone from '../components/AttachmentDropzone'
 import { PriorityBadge } from '../components/Badges'
+import UploadStatusList from '../components/UploadStatusList'
 import { Alert, PageHeader, Spinner } from '../components/Ui'
 import { targetLabel } from '../utils/format'
 
@@ -18,6 +23,9 @@ export default function NewTicket() {
   const [form, setForm] = useState({ title: '', category_id: '', priority_id: '', description: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [files, setFiles] = useState([])
+  // While the files are uploaded after the ticket was created: one entry per file (see UploadStatusList)
+  const [uploads, setUploads] = useState(null)
   // Set by a submit with missing fields, so they get marked invalid until filled in
   const [triedSubmit, setTriedSubmit] = useState(false)
 
@@ -55,7 +63,16 @@ export default function NewTicket() {
         category_id: Number(form.category_id),
         priority_id: Number(form.priority_id),
       })
-      navigate(`/tickets/${data.id}`)
+      // The ticket exists from here on: a failed upload never undoes it
+      let failedUploads = []
+      if (files.length > 0) {
+        setUploads(files.map((file) => ({ name: file.name, status: 'waiting' })))
+        const results = await uploadFiles(data.id, files, (index, change) =>
+          setUploads((current) => current.map((upload, i) => (i === index ? { ...upload, ...change } : upload))),
+        )
+        failedUploads = results.filter((result) => result.error)
+      }
+      navigate(`/tickets/${data.id}`, failedUploads.length > 0 ? { state: { failedUploads } } : undefined)
     } catch (err) {
       setError(errorMessage(err))
       setSubmitting(false)
@@ -170,6 +187,12 @@ export default function NewTicket() {
               />
             </div>
 
+            {uploads ? (
+              <UploadStatusList uploads={uploads} label="Uploading attachments" />
+            ) : (
+              <AttachmentDropzone label="Attachments" files={files} onChange={setFiles} disabled={submitting} />
+            )}
+
             <div className="form__actions">
               <Link to="/tickets" className="btn btn--secondary">
                 Cancel
@@ -180,7 +203,7 @@ export default function NewTicket() {
                 ) : (
                   <Send size={16} aria-hidden="true" />
                 )}
-                {submitting ? 'Submitting…' : 'Submit ticket'}
+                {submitting ? (uploads ? 'Uploading files…' : 'Submitting…') : 'Submit ticket'}
               </button>
             </div>
           </form>

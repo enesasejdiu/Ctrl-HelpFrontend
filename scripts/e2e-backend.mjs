@@ -21,10 +21,12 @@ import {
   E2E_DB_PREFIX,
   FRONTEND_URL,
   MAIL_OUTBOX_DIR,
+  UPLOAD_DIR,
   PASSWORD_DELIVERY,
   TEST_SETTINGS,
   assertE2eDbName,
   mailOutboxFor,
+  uploadDirFor,
 } from './e2e-env.mjs'
 
 const command = process.argv[2] || 'start'
@@ -62,6 +64,8 @@ const backendEnv = {
   // Emails: NODE_ENV=test never sends any; each one is saved here instead, with links to this run's frontend
   APP_URL: FRONTEND_URL,
   MAIL_OUTBOX_DIR,
+  // Attachments go to this run's temporary folder, never into the backend's real uploads/
+  UPLOAD_DIR,
   IT_NOTIFY_EMAIL: '',
   // Email set up (the default run): new and reset passwords go out as one-time links, read from MAIL_OUTBOX_DIR. The
   // host is never contacted: NODE_ENV=test keeps nodemailer's jsonTransport. The temporary-password run leaves email
@@ -88,7 +92,8 @@ async function drop() {
   try {
     await dropDatabase(connection, DB_NAME)
     fs.rmSync(MAIL_OUTBOX_DIR, { recursive: true, force: true })
-    log(`Dropped "${DB_NAME}"`)
+    fs.rmSync(UPLOAD_DIR, { recursive: true, force: true })
+    log(`Dropped "${DB_NAME}" and its uploads folder`)
   } finally {
     await connection.end()
   }
@@ -103,6 +108,7 @@ async function cleanup({ all = false } = {}) {
       if (all || !createdAt || Date.now() - createdAt > STALE_AFTER_MS) {
         await dropDatabase(connection, name)
         fs.rmSync(mailOutboxFor(name), { recursive: true, force: true })
+        fs.rmSync(uploadDirFor(name), { recursive: true, force: true })
         log(`Dropped leftover "${name}"`)
       }
     }
