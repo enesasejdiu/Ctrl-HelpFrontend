@@ -1,4 +1,4 @@
-// TicketDetail.jsx – one ticket at /tickets/:id: description, comments, info and history.
+// TicketDetail.jsx – one ticket at /tickets/:id: description, attachments, comments, info and history.
 // Staff get a "Manage" box; employees get close / reopen buttons once IT has resolved their ticket.
 // The API has the final say on who may do what. After every action the page reloads the ticket,
 // because one change can trigger others (assigning also moves the status and adds history rows).
@@ -8,6 +8,7 @@ import { Link, useParams } from 'react-router'
 import client, { errorMessage, isNotFound } from '../api/client'
 import { OverdueBadge, PriorityBadge, StatusBadge } from '../components/Badges'
 import NotFound from '../components/NotFound'
+import TicketAttachments from '../components/TicketAttachments'
 import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
 import { t } from '../i18n'
@@ -121,6 +122,8 @@ function TicketPage({ id }) {
                 <h2 className="panel-title">Description</h2>
                 <p className="user-text">{ticket.description}</p>
               </section>
+
+              <TicketAttachments ticket={ticket} reload={load} />
 
               {ticket.resolution && (
                 <section className="card card--padded card--resolution">
