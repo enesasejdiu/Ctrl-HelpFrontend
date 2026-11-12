@@ -1,5 +1,9 @@
-// Logo.jsx – the TicketFlow mark (a ticket with a flow arrow) plus the wordmark.
-export default function Logo({ inverted = false }) {
+// Logo.jsx – the TicketFlow mark (a ticket with a flow arrow) plus the wordmark: the company's name from the Settings
+// page (useCompanyName), or "TicketFlow" when none is set. Pass `name` to show a fixed text instead.
+import { useCompanyName } from '../settings/companyName'
+
+export default function Logo({ inverted = false, name }) {
+  const companyName = useCompanyName()
   return (
     <span className={`logo${inverted ? ' logo--inverted' : ''}`}>
       <svg className="logo__mark" viewBox="0 0 32 32" aria-hidden="true">
@@ -17,7 +21,7 @@ export default function Logo({ inverted = false }) {
           strokeLinejoin="round"
         />
       </svg>
-      <span className="logo__text">TicketFlow</span>
+      <span className="logo__text">{name ?? companyName}</span>
     </span>
   )
 }

@@ -350,7 +350,11 @@ describe('ProtectedRoute', () => {
 
     it('a 401 from the login request itself (wrong password) does not count as a session ending', async () => {
       const requests = []
-      server.events.on('request:start', ({ request }) => requests.push(new URL(request.url).pathname))
+      // Only the auth requests (the login page also loads the company name from /settings/public)
+      server.events.on('request:start', ({ request }) => {
+        const { pathname } = new URL(request.url)
+        if (pathname.includes('/auth/')) requests.push(pathname)
+      })
       server.use(
         http.post(`${API}/auth/login`, () =>
           HttpResponse.json({ message: 'Wrong email or password' }, { status: 401 }),

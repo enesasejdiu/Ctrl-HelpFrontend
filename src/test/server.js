@@ -22,6 +22,8 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
   http.get(`${API}/meta`, () => HttpResponse.json(buildMeta())),
+  // The company name next to the logo: none set, so "TicketFlow" shows (tests of the name override this)
+  http.get(`${API}/settings/public`, () => HttpResponse.json({ company_name: '' })),
   http.get(`${API}/departments`, () => HttpResponse.json(DEPARTMENTS)),
 ]
 

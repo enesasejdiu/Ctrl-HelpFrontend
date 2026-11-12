@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
+import { resetCompanyName } from '../settings/companyName'
 import { server, session } from './server'
 
 // findBy*/waitFor give up after 3s instead of 1s: still returns as soon as the UI matches, but leaves room
@@ -20,6 +21,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  // Every test loads the company name again (it's shared module state); after cleanup, so nothing re-renders
+  resetCompanyName()
   server.resetHandlers()
   server.events.removeAllListeners() // request:start listeners a test added
   session.user = null
