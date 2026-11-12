@@ -129,20 +129,28 @@ describe('Set your password (one-time link)', () => {
     ['expired', 'This link has expired'],
     ['used', 'This link has already been used'],
     ['invalid', 'This link is not valid'],
-  ])('a setup, reset or unknown link that is %s says so, says to ask an administrator or HR, and shows no form', async (status, title) => {
-    mockApi({
-      validate: () =>
-        HttpResponse.json({ status, purpose: null, message: 'from the server', code: `TOKEN_${status.toUpperCase()}` }),
-    })
-    await openLink()
+  ])(
+    'a setup, reset or unknown link that is %s says so, says to ask an administrator or HR, and shows no form',
+    async (status, title) => {
+      mockApi({
+        validate: () =>
+          HttpResponse.json({
+            status,
+            purpose: null,
+            message: 'from the server',
+            code: `TOKEN_${status.toUpperCase()}`,
+          }),
+      })
+      await openLink()
 
-    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(ASK)
-    // No "Request a new link": Forgot password sends nothing to an account that hasn't set its own password
-    expect(screen.queryByRole('link', { name: 'Request a new link' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Go to sign in' })).toHaveAttribute('href', '/login')
-    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
-  })
+      expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent(ASK)
+      // No "Request a new link": Forgot password sends nothing to an account that hasn't set its own password
+      expect(screen.queryByRole('link', { name: 'Request a new link' })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Go to sign in' })).toHaveAttribute('href', '/login')
+      expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+    },
+  )
 
   it.each([
     ['expired', 'This link has expired'],
