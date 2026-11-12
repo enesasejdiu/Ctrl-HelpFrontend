@@ -11,7 +11,7 @@
 import { ArrowRight, Clock, LoaderCircle } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
-import { errorMessage } from '../api/client'
+import client, { errorMessage } from '../api/client'
 import AuthShell from '../components/AuthShell'
 import PasswordInput from '../components/PasswordInput'
 import { Alert } from '../components/Ui'
@@ -107,6 +107,18 @@ export default function Login() {
     return null
   })
   const [now, setNow] = useState(() => Date.now())
+  // "Forgot password?" only when the backend can email a reset link (GET /auth/config); hidden until it says so
+  const [emailEnabled, setEmailEnabled] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    client
+      .get('/auth/config')
+      .then(({ data }) => !cancelled && setEmailEnabled(data?.email_enabled === true))
+      .catch(() => {}) // stays hidden
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const until = notice?.until ?? null
   const waiting = until !== null && now < until
 
@@ -239,10 +251,12 @@ export default function Login() {
             aria-invalid={invalidField === 'password' || undefined}
             required
           />
-          {/* Takes what was typed as the email along, so it needn't be typed again */}
-          <Link className="auth__forgot" to="/forgot-password" state={{ email }}>
-            {t('login.forgotPassword')}
-          </Link>
+          {/* Only when email is set up; takes what was typed as the email along, so it needn't be typed again */}
+          {emailEnabled && (
+            <Link className="auth__forgot" to="/forgot-password" state={{ email }}>
+              {t('login.forgotPassword')}
+            </Link>
+          )}
         </div>
 
         <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={submitting || waiting}>

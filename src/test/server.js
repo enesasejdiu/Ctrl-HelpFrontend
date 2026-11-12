@@ -24,6 +24,8 @@ export const handlers = [
   http.get(`${API}/meta`, () => HttpResponse.json(buildMeta())),
   // The company name next to the logo: none set, so "TicketFlow" shows (tests of the name override this)
   http.get(`${API}/settings/public`, () => HttpResponse.json({ company_name: '' })),
+  // The sign-in page asks whether email is set up ("Forgot password?"); tests override it to test it hidden
+  http.get(`${API}/auth/config`, () => HttpResponse.json({ email_enabled: true })),
   http.get(`${API}/departments`, () => HttpResponse.json(DEPARTMENTS)),
 ]
 

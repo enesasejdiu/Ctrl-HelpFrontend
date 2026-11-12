@@ -8,7 +8,7 @@ import { http, HttpResponse } from 'msw'
 import { useAuth } from '../context/auth'
 import App from '../App'
 import { DEPARTMENTS, buildMeta, buildUser } from '../test/factories'
-import { renderWithProviders } from '../test/render'
+import { currentParams, renderWithProviders } from '../test/render'
 import { API, deferred, server } from '../test/server'
 import Users from './Users'
 
@@ -34,25 +34,51 @@ const invitedNotice = (u = NEW_USER) => `A link to set the password was emailed 
 
 // GET /users, GET /meta and a POST /users that answer like the backend. `delivery` is how the backend delivers
 // passwords: 'email' (email set up) or 'temporary_password'. Returns the request bodies POST /users received.
+// The paging part of every GET /users since the last mockApi() ({ page, pageSize, sort?, order? })
+let userPagingRequests = []
+
 function mockApi({ users = USERS, create, delivery = 'email' } = {}) {
   const posted = []
+  // Like the backend: users created by POST /users are in the next GET /users, newest first
+  const all = [...users]
+  userPagingRequests = []
   server.use(
-    http.get(`${API}/users`, () => HttpResponse.json(users)),
+    http.get(`${API}/users`, ({ request }) => {
+      const params = new URL(request.url).searchParams
+      userPagingRequests.push(Object.fromEntries([...params]))
+      const sort = params.get('sort')
+      const list = [...all]
+      if (sort) {
+        const key = sort === 'department' ? 'department_name' : sort
+        const direction = params.get('order') === 'desc' ? -1 : 1
+        list.sort((a, b) => String(a[key] ?? '').localeCompare(String(b[key] ?? '')) * direction)
+      }
+      const page = Number(params.get('page') || 1)
+      const pageSize = Number(params.get('pageSize') || 25)
+      return HttpResponse.json({
+        items: list.slice((page - 1) * pageSize, page * pageSize),
+        total: list.length,
+        page,
+        pageSize,
+      })
+    }),
     http.get(`${API}/meta`, () => HttpResponse.json(buildMeta({ password_delivery: delivery }))),
     http.post(`${API}/users`, async ({ request }) => {
       const body = await request.json()
       posted.push(body)
       if (create) return create(body)
+      const user = {
+        id: 9001,
+        ...body,
+        department_name: departmentName(body.department_id),
+        is_active: true,
+        must_change_password: true,
+        created_at: new Date().toISOString(),
+      }
+      all.unshift(user)
       return HttpResponse.json(
         {
-          user: {
-            id: 9001,
-            ...body,
-            department_name: departmentName(body.department_id),
-            is_active: true,
-            must_change_password: true,
-            created_at: new Date().toISOString(),
-          },
+          user,
           ...(delivery === 'email' ? {} : { temporaryPassword: TEMP_PASSWORD }),
           password_delivery: delivery,
         },
@@ -393,7 +419,7 @@ describe('after Add user (email set up): the emailed link', () => {
     expect(
       within(rowFor(NEW_USER.name)).getByRole('button', { name: `Resend link to ${NEW_USER.name}` }),
     ).toBeInTheDocument()
-    expect(screen.getByText('6 users · 5 active')).toBeInTheDocument()
+    expect(await screen.findByText('Showing 1–6 of 6 · 5 active')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add user' })).toHaveFocus()
   })
 
@@ -1026,5 +1052,90 @@ describe('Resend link', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'This user has already set a password. Use Reset password instead',
     )
+  })
+})
+
+// ---- Paging and sorting (GET /users?page=&pageSize=&sort=&order=) ----
+describe('Users page: paging and sorting', () => {
+  // 30 employees "User 01" … "User 30" plus the admin
+  const MANY = [
+    admin,
+    ...Array.from({ length: 30 }, (_, i) =>
+      buildUser({ name: `User ${String(i + 1).padStart(2, '0')}`, email: `user${i + 1}@ticketflow.local` }),
+    ),
+  ]
+  const pager = () => screen.getByRole('navigation', { name: 'User pages' })
+  const header = (name) => screen.getByRole('columnheader', { name: new RegExp(`^${name}`) })
+  // The names in the table, in order (the name element, without the avatar's initials or the "You" tag)
+  const names = () => [...screen.getByRole('table').querySelectorAll('tbody .table__title')].map((el) => el.textContent)
+
+  it('asks for page 1 of 25 and shows "Showing 1–25 of 31" with the page controls', async () => {
+    mockApi({ users: MANY })
+    await renderUsers(admin)
+
+    expect(await screen.findByText(/^Showing 1–25 of 31/)).toBeInTheDocument()
+    expect(userPagingRequests[0]).toEqual({ page: '1', pageSize: '25' })
+    expect(within(pager()).getByText('Page 1 of 2')).toBeInTheDocument()
+  })
+
+  it('Next, sorting by a column header and the page size, all in the URL', async () => {
+    mockApi({ users: MANY })
+    const { user, router } = await renderUsers(admin)
+    await screen.findByText(/^Showing 1–25 of 31/)
+
+    await user.click(within(pager()).getByRole('button', { name: 'Next' }))
+    expect(await screen.findByText(/^Showing 26–31 of 31/)).toBeInTheDocument()
+    expect(currentParams(router)).toEqual({ page: '2' })
+
+    // Sorting goes back to page 1; Name sorts A–Z first, then Z–A
+    await user.click(within(header('Name')).getByRole('button'))
+    await waitFor(() => expect(currentParams(router)).toEqual({ sort: 'name', order: 'asc' }))
+    expect(header('Name')).toHaveAttribute('aria-sort', 'ascending')
+    await waitFor(() => expect(names()[0]).toBe('Admin User'))
+    await user.click(within(header('Name')).getByRole('button'))
+    await waitFor(() => expect(names()[0]).toBe('User 30'))
+    expect(header('Name')).toHaveAttribute('aria-sort', 'descending')
+
+    await user.selectOptions(within(pager()).getByLabelText('Per page'), '50')
+    await waitFor(() => expect(currentParams(router)).toEqual({ sort: 'name', order: 'desc', pageSize: '50' }))
+    expect(await screen.findByText(/^Showing 1–31 of 31/)).toBeInTheDocument()
+  })
+
+  it('Joined sorts newest first; Status is not sortable', async () => {
+    mockApi({ users: MANY })
+    const { user, router } = await renderUsers(admin)
+    await screen.findByText(/^Showing 1–25 of 31/)
+
+    await user.click(within(header('Joined')).getByRole('button'))
+    await waitFor(() => expect(currentParams(router)).toEqual({ sort: 'created_at', order: 'desc' }))
+    expect(within(header('Status')).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('the URL is used on load, and an empty page past the end goes to the last page', async () => {
+    mockApi({ users: MANY })
+    const { router } = await renderUsers(admin, { route: '/admin/users?page=9&sort=email&order=asc' })
+
+    expect(await screen.findByText(/^Showing 26–31 of 31/)).toBeInTheDocument()
+    expect(currentParams(router)).toEqual({ page: '2', sort: 'email', order: 'asc' })
+    expect(userPagingRequests.map((r) => r.page)).toEqual(['9', '2'])
+    expect(header('Email')).toHaveAttribute('aria-sort', 'ascending')
+  })
+
+  it("the backend's 400 is shown with its details", async () => {
+    mockApi({ users: MANY })
+    server.use(
+      http.get(`${API}/users`, () =>
+        HttpResponse.json(
+          { message: 'Invalid query', errors: [{ field: 'pageSize', message: 'Page size must be 25, 50 or 100' }] },
+          { status: 400 },
+        ),
+      ),
+    )
+    await renderUsers(admin)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Invalid query')
+    expect(alert).toHaveTextContent('pageSize: Page size must be 25, 50 or 100')
+    expect(within(alert).getByRole('button', { name: 'Reset sorting and pages' })).toBeInTheDocument()
   })
 })

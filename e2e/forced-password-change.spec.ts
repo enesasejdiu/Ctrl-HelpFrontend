@@ -114,9 +114,10 @@ test('a new account sets its own password with the emailed link, which works onl
   await newUser.goto(link)
   await expect(newUser.getByRole('heading', { name: 'This link has already been used' })).toBeVisible()
   await expect(newUser.getByLabel('New password', { exact: true })).toHaveCount(0)
-  // ...and offers a way to get a new one
-  await newUser.getByRole('link', { name: 'Request a new link' }).click()
-  await expect(newUser).toHaveURL('/forgot-password')
+  // A setup link is replaced by an admin or HR ("Resend link"), not from Forgot password, which sends nothing to an
+  // account that hasn't set its own password; so the page says whom to ask, and offers no "Request a new link"
+  await expect(newUser.getByRole('alert')).toHaveText('Ask your administrator or HR for a new link.')
+  await expect(newUser.getByRole('link', { name: 'Request a new link' })).toHaveCount(0)
   await context.close()
 })
 
