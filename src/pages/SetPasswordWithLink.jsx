@@ -1,9 +1,11 @@
-// SetPasswordWithLink.jsx – /set-password?token=..., the one-time link emailed for a new account ('setup') or an
-// Admin/HR reset ('reset'), and again by "Resend link". Public: the person has no usable password, so there is no
-// login. App.jsx has already taken the token out of the address bar (utils/linkToken.js). First the link is checked
-// (GET /auth/set-password/validate); a link that can't be used (expired, already used, replaced by a newer one) says
-// so, with "Request a new link" (the Forgot password page emails a fresh one to an active account) or ask an
-// administrator or HR. A good link shows the password form with the live rule checklist, and
+// SetPasswordWithLink.jsx – /set-password?token=..., the one-time link emailed for a new account ('setup'), an
+// Admin/HR reset ('reset', and again by "Resend link"), or "Forgot password" ('forgot', 1 hour). Public: the person
+// has no usable password (or doesn't remember it), so there is no login. App.jsx has already taken the token out of
+// the address bar (utils/linkToken.js). First the link is checked (GET /auth/set-password/validate); a link that can't
+// be used (expired, already used, replaced by a newer one) says so. An expired or used "Forgot password" link offers
+// "Request a new link" (/forgot-password); setup and reset links say to ask an administrator or HR, because
+// "Forgot password" sends nothing to an account that hasn't set its own password. A good link shows the password form
+// with the live rule checklist, and
 // POST /auth/set-password { token, new_password } sets it. On success the sign-in page opens with
 // "Password set, please log in." and the email filled in.
 import { Check, Circle, LoaderCircle } from 'lucide-react'
@@ -20,7 +22,9 @@ const LINK_PROBLEM_TITLES = {
   used: 'This link has already been used',
   invalid: 'This link is not valid',
 }
-const ASK_FOR_A_NEW_LINK = 'You can request a new link yourself, or ask your administrator or HR to send you one.'
+const ASK_FOR_A_NEW_LINK = 'Ask your administrator or HR for a new link.'
+// For "Forgot password" links (purpose 'forgot'), which last only 1 hour
+const REQUEST_A_NEW_LINK = 'Reset links work for 1 hour and only once. You can request a new one.'
 const TOKEN_CODES = { TOKEN_EXPIRED: 'expired', TOKEN_USED: 'used', TOKEN_INVALID: 'invalid' }
 
 // linkToken: the one-time token from the emailed link. It is not a login token and is never stored; it only goes back
@@ -63,7 +67,7 @@ export default function SetPasswordWithLink({ linkToken }) {
       const data = err.response?.data
       if (TOKEN_CODES[data?.code]) {
         // The link stopped working in the meantime (e.g. used in another tab, or it just expired)
-        setLink({ status: TOKEN_CODES[data.code] })
+        setLink((current) => ({ status: TOKEN_CODES[data.code], purpose: current.purpose }))
       } else if (data?.errors?.some((e) => e.field === 'new_password')) {
         setFieldError(data.errors.find((e) => e.field === 'new_password').message)
       } else {
@@ -88,9 +92,12 @@ export default function SetPasswordWithLink({ linkToken }) {
         footer={<Link to="/login">Go to sign in</Link>}
       >
         <Alert tone={link.status === 'error' ? 'error' : 'warning'}>
-          {link.status === 'error' ? link.message : ASK_FOR_A_NEW_LINK}
+          {link.status === 'error' && link.message}
+          {link.status !== 'error' && (link.purpose === 'forgot' ? REQUEST_A_NEW_LINK : ASK_FOR_A_NEW_LINK)}
         </Alert>
-        {link.status !== 'error' && (
+        {/* Only a "Forgot password" link can be replaced from /forgot-password: it sends nothing to an account that
+            hasn't set its own password (a pending invitation, or a reset by an admin or HR) */}
+        {link.status !== 'error' && link.purpose === 'forgot' && (
           <Link to="/forgot-password" className="btn btn--primary btn--block">
             Request a new link
           </Link>
@@ -99,15 +106,14 @@ export default function SetPasswordWithLink({ linkToken }) {
     )
   }
 
+  const titles = {
+    reset: ['Choose a new password', `Your password was reset. Choose a new one for ${link.email}.`],
+    forgot: ['Choose a new password', `Choose a new password for ${link.email}.`],
+  }
+  const [title, subtitle] = titles[link.purpose] ?? ['Set your password', `Choose a password for ${link.email}.`]
+
   return (
-    <AuthShell
-      title={link.purpose === 'reset' ? 'Choose a new password' : 'Set your password'}
-      subtitle={
-        link.purpose === 'reset'
-          ? `Your password was reset. Choose a new one for ${link.email}.`
-          : `Choose a password for ${link.email}.`
-      }
-    >
+    <AuthShell title={title} subtitle={subtitle}>
       <form className="form" onSubmit={handleSubmit} noValidate>
         {error && <Alert>{error}</Alert>}
 

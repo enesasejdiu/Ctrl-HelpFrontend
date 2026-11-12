@@ -1,7 +1,7 @@
 // attachments.spec.ts – attachments end to end, against the real backend on this run's throwaway database (its files
 // go to the run's temporary UPLOAD_DIR, never the backend's uploads/): an employee creates a ticket with a PNG and a
 // PDF, a .exe is refused, a text file named .png is refused by the backend, an agent downloads the PDF (the exact
-// bytes, as a download), and the employee deletes their PNG.
+// bytes, as a download, with Content-Disposition: attachment and nosniff), and the employee deletes their PNG.
 import fs from 'node:fs'
 import type { Browser } from '@playwright/test'
 import { expect, test } from './support/fixtures'
@@ -76,6 +76,16 @@ test('employee attaches a PNG and a PDF, a .exe is refused, an agent downloads, 
   expect(download.suggestedFilename()).toBe('invoice.pdf')
   const saved = await download.path()
   expect(fs.readFileSync(saved).equals(PDF)).toBe(true)
+  // The same link's response headers: always a download, never shown inline (so an uploaded file can't run as a page
+  // on our origin), and the browser must not guess another type than the one sent
+  const href = await agentCard.getByRole('link', { name: 'Download invoice.pdf' }).getAttribute('href')
+  const response = await agent.page.request.get(new URL(href!, agent.page.url()).toString())
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-disposition']).toMatch(/^attachment;/)
+  expect(response.headers()['content-disposition']).toContain('invoice.pdf')
+  expect(response.headers()['x-content-type-options']).toBe('nosniff')
+  expect(response.headers()['content-type']).toMatch(/^application\/pdf\b/)
+  expect((await response.body()).equals(PDF)).toBe(true)
   // The agent can see the employee's files but not delete them
   await expect(agentCard.getByRole('button', { name: /^Delete / })).toHaveCount(0)
   await agent.context.close()

@@ -1,14 +1,40 @@
 // TicketList.jsx – the ticket list at /tickets.
 // Employees see "My tickets" (the API only returns their own); staff see "All tickets" with extra filters.
-// Filters live in the URL (?q=&status=&priority=&category=&assigned=&overdue=1) so reloads and shared links keep them.
+// Filters, paging and sorting live in the URL (?q=&status=&priority=&category=&assigned=&overdue=1&page=&pageSize=&sort=
+// &order=) so reloads and shared links keep them. The API pages the list (utils/pagination.js); changing a filter, the
+// sort or the page size goes back to page 1, and an empty page past the end goes back to the last page.
 import { FilterX, Inbox, Plus, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import client, { errorMessage } from '../api/client'
 import { OverdueBadge, PriorityBadge, StatusBadge } from '../components/Badges'
+import Pagination from '../components/Pagination'
+import SortHeader from '../components/SortHeader'
+import SortSelect from '../components/SortSelect'
 import { Alert, Avatar, EmptyState, PageHeader } from '../components/Ui'
 import { useAuth } from '../context/auth'
 import { STATUSES, formatDate, statusLabel, timeAgo } from '../utils/format'
+import {
+  PAGING_KEYS,
+  badRequestDetails,
+  fallbackPage,
+  pagedResult,
+  pagingQuery,
+  rangeLabel,
+  readPaging,
+  withPaging,
+} from '../utils/pagination'
+
+// What the list can be sorted by (the backend accepts the same), and the order a column starts with
+const TICKET_SORTS = ['created_at', 'updated_at', 'priority', 'status', 'title']
+const FIRST_ORDER = { created_at: 'desc', updated_at: 'desc', priority: 'desc', status: 'asc', title: 'asc' }
+const SORT_FIELDS = [
+  { field: 'created_at', label: 'Created' },
+  { field: 'updated_at', label: 'Last updated' },
+  { field: 'priority', label: 'Priority' },
+  { field: 'status', label: 'Status' },
+  { field: 'title', label: 'Title' },
+]
 
 const SEARCH_DELAY_MS = 300
 const ASSIGNED_OPTIONS = [
@@ -23,9 +49,9 @@ export default function TicketList() {
   // The URL's query string is the single source of truth for the filters
   const [params, setParams] = useSearchParams()
 
-  // The last finished request: which query it was for, and its tickets or error.
-  // tickets stays null until the first load finishes; the old list stays visible while a new filter loads.
-  const [result, setResult] = useState({ query: null, tickets: null, error: '' })
+  // The last finished request: which query it was for, and its page of tickets or error.
+  // page stays null until the first load finishes; the old page stays visible while a new one loads.
+  const [result, setResult] = useState({ query: null, page: null, error: '', badRequest: null })
   const [meta, setMeta] = useState({ categories: [], priorities: [] })
   const [metaError, setMetaError] = useState('')
   // The search box updates instantly; the URL (and so the request) follows after a short pause
@@ -37,26 +63,33 @@ export default function TicketList() {
     ? ['q', 'status', 'priority', 'category', 'assigned', 'overdue']
     : ['q', 'status', 'priority', 'category']
   const filters = Object.fromEntries(filterKeys.map((key) => [key, params.get(key) || '']))
-  const queryString = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString()
-  const hasFilters = queryString !== ''
+  const filterQuery = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString()
+  const hasFilters = filterQuery !== ''
+  const paging = readPaging(params, TICKET_SORTS)
+  // Filters plus paging: always page and pageSize, so the backend answers with { items, total, page, pageSize }
+  const queryString = new URLSearchParams({
+    ...Object.fromEntries(new URLSearchParams(filterQuery)),
+    ...pagingQuery(paging),
+  }).toString()
 
-  const { tickets } = result
+  const tickets = result.page?.items ?? null
   // Still loading while the last finished request was for different filters than the ones in the URL
   const loading = result.query !== queryString
   const error = metaError || (loading ? '' : result.error)
 
-  // replace: changing a filter shouldn't add a step to the Back button
+  // replace: changing a filter shouldn't add a step to the Back button. Back to page 1 (withPaging).
   function setFilter(key, value) {
-    setParams(
-      (current) => {
-        const next = new URLSearchParams(current)
-        if (value) next.set(key, value)
-        else next.delete(key)
-        return next
-      },
-      { replace: true },
-    )
+    setParams((current) => withPaging(current, { [key]: value }), { replace: true })
   }
+
+  // Paging adds history steps, so Back returns to the previous page of the list
+  const setPage = (page) => setParams((current) => withPaging(current, { page }))
+  const setPageSize = (pageSize) => setParams((current) => withPaging(current, { pageSize }), { replace: true })
+  const setSort = (sort, order) => setParams((current) => withPaging(current, { sort, order }), { replace: true })
+  const resetPaging = () =>
+    setParams((current) => withPaging(current, Object.fromEntries(PAGING_KEYS.map((key) => [key, '']))), {
+      replace: true,
+    })
 
   // Debounced search: the URL is only updated once typing pauses for SEARCH_DELAY_MS
   function changeSearch(value, delay = SEARCH_DELAY_MS) {
@@ -65,10 +98,18 @@ export default function TicketList() {
     searchTimer.current = setTimeout(() => setFilter('q', value.trim()), delay)
   }
 
+  // Removes the filters; the page size and the sort stay
   function clearFilters() {
     clearTimeout(searchTimer.current)
     setSearch('')
-    setParams({}, { replace: true })
+    setParams(
+      (current) => {
+        const next = new URLSearchParams()
+        for (const key of ['pageSize', 'sort', 'order']) if (current.get(key)) next.set(key, current.get(key))
+        return next
+      },
+      { replace: true },
+    )
   }
 
   // Don't fire a pending search after leaving the page
@@ -82,22 +123,45 @@ export default function TicketList() {
       .catch((err) => setMetaError(errorMessage(err)))
   }, [])
 
-  // Load tickets whenever the filters change; aborting drops responses from outdated requests
+  // Load tickets whenever the filters or paging change; aborting drops responses from outdated requests
+  const requestedPage = paging.page
+  const requestedPageSize = paging.pageSize
+  // setParams changes identity when the URL changes; read it from a ref so the load doesn't run twice
+  const setParamsRef = useRef(setParams)
+  useEffect(() => {
+    setParamsRef.current = setParams
+  })
   useEffect(() => {
     const controller = new AbortController()
     client
-      .get(`/tickets${queryString ? `?${queryString}` : ''}`, { signal: controller.signal })
-      .then(({ data }) => setResult({ query: queryString, tickets: data, error: '' }))
+      .get(`/tickets?${queryString}`, { signal: controller.signal })
+      .then(({ data }) => {
+        const page = pagedResult(data, { page: requestedPage, pageSize: requestedPageSize })
+        // An empty page past the end (the list got shorter): show the new last page instead
+        const fallback = fallbackPage(page, requestedPage)
+        if (fallback !== null) {
+          setParamsRef.current((current) => withPaging(current, { page: fallback }), { replace: true })
+          return
+        }
+        setResult({ query: queryString, page, error: '', badRequest: null })
+      })
       .catch((err) => {
         if (!controller.signal.aborted) {
-          setResult((current) => ({ ...current, query: queryString, error: errorMessage(err) }))
+          setResult((current) => ({
+            ...current,
+            query: queryString,
+            error: errorMessage(err),
+            badRequest: badRequestDetails(err),
+          }))
         }
       })
     return () => controller.abort()
-  }, [queryString])
+  }, [queryString, requestedPage, requestedPageSize])
 
-  // Counted from the loaded tickets, so it follows the active filters
+  // Counted from the tickets on this page
   const overdueCount = tickets?.filter((t) => t.is_overdue).length || 0
+  const total = result.page?.total ?? 0
+  const pagingProps = { sort: paging.sort, order: paging.order, onSort: setSort }
 
   return (
     <>
@@ -219,9 +283,15 @@ export default function TicketList() {
               ? result.error
                 ? 'Tickets could not be loaded'
                 : 'Loading tickets…'
-              : `${tickets.length} ${tickets.length === 1 ? 'ticket' : 'tickets'}`}
-            {overdueCount > 0 && <span className="results-bar__overdue"> · {overdueCount} overdue</span>}
+              : rangeLabel({ page: result.page.page, pageSize: result.page.pageSize, total, count: tickets.length })}
+            {overdueCount > 0 && (
+              <span className="results-bar__overdue">
+                {' '}
+                · {overdueCount} overdue{total > tickets.length ? ' on this page' : ''}
+              </span>
+            )}
           </span>
+          <SortSelect fields={SORT_FIELDS} firstOrder={FIRST_ORDER} {...pagingProps} />
           {/* With no results the empty state shows its own "Clear filters" button; don't show two */}
           {hasFilters && tickets?.length !== 0 && (
             <button type="button" className="link-button" onClick={clearFilters}>
@@ -233,7 +303,25 @@ export default function TicketList() {
 
         {error && (
           <div className="card__section">
-            <Alert>{error}</Alert>
+            <Alert>
+              {result.badRequest && !metaError ? (
+                <>
+                  <p>{result.badRequest.message}</p>
+                  {result.badRequest.details.length > 0 && (
+                    <ul className="alert__list">
+                      {result.badRequest.details.map((detail) => (
+                        <li key={detail}>{detail}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <button type="button" className="link-button" onClick={resetPaging}>
+                    Reset sorting and pages
+                  </button>
+                </>
+              ) : (
+                error
+              )}
+            </Alert>
           </div>
         )}
 
@@ -267,13 +355,18 @@ export default function TicketList() {
                 <thead>
                   <tr>
                     <th className="table__id">#</th>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Priority</th>
+                    <SortHeader field="title" label="Title" firstOrder={FIRST_ORDER.title} {...pagingProps} />
+                    <SortHeader field="status" label="Status" firstOrder={FIRST_ORDER.status} {...pagingProps} />
+                    <SortHeader field="priority" label="Priority" firstOrder={FIRST_ORDER.priority} {...pagingProps} />
                     <th>Category</th>
                     {isStaff && <th>Requester</th>}
                     <th>Assigned to</th>
-                    <th>Created</th>
+                    <SortHeader
+                      field="created_at"
+                      label="Created"
+                      firstOrder={FIRST_ORDER.created_at}
+                      {...pagingProps}
+                    />
                   </tr>
                 </thead>
                 <tbody>
@@ -327,6 +420,17 @@ export default function TicketList() {
               </table>
             </div>
           )
+        )}
+
+        {tickets && total > 0 && (
+          <Pagination
+            label="Ticket pages"
+            page={result.page.page}
+            pageSize={result.page.pageSize}
+            total={total}
+            onPage={setPage}
+            onPageSize={setPageSize}
+          />
         )}
       </section>
     </>

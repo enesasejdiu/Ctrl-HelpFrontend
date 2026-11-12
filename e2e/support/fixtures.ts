@@ -50,6 +50,11 @@ export class Api {
     return response.json()
   }
 
+  // A GET as `as`, e.g. api.get('tickets?page=1', 'user'); fails the test unless it's 2xx
+  get(url: string, as: Role = 'user') {
+    return this.send('get', url, as)
+  }
+
   // Creates a ticket as `as` (default: the regular user)
   createTicket({
     title,

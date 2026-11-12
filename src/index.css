@@ -2704,3 +2704,99 @@ fieldset.field {
     flex-wrap: wrap;
   }
 }
+
+/* ---------- Pagination and sorting (Pagination, SortHeader, SortSelect) ---------- */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination__current {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.pagination__size,
+.sort-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* A sortable column header: the whole label is the button */
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sort-button svg {
+  opacity: 0.45;
+}
+
+.sort-button.is-active {
+  color: var(--text);
+}
+
+.sort-button.is-active svg {
+  opacity: 1;
+}
+
+.sort-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* The sort dropdown is for phones, where the table's header row (with the sort buttons) is hidden */
+.sort-select {
+  display: none;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.alert__list {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 760px) {
+  .sort-select {
+    display: inline-flex;
+  }
+
+  .results-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pagination {
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  .pagination__range {
+    width: 100%;
+    text-align: center;
+  }
+}
