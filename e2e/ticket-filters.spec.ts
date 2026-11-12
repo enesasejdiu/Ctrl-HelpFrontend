@@ -21,7 +21,7 @@ test('filter by status shows only matching tickets', async ({ page, api, uniq })
   await expect(page).toHaveURL(/status=in_progress/)
   await expect(rowFor(working.title)).toBeVisible()
   await expect(rowFor(open.title)).toBeHidden()
-  await expect(page.getByText('1 ticket', { exact: true })).toBeVisible()
+  await expect(page.getByText('Showing 1–1 of 1', { exact: true })).toBeVisible()
 
   // The filter survives a reload, because it lives in the URL
   await page.reload()
