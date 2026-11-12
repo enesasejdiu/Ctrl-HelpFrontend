@@ -1,7 +1,7 @@
 // temporary-passwords.spec.ts – the app when the backend has no email set up (password_delivery
 // 'temporary_password'): a new account and an Admin/HR reset show a temporary password once, the user must replace it
-// on /set-password before anything else, there is no "Resend link", and "Forgot password" says to ask an
-// administrator or HR. Runs only in its own e2e run: npm run e2e:temporary-passwords (playwright.config.ts).
+// on /set-password before anything else, there is no "Resend link", and the sign-in page has no "Forgot password?"
+// link. Runs only in its own e2e run: npm run e2e:temporary-passwords (playwright.config.ts).
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './support/fixtures'
 import { authFile } from './support/users'
@@ -103,13 +103,24 @@ test('a reset shows a new temporary password and ends the user’s session', asy
   await context.close()
 })
 
-test('"Forgot password" says to ask an administrator or HR', async ({ browser }) => {
+test('the sign-in page has no "Forgot password?" link; /forgot-password still gives the usual answer', async ({
+  browser,
+}) => {
   const { context, page } = await freshPage(browser)
+  const config = page.waitForResponse((r) => r.url().endsWith('/api/auth/config'))
+  await page.goto('/login')
+  expect(await (await config).json()).toEqual({ email_enabled: false })
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveCount(0)
+
+  // Typed in by hand: the same 200 and confirmation as with email (nothing is sent; the backend logs a warning)
   await page.goto('/forgot-password')
   await page.getByLabel('Work email').fill('employee1@ticketflow.local')
+  const answer = page.waitForResponse((r) => r.url().endsWith('/api/auth/forgot-password'))
   await page.getByRole('button', { name: 'Send reset link' }).click()
-  await expect(page.getByRole('alert')).toHaveText(
-    "Password reset by email isn't available. Ask your administrator or HR to reset your password.",
+  expect((await answer).status()).toBe(200)
+  await expect(page.getByRole('status')).toContainText(
+    "If an account exists for this email, we've sent a password reset link.",
   )
   await context.close()
 })

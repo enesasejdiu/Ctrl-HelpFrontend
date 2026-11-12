@@ -24,17 +24,18 @@ const en = {
 
   // Forgot password (pages/ForgotPassword.jsx)
   'forgot.title': 'Forgot your password?',
-  'forgot.subtitle': "Enter your work email. If it has an account, we'll send it a link to choose a new password.",
+  'forgot.subtitle': "Enter your work email and we'll send a link to choose a new password.",
   'forgot.emailLabel': 'Work email',
   'forgot.submit': 'Send reset link',
   'forgot.sending': 'Sending…',
   'forgot.sentTitle': 'Check your email',
-  'forgot.sent': "If there's an active account for that email, we've sent it a link to choose a new password.",
+  'forgot.sent': "If an account exists for this email, we've sent a password reset link.",
   'forgot.sentHelp':
-    'Your current password keeps working until you use the link. No email? Check the spam folder, or ask your administrator or HR.',
-  'forgot.notAvailable':
-    "Password reset by email isn't available. Ask your administrator or HR to reset your password.",
-  'forgot.rateLimited': 'Too many requests. Wait a few minutes and try again.',
+    'The link works for 1 hour. Your current password keeps working until you use it. No email? Check the spam folder, or ask your administrator or HR.',
+  'forgot.rateLimited': 'Too many requests. Try again in {time}.',
+  'forgot.rateLimitedNoTime': 'Too many requests. Wait a few minutes and try again.',
+  'forgot.tryAgainIn': 'Try again in {time}',
+  'forgot.unreachable': "Couldn't reach the server. Please try again.",
   'forgot.backToSignIn': 'Back to sign in',
 
   // Login: the submit button
