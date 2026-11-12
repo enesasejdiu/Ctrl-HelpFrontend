@@ -12,7 +12,7 @@ import { API, deferred, server } from '../test/server'
 
 const LINK_TOKEN = 'abcDEF123_-xyzLinkTokenFromTheEmail000000000'
 const GOOD = 'my-own-pass42'
-const ASK = 'Ask your administrator or HR for a new link.'
+const ASK = 'You can request a new link yourself, or ask your administrator or HR to send you one.'
 
 // GET /auth/set-password/validate and POST /auth/set-password, answering like the backend. Returns what they got.
 function mockApi({ validate, set, purpose = 'setup' } = {}) {
@@ -121,7 +121,7 @@ describe('Set your password (one-time link)', () => {
     ['expired', 'This link has expired'],
     ['used', 'This link has already been used'],
     ['invalid', 'This link is not valid'],
-  ])('a link that is %s says so, says to ask for a new one, and shows no form', async (status, title) => {
+  ])('a link that is %s says so, offers to request a new one, and shows no form', async (status, title) => {
     mockApi({
       validate: () =>
         HttpResponse.json({ status, purpose: null, message: 'from the server', code: `TOKEN_${status.toUpperCase()}` }),
@@ -130,8 +130,24 @@ describe('Set your password (one-time link)', () => {
 
     expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(ASK)
+    // A way to get a new link without waiting for an admin: the Forgot password page
+    expect(screen.getByRole('link', { name: 'Request a new link' })).toHaveAttribute('href', '/forgot-password')
     expect(screen.getByRole('link', { name: 'Go to sign in' })).toHaveAttribute('href', '/login')
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
+  })
+
+  it('"Request a new link" opens the Forgot password page', async () => {
+    mockApi({ validate: () => HttpResponse.json({ status: 'expired', purpose: null, code: 'TOKEN_EXPIRED' }) })
+    const { user, router } = await openLink()
+    await user.click(await screen.findByRole('link', { name: 'Request a new link' }))
+    expect(router.state.location.pathname).toBe('/forgot-password')
+  })
+
+  it('a failed check (server down) offers no new-link button, only the error', async () => {
+    mockApi({ validate: () => HttpResponse.json({ message: 'Something went wrong on the server' }, { status: 500 }) })
+    await openLink()
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('link', { name: 'Request a new link' })).not.toBeInTheDocument()
   })
 
   it('a failed check (server down) is shown as an error', async () => {

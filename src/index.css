@@ -2442,7 +2442,9 @@ fieldset.field {
   border: 1.5px dashed var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface-muted);
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .dropzone.is-dragging {

@@ -2,7 +2,8 @@
 // Admin/HR reset ('reset'), and again by "Resend link". Public: the person has no usable password, so there is no
 // login. App.jsx has already taken the token out of the address bar (utils/linkToken.js). First the link is checked
 // (GET /auth/set-password/validate); a link that can't be used (expired, already used, replaced by a newer one) says
-// so: ask your administrator or HR for a new link. A good link shows the password form with the live rule checklist, and
+// so, with "Request a new link" (the Forgot password page emails a fresh one to an active account) or ask an
+// administrator or HR. A good link shows the password form with the live rule checklist, and
 // POST /auth/set-password { token, new_password } sets it. On success the sign-in page opens with
 // "Password set, please log in." and the email filled in.
 import { Check, Circle, LoaderCircle } from 'lucide-react'
@@ -19,7 +20,7 @@ const LINK_PROBLEM_TITLES = {
   used: 'This link has already been used',
   invalid: 'This link is not valid',
 }
-const ASK_FOR_A_NEW_LINK = 'Ask your administrator or HR for a new link.'
+const ASK_FOR_A_NEW_LINK = 'You can request a new link yourself, or ask your administrator or HR to send you one.'
 const TOKEN_CODES = { TOKEN_EXPIRED: 'expired', TOKEN_USED: 'used', TOKEN_INVALID: 'invalid' }
 
 // linkToken: the one-time token from the emailed link. It is not a login token and is never stored; it only goes back
@@ -89,6 +90,11 @@ export default function SetPasswordWithLink({ linkToken }) {
         <Alert tone={link.status === 'error' ? 'error' : 'warning'}>
           {link.status === 'error' ? link.message : ASK_FOR_A_NEW_LINK}
         </Alert>
+        {link.status !== 'error' && (
+          <Link to="/forgot-password" className="btn btn--primary btn--block">
+            Request a new link
+          </Link>
+        )}
       </AuthShell>
     )
   }

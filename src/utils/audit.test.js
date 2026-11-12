@@ -60,7 +60,11 @@ describe('auditSummary', () => {
       { ticket_id: 42, file_name: 'invoice.pdf', mime_type: 'application/pdf', size_bytes: 12800 },
       'invoice.pdf (12.5 KB) · ticket #42',
     ],
-    ['attachment_deleted', { ticket_id: 7, file_name: 'notes.txt', size_bytes: 900 }, 'notes.txt (900 bytes) · ticket #7'],
+    [
+      'attachment_deleted',
+      { ticket_id: 7, file_name: 'notes.txt', size_bytes: 900 },
+      'notes.txt (900 bytes) · ticket #7',
+    ],
   ])('%s %j → "%s"', (action, details, summary) => {
     expect(auditSummary({ action, details })).toBe(summary)
   })
