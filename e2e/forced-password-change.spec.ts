@@ -114,6 +114,9 @@ test('a new account sets its own password with the emailed link, which works onl
   await newUser.goto(link)
   await expect(newUser.getByRole('heading', { name: 'This link has already been used' })).toBeVisible()
   await expect(newUser.getByLabel('New password', { exact: true })).toHaveCount(0)
+  // ...and offers a way to get a new one
+  await newUser.getByRole('link', { name: 'Request a new link' }).click()
+  await expect(newUser).toHaveURL('/forgot-password')
   await context.close()
 })
 
