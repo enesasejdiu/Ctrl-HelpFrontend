@@ -2,8 +2,10 @@
 // Admin/HR reset ('reset', and again by "Resend link"), or "Forgot password" ('forgot', 1 hour). Public: the person
 // has no usable password (or doesn't remember it), so there is no login. App.jsx has already taken the token out of
 // the address bar (utils/linkToken.js). First the link is checked (GET /auth/set-password/validate); a link that can't
-// be used (expired, already used, replaced by a newer one) says so: ask your administrator or HR for a new link, or,
-// for an expired or used "Forgot password" link, request a new one at /forgot-password. A good link shows the password form with the live rule checklist, and
+// be used (expired, already used, replaced by a newer one) says so. An expired or used "Forgot password" link offers
+// "Request a new link" (/forgot-password); setup and reset links say to ask an administrator or HR, because
+// "Forgot password" sends nothing to an account that hasn't set its own password. A good link shows the password form
+// with the live rule checklist, and
 // POST /auth/set-password { token, new_password } sets it. On success the sign-in page opens with
 // "Password set, please log in." and the email filled in.
 import { Check, Circle, LoaderCircle } from 'lucide-react'
@@ -22,7 +24,7 @@ const LINK_PROBLEM_TITLES = {
 }
 const ASK_FOR_A_NEW_LINK = 'Ask your administrator or HR for a new link.'
 // For "Forgot password" links (purpose 'forgot'), which last only 1 hour
-const REQUEST_A_NEW_LINK = 'Reset links work for 1 hour and only once.'
+const REQUEST_A_NEW_LINK = 'Reset links work for 1 hour and only once. You can request a new one.'
 const TOKEN_CODES = { TOKEN_EXPIRED: 'expired', TOKEN_USED: 'used', TOKEN_INVALID: 'invalid' }
 
 // linkToken: the one-time token from the emailed link. It is not a login token and is never stored; it only goes back
@@ -91,14 +93,15 @@ export default function SetPasswordWithLink({ linkToken }) {
       >
         <Alert tone={link.status === 'error' ? 'error' : 'warning'}>
           {link.status === 'error' && link.message}
-          {/* A "Forgot password" link: you can simply ask for a new one yourself */}
-          {link.status !== 'error' && link.purpose === 'forgot' && (
-            <>
-              {REQUEST_A_NEW_LINK} <Link to="/forgot-password">Request a new link</Link>
-            </>
-          )}
-          {link.status !== 'error' && link.purpose !== 'forgot' && ASK_FOR_A_NEW_LINK}
+          {link.status !== 'error' && (link.purpose === 'forgot' ? REQUEST_A_NEW_LINK : ASK_FOR_A_NEW_LINK)}
         </Alert>
+        {/* Only a "Forgot password" link can be replaced from /forgot-password: it sends nothing to an account that
+            hasn't set its own password (a pending invitation, or a reset by an admin or HR) */}
+        {link.status !== 'error' && link.purpose === 'forgot' && (
+          <Link to="/forgot-password" className="btn btn--primary btn--block">
+            Request a new link
+          </Link>
+        )}
       </AuthShell>
     )
   }

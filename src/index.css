@@ -2430,3 +2430,217 @@ fieldset.field {
 .public-page__main {
   padding: 24px 16px;
 }
+
+/* ---------- Attachments (AttachmentDropzone, UploadStatusList, TicketAttachments) ---------- */
+.dropzone-field {
+  display: grid;
+  gap: 8px;
+}
+
+.dropzone {
+  position: relative;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.dropzone.is-dragging {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.dropzone.is-disabled {
+  opacity: 0.6;
+}
+
+/* The real file input stays in the page (and in the Tab order) but is invisible; the label is the click target */
+.dropzone__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dropzone__label {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 18px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.dropzone.is-disabled .dropzone__label {
+  cursor: not-allowed;
+}
+
+.dropzone__label strong {
+  color: var(--primary);
+}
+
+/* Keyboard focus lands on the hidden input; show it on the zone */
+.dropzone__input:focus-visible + .dropzone__label {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.dropzone__hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.dropzone__problems,
+.upload-failures {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.dropzone__problems {
+  color: var(--danger);
+}
+
+.upload-failures {
+  margin-top: 6px;
+}
+
+.file-list,
+.upload-list,
+.attachment-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-list__item,
+.upload-list__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.file-list__icon,
+.attachment-list__icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.file-list__name,
+.upload-list__name,
+.attachment-list__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-list__name,
+.upload-list__name {
+  flex: 1;
+}
+
+.file-list__meta,
+.attachment-list__meta {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.upload-list__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.upload-list__state--error {
+  flex-shrink: 1;
+  color: var(--danger);
+}
+
+.upload-list__bar {
+  width: 90px;
+  height: 6px;
+}
+
+.attachment-list {
+  margin-bottom: 16px;
+}
+
+.attachment-list__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.attachment-list__item:last-child {
+  border-bottom: 0;
+}
+
+.attachment-list__text {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-list__name {
+  font-weight: 500;
+}
+
+.attachment-list__meta {
+  flex-shrink: 1;
+}
+
+.attachment-list__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.attachments__add {
+  display: grid;
+  gap: 10px;
+}
+
+.attachments__add .form__actions {
+  padding-top: 0;
+  border-top: 0;
+}
+
+@media (max-width: 760px) {
+  /* Phones: name and details on top, the buttons full width underneath */
+  .attachment-list__item {
+    flex-wrap: wrap;
+  }
+
+  .attachment-list__actions {
+    width: 100%;
+  }
+
+  .attachment-list__actions .btn {
+    flex: 1;
+  }
+
+  .upload-list__item {
+    flex-wrap: wrap;
+  }
+}
