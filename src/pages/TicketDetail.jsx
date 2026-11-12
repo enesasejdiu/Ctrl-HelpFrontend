@@ -1,13 +1,16 @@
 // TicketDetail.jsx – one ticket at /tickets/:id: description, attachments, comments, info and history.
 // Staff get a "Manage" box; employees get close / reopen buttons once IT has resolved their ticket.
+// The requester rates a closed ticket once (1–5 stars): "How did we do?" opens right after they close it, and
+// "Rate this ticket" stays on the page until they do. The rating then shows in the Details box for everyone.
 // The API has the final say on who may do what. After every action the page reloads the ticket,
 // because one change can trigger others (assigning also moves the status and adds history rows).
-import { ArrowLeft, Check, Lock, LoaderCircle, RotateCcw, Save, Send, UserPlus } from 'lucide-react'
+import { ArrowLeft, Check, Lock, LoaderCircle, RotateCcw, Save, Send, Star, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import client, { errorMessage, isNotFound } from '../api/client'
 import { OverdueBadge, PriorityBadge, StatusBadge } from '../components/Badges'
 import NotFound from '../components/NotFound'
+import RatingDialog, { RatingStars } from '../components/RatingDialog'
 import TicketAttachments from '../components/TicketAttachments'
 import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
@@ -51,8 +54,14 @@ export default function TicketDetail() {
 // Ticket ids are positive whole numbers; anything else can't be a ticket, so it isn't even requested
 const TICKET_ID = /^[1-9]\d*$/
 
+// Only the requester rates, only a closed ticket, and only once. `rating` is null until then; a backend without
+// ratings doesn't send the field at all (undefined), and then nothing about ratings shows.
+function canRate(ticket, user) {
+  return ticket.rating === null && ticket.status === 'closed' && ticket.requester_id === user?.id
+}
+
 function TicketPage({ id }) {
-  const { isStaff } = useAuth()
+  const { user, isStaff } = useAuth()
   const [ticket, setTicket] = useState(null)
   const [error, setError] = useState('')
   // The ticket doesn't exist (or was deleted, also while the page was open): "not found" instead of an error box
@@ -144,6 +153,7 @@ function TicketPage({ id }) {
 
             <aside className="stack">
               {!isStaff && DONE_STATUSES.includes(ticket.status) && <EmployeeBox ticket={ticket} reload={load} />}
+              {isStaff && canRate(ticket, user) && <RateBox ticket={ticket} reload={load} />}
               {isStaff && <ManageBox ticket={ticket} reload={load} />}
               <InfoBox ticket={ticket} />
               <HistoryBox history={ticket.history} />
@@ -243,14 +253,57 @@ function CommentForm({ ticketId, reload }) {
   )
 }
 
+// The "How did we do?" dialog, and the "Rate this ticket" button that opens it (again, after Skip).
+// Focus goes back to that button when the dialog closes; after Send the button is gone, so the page keeps focus.
+function useRating(ticket, reload) {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef(null)
+  const dialog = open && (
+    <RatingDialog
+      ticketId={ticket.id}
+      returnFocusRef={buttonRef}
+      onSaved={() => {
+        setOpen(false)
+        reload()
+      }}
+      onSkip={() => setOpen(false)}
+    />
+  )
+  const button = (
+    <button ref={buttonRef} type="button" className="btn btn--primary" onClick={() => setOpen(true)}>
+      <Star size={16} aria-hidden="true" />
+      Rate this ticket
+    </button>
+  )
+  return { ask: () => setOpen(true), dialog, button }
+}
+
+// Staff who reported a ticket themselves rate it here (employees do it in EmployeeBox)
+function RateBox({ ticket, reload }) {
+  const rating = useRating(ticket, reload)
+  return (
+    <section className="card card--padded">
+      <h2 className="panel-title">How did we do?</h2>
+      <p className="text-muted">You reported this ticket. Rate how it was handled.</p>
+      <div className="button-row">{rating.button}</div>
+      {rating.dialog}
+    </section>
+  )
+}
+
 // Employees can confirm a resolved ticket (close) or reject it (reopen); a closed one can only be reopened
 function EmployeeBox({ ticket, reload }) {
+  const { user } = useAuth()
   const { busy, error, run } = useAction(reload)
+  const rating = useRating(ticket, reload)
   // This box is only shown for resolved or closed tickets (see TicketPage)
   const isResolved = ticket.status === 'resolved'
+  // Read before closing: a backend with ratings sends `rating: null` on the still unrated, resolved ticket
+  const asksForRating = ticket.rating === null && ticket.requester_id === user?.id
 
-  function setStatus(status) {
-    run(() => client.patch(`/tickets/${ticket.id}/status`, { status }))
+  async function setStatus(status) {
+    const done = await run(() => client.patch(`/tickets/${ticket.id}/status`, { status }))
+    if (done && status === 'closed' && asksForRating) rating.ask()
   }
 
   return (
@@ -263,6 +316,7 @@ function EmployeeBox({ ticket, reload }) {
           : 'This ticket is closed. Reopen it if the problem came back.'}
       </p>
       <div className="button-row">
+        {canRate(ticket, user) && rating.button}
         {isResolved && (
           <button type="button" className="btn btn--primary" disabled={busy} onClick={() => setStatus('closed')}>
             <ButtonIcon busy={busy} icon={Check} />
@@ -274,6 +328,7 @@ function EmployeeBox({ ticket, reload }) {
           Reopen
         </button>
       </div>
+      {rating.dialog}
     </section>
   )
 }
@@ -464,7 +519,21 @@ function InfoBox({ ticket }) {
           <dt>Target time</dt>
           <dd>{targetLabel(ticket.target_hours)}</dd>
         </div>
+        {ticket.rating && (
+          <div>
+            <dt>Rating</dt>
+            <dd>
+              <RatingStars stars={ticket.rating.stars} />
+            </dd>
+          </div>
+        )}
       </dl>
+      {ticket.rating?.comment && (
+        <p className="rating-comment user-text">
+          <span className="sr-only">Requester's comment: </span>
+          {ticket.rating.comment}
+        </p>
+      )}
     </section>
   )
 }

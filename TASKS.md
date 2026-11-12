@@ -141,3 +141,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Audit log page (Admin): filter by user, action and date
 - [x] Lockout and session-expired messages on the login page
 - [x] Attachments on New ticket and Ticket detail
+- [x] Satisfaction rating (1–5 stars) when the employee closes a ticket
