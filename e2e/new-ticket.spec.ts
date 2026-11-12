@@ -28,5 +28,5 @@ test('create a ticket through the form and see it in the list', async ({ page, u
   await expect(row).toBeVisible()
   await expect(row.getByText('Open')).toBeVisible()
   await expect(row.getByText('High')).toBeVisible()
-  await expect(page.getByText('1 ticket', { exact: true })).toBeVisible()
+  await expect(page.getByText('Showing 1–1 of 1', { exact: true })).toBeVisible()
 })
