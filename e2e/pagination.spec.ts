@@ -82,3 +82,111 @@ test('30 tickets: page through them, sort by priority, and a filter goes back to
   await expect(page).toHaveURL(/sort=priority/)
   await expect(page.getByText('Showing 1–7 of 7')).toBeVisible()
 })
+
+// Only ever this run's throwaway database, on a local server unless E2E_DB_HOST names another one on purpose
+function assertThrowawayDatabase() {
+  assertE2eDbName(DB_NAME)
+  if (!process.env.E2E_DB_HOST && !LOCAL_HOSTS.includes(DB_SERVER.host)) {
+    throw new Error(`Refusing to run: the e2e database server is "${DB_SERVER.host}", not a local one`)
+  }
+}
+
+test('a reload keeps the page and the sort; priority sorts both ways on every page', async ({ page, api, uniq }) => {
+  test.slow()
+  assertThrowawayDatabase()
+  const probe = await api.get('tickets?page=1&pageSize=25')
+  test.skip(Array.isArray(probe), 'The backend does not page GET /api/tickets yet')
+
+  for (let i = 1; i <= 30; i += 1) {
+    await api.createTicket({ title: `${uniq} reload ${String(i).padStart(2, '0')}`, priority: PRIORITIES[i % 4] })
+  }
+
+  await page.goto(`/tickets?q=${uniq}&sort=priority&order=asc&page=2`)
+  const pager = page.getByRole('navigation', { name: 'Ticket pages' })
+  const priorityHeader = page.getByRole('columnheader', { name: /^Priority/ })
+  await expect(page.getByText('Showing 26–30 of 30')).toBeVisible()
+  await expect(priorityHeader).toHaveAttribute('aria-sort', 'ascending')
+  // Ascending: the second page holds the most urgent ones
+  await expect(page.locator('tbody tr').last()).toContainText('Critical')
+
+  await page.reload()
+  await expect(page).toHaveURL(/sort=priority/)
+  await expect(page).toHaveURL(/order=asc/)
+  await expect(page).toHaveURL(/[?&]page=2(&|$)/)
+  await expect(page.getByText('Showing 26–30 of 30')).toBeVisible()
+  await expect(priorityHeader).toHaveAttribute('aria-sort', 'ascending')
+  await expect(pager.getByText('Page 2 of 2')).toBeVisible()
+  await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled()
+
+  // Flip to descending: back to page 1, most urgent first; reload keeps that too
+  await priorityHeader.getByRole('button').click()
+  await expect(page).toHaveURL(/order=desc/)
+  await expect(page).not.toHaveURL(/[?&]page=/)
+  await expect(page.locator('tbody tr').first()).toContainText('Critical')
+  await pager.getByRole('button', { name: 'Next' }).click()
+  await expect(page).toHaveURL(/[?&]page=2(&|$)/)
+  await expect(page.locator('tbody tr').last()).toContainText('Low')
+  await page.reload()
+  await expect(priorityHeader).toHaveAttribute('aria-sort', 'descending')
+  await expect(page.getByText('Showing 26–30 of 30')).toBeVisible()
+  await expect(page.locator('tbody tr').last()).toContainText('Low')
+  await expect(pager.getByRole('button', { name: 'Previous' })).toBeEnabled()
+})
+
+test.describe('the users page', () => {
+  test.use({ storageState: authFile('admin') })
+
+  test('pages, sorts by a column both ways, and a reload keeps both', async ({ page, api, uniq }) => {
+    test.slow()
+    assertThrowawayDatabase()
+    const probe = await api.get('users?page=1&pageSize=25', 'admin')
+    test.skip(Array.isArray(probe), 'The backend does not page GET /api/users yet')
+
+    // Enough accounts for at least two pages, whatever other tests created before
+    for (let i = 1; i <= 30; i += 1) {
+      await api.createEmployee(`${uniq} Person ${String(i).padStart(2, '0')}`, `${uniq}.${i}@e2e.test`)
+    }
+    const first = await api.get('users?page=1&pageSize=25&sort=email&order=asc', 'admin')
+    const pages = Math.ceil(first.total / 25)
+    const lastByEmail = await api.get(`users?page=${pages}&pageSize=25&sort=email&order=desc`, 'admin')
+    expect(first.total).toBeGreaterThan(25)
+
+    await page.goto('/admin/users')
+    const pager = page.getByRole('navigation', { name: 'User pages' })
+    await expect(page.getByText(new RegExp(`^Showing 1–25 of ${first.total}`))).toBeVisible()
+    await expect(pager.getByText(`Page 1 of ${pages}`)).toBeVisible()
+    await expect(pager.getByRole('button', { name: 'Previous' })).toBeDisabled()
+
+    await pager.getByRole('button', { name: 'Next' }).click()
+    await expect(page).toHaveURL(/[?&]page=2(&|$)/)
+    await expect(pager.getByText(`Page 2 of ${pages}`)).toBeVisible()
+
+    // Sorting by Email goes back to page 1, A–Z first, then Z–A
+    const emailHeader = page.getByRole('columnheader', { name: /^Email/ })
+    await emailHeader.getByRole('button').click()
+    await expect(page).toHaveURL(/sort=email&order=asc/)
+    await expect(page).not.toHaveURL(/[?&]page=/)
+    await expect(emailHeader).toHaveAttribute('aria-sort', 'ascending')
+    await expect(page.locator('tbody tr').first()).toContainText(first.items[0].email)
+
+    await emailHeader.getByRole('button').click()
+    await expect(page).toHaveURL(/sort=email&order=desc/)
+    await expect(emailHeader).toHaveAttribute('aria-sort', 'descending')
+
+    // The last page, Z–A, survives a reload
+    await page.goto(`/admin/users?sort=email&order=desc&page=${pages}`)
+    await expect(pager.getByText(`Page ${pages} of ${pages}`)).toBeVisible()
+    await page.reload()
+    await expect(pager.getByText(`Page ${pages} of ${pages}`)).toBeVisible()
+    await expect(emailHeader).toHaveAttribute('aria-sort', 'descending')
+    await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled()
+    await expect(page.locator('tbody tr').last()).toContainText(lastByEmail.items.at(-1).email)
+
+    // Page size 50: back to page 1, and the sort stays
+    await pager.getByLabel('Per page').selectOption('50')
+    await expect(page).toHaveURL(/pageSize=50/)
+    await expect(page).not.toHaveURL(/[?&]page=/)
+    await expect(page).toHaveURL(/sort=email&order=desc/)
+    await expect(page.getByText(new RegExp(`^Showing 1–${Math.min(50, first.total)} of ${first.total}`))).toBeVisible()
+  })
+})
