@@ -91,6 +91,11 @@ function assertThrowawayDatabase() {
   }
 }
 
+// Firefox can take several seconds to load and draw a page (the first load in a new page especially) on a busy
+// machine or runner; the checks in the tests below stay the same, each just gets 15 s, like the slow steps in
+// forgot-password.spec.ts
+const pageExpect = expect.configure({ timeout: 15_000 })
+
 test('a reload keeps the page and the sort; priority sorts both ways on every page', async ({ page, api, uniq }) => {
   test.slow()
   assertThrowawayDatabase()
@@ -104,33 +109,33 @@ test('a reload keeps the page and the sort; priority sorts both ways on every pa
   await page.goto(`/tickets?q=${uniq}&sort=priority&order=asc&page=2`)
   const pager = page.getByRole('navigation', { name: 'Ticket pages' })
   const priorityHeader = page.getByRole('columnheader', { name: /^Priority/ })
-  await expect(page.getByText('Showing 26–30 of 30')).toBeVisible()
-  await expect(priorityHeader).toHaveAttribute('aria-sort', 'ascending')
+  await pageExpect(page.getByText('Showing 26–30 of 30')).toBeVisible()
+  await pageExpect(priorityHeader).toHaveAttribute('aria-sort', 'ascending')
   // Ascending: the second page holds the most urgent ones
-  await expect(page.locator('tbody tr').last()).toContainText('Critical')
+  await pageExpect(page.locator('tbody tr').last()).toContainText('Critical')
 
   await page.reload()
-  await expect(page).toHaveURL(/sort=priority/)
-  await expect(page).toHaveURL(/order=asc/)
-  await expect(page).toHaveURL(/[?&]page=2(&|$)/)
-  await expect(page.getByText('Showing 26–30 of 30')).toBeVisible()
-  await expect(priorityHeader).toHaveAttribute('aria-sort', 'ascending')
-  await expect(pager.getByText('Page 2 of 2')).toBeVisible()
-  await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled()
+  await pageExpect(page).toHaveURL(/sort=priority/)
+  await pageExpect(page).toHaveURL(/order=asc/)
+  await pageExpect(page).toHaveURL(/[?&]page=2(&|$)/)
+  await pageExpect(page.getByText('Showing 26–30 of 30')).toBeVisible()
+  await pageExpect(priorityHeader).toHaveAttribute('aria-sort', 'ascending')
+  await pageExpect(pager.getByText('Page 2 of 2')).toBeVisible()
+  await pageExpect(pager.getByRole('button', { name: 'Next' })).toBeDisabled()
 
   // Flip to descending: back to page 1, most urgent first; reload keeps that too
   await priorityHeader.getByRole('button').click()
-  await expect(page).toHaveURL(/order=desc/)
-  await expect(page).not.toHaveURL(/[?&]page=/)
-  await expect(page.locator('tbody tr').first()).toContainText('Critical')
+  await pageExpect(page).toHaveURL(/order=desc/)
+  await pageExpect(page).not.toHaveURL(/[?&]page=/)
+  await pageExpect(page.locator('tbody tr').first()).toContainText('Critical')
   await pager.getByRole('button', { name: 'Next' }).click()
-  await expect(page).toHaveURL(/[?&]page=2(&|$)/)
-  await expect(page.locator('tbody tr').last()).toContainText('Low')
+  await pageExpect(page).toHaveURL(/[?&]page=2(&|$)/)
+  await pageExpect(page.locator('tbody tr').last()).toContainText('Low')
   await page.reload()
-  await expect(priorityHeader).toHaveAttribute('aria-sort', 'descending')
-  await expect(page.getByText('Showing 26–30 of 30')).toBeVisible()
-  await expect(page.locator('tbody tr').last()).toContainText('Low')
-  await expect(pager.getByRole('button', { name: 'Previous' })).toBeEnabled()
+  await pageExpect(priorityHeader).toHaveAttribute('aria-sort', 'descending')
+  await pageExpect(page.getByText('Showing 26–30 of 30')).toBeVisible()
+  await pageExpect(page.locator('tbody tr').last()).toContainText('Low')
+  await pageExpect(pager.getByRole('button', { name: 'Previous' })).toBeEnabled()
 })
 
 test.describe('the users page', () => {
@@ -142,9 +147,12 @@ test.describe('the users page', () => {
     const probe = await api.get('users?page=1&pageSize=25', 'admin')
     test.skip(Array.isArray(probe), 'The backend does not page GET /api/users yet')
 
-    // Enough accounts for at least two pages, whatever other tests created before. Named to sort last (the list is
-    // A–Z by name by default), so later tests that look for their own new account on page 1 still find it there
-    for (let i = 1; i <= 30; i += 1) {
+    // Enough accounts for two pages (40), counting what other tests created before; only the missing ones are added,
+    // so repeated runs on the same database (CI repeats this file) don't keep making the list longer and slower.
+    // Named to sort last (the list is A–Z by name by default), so later tests that look for their own new account on
+    // page 1 still find it there
+    const missing = Math.max(0, 40 - probe.total)
+    for (let i = 1; i <= missing; i += 1) {
       await api.createEmployee(`Zz Paging ${uniq} ${String(i).padStart(2, '0')}`, `zz.${uniq}.${i}@e2e.test`)
     }
     const first = await api.get('users?page=1&pageSize=25&sort=email&order=asc', 'admin')
@@ -154,40 +162,42 @@ test.describe('the users page', () => {
 
     await page.goto('/admin/users')
     const pager = page.getByRole('navigation', { name: 'User pages' })
-    await expect(page.getByText(new RegExp(`^Showing 1–25 of ${first.total}`))).toBeVisible()
-    await expect(pager.getByText(`Page 1 of ${pages}`)).toBeVisible()
-    await expect(pager.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    await pageExpect(page.getByText(new RegExp(`^Showing 1–25 of ${first.total}`))).toBeVisible()
+    await pageExpect(pager.getByText(`Page 1 of ${pages}`)).toBeVisible()
+    await pageExpect(pager.getByRole('button', { name: 'Previous' })).toBeDisabled()
 
     await pager.getByRole('button', { name: 'Next' }).click()
-    await expect(page).toHaveURL(/[?&]page=2(&|$)/)
-    await expect(pager.getByText(`Page 2 of ${pages}`)).toBeVisible()
+    await pageExpect(page).toHaveURL(/[?&]page=2(&|$)/)
+    await pageExpect(pager.getByText(`Page 2 of ${pages}`)).toBeVisible()
 
     // Sorting by Email goes back to page 1, A–Z first, then Z–A
     const emailHeader = page.getByRole('columnheader', { name: /^Email/ })
     await emailHeader.getByRole('button').click()
-    await expect(page).toHaveURL(/sort=email&order=asc/)
-    await expect(page).not.toHaveURL(/[?&]page=/)
-    await expect(emailHeader).toHaveAttribute('aria-sort', 'ascending')
-    await expect(page.locator('tbody tr').first()).toContainText(first.items[0].email)
+    await pageExpect(page).toHaveURL(/sort=email&order=asc/)
+    await pageExpect(page).not.toHaveURL(/[?&]page=/)
+    await pageExpect(emailHeader).toHaveAttribute('aria-sort', 'ascending')
+    await pageExpect(page.locator('tbody tr').first()).toContainText(first.items[0].email)
 
     await emailHeader.getByRole('button').click()
-    await expect(page).toHaveURL(/sort=email&order=desc/)
-    await expect(emailHeader).toHaveAttribute('aria-sort', 'descending')
+    await pageExpect(page).toHaveURL(/sort=email&order=desc/)
+    await pageExpect(emailHeader).toHaveAttribute('aria-sort', 'descending')
 
     // The last page, Z–A, survives a reload
     await page.goto(`/admin/users?sort=email&order=desc&page=${pages}`)
-    await expect(pager.getByText(`Page ${pages} of ${pages}`)).toBeVisible()
+    await pageExpect(pager.getByText(`Page ${pages} of ${pages}`)).toBeVisible()
     await page.reload()
-    await expect(pager.getByText(`Page ${pages} of ${pages}`)).toBeVisible()
-    await expect(emailHeader).toHaveAttribute('aria-sort', 'descending')
-    await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled()
-    await expect(page.locator('tbody tr').last()).toContainText(lastByEmail.items.at(-1).email)
+    await pageExpect(pager.getByText(`Page ${pages} of ${pages}`)).toBeVisible()
+    await pageExpect(emailHeader).toHaveAttribute('aria-sort', 'descending')
+    await pageExpect(pager.getByRole('button', { name: 'Next' })).toBeDisabled()
+    await pageExpect(page.locator('tbody tr').last()).toContainText(lastByEmail.items.at(-1).email)
 
     // Page size 50: back to page 1, and the sort stays
     await pager.getByLabel('Per page').selectOption('50')
-    await expect(page).toHaveURL(/pageSize=50/)
-    await expect(page).not.toHaveURL(/[?&]page=/)
-    await expect(page).toHaveURL(/sort=email&order=desc/)
-    await expect(page.getByText(new RegExp(`^Showing 1–${Math.min(50, first.total)} of ${first.total}`))).toBeVisible()
+    await pageExpect(page).toHaveURL(/pageSize=50/)
+    await pageExpect(page).not.toHaveURL(/[?&]page=/)
+    await pageExpect(page).toHaveURL(/sort=email&order=desc/)
+    await pageExpect(
+      page.getByText(new RegExp(`^Showing 1–${Math.min(50, first.total)} of ${first.total}`)),
+    ).toBeVisible()
   })
 })
