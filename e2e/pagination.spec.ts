@@ -142,9 +142,10 @@ test.describe('the users page', () => {
     const probe = await api.get('users?page=1&pageSize=25', 'admin')
     test.skip(Array.isArray(probe), 'The backend does not page GET /api/users yet')
 
-    // Enough accounts for at least two pages, whatever other tests created before
+    // Enough accounts for at least two pages, whatever other tests created before. Named to sort last (the list is
+    // A–Z by name by default), so later tests that look for their own new account on page 1 still find it there
     for (let i = 1; i <= 30; i += 1) {
-      await api.createEmployee(`${uniq} Person ${String(i).padStart(2, '0')}`, `${uniq}.${i}@e2e.test`)
+      await api.createEmployee(`Zz Paging ${uniq} ${String(i).padStart(2, '0')}`, `zz.${uniq}.${i}@e2e.test`)
     }
     const first = await api.get('users?page=1&pageSize=25&sort=email&order=asc', 'admin')
     const pages = Math.ceil(first.total / 25)
