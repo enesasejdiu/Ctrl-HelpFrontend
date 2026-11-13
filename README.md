@@ -289,36 +289,76 @@ location /api/ {
 
 ### Docker
 
-The [`Dockerfile`](Dockerfile) builds a production image: Vite builds the app in a Node stage, and the final image is
-nginx (the unprivileged image: runs as the `nginx` user, never root) serving `dist/` on **port 8080**. Node, the
-source code, `node_modules` and `.env` files never get into it. The nginx site is
-[`docker/default.conf.template`](docker/default.conf.template); it follows the rules under [Hosting](#hosting):
+The [`Dockerfile`](Dockerfile) builds a production image: Vite builds the app in a Node stage (Node 22.22, the
+project's version), and the final image is nginx (the unprivileged image: runs as the `nginx` user, uid 101, never
+root) serving `dist/` on **port 8080**. Node, the source code, `node_modules` and `.env` files never get into it.
+The nginx site is [`docker/default.conf.template`](docker/default.conf.template); it follows the rules under
+[Hosting](#hosting):
 
-- every page address gets `index.html` (deep links and reloads work); a missing file is a real 404
-- `/api/` goes to the backend, with cookies and the `X-CSRF-Token` header passed through, so the page and the API
-  share one origin (see [Sessions](#sessions-cookies-and-csrf)). Uploads up to 60 MB (5 attachments of 10 MB)
-- `/assets/*` (hashed names) are cached for a year; `index.html` is never cached, so a deploy shows up straight away
-- gzip, and security headers on every answer ([`docker/security-headers.conf`](docker/security-headers.conf)):
-  a Content-Security-Policy (only this origin, Google Fonts and Sentry), `X-Content-Type-Options: nosniff`,
-  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
+- every page address gets `index.html` (deep links and reloads work); a missing file is a real 404, never the page
+- `/api/` goes to the backend (see below)
+- `/assets/*` (hashed names) are cached for a year (`immutable`); `index.html` is `no-cache`, so a deploy shows up
+  straight away
+- gzip for HTML, CSS, JavaScript, JSON, SVG and text
+- security headers on every answer ([`docker/security-headers.conf`](docker/security-headers.conf)), see below
+- `/healthz` answers `ok` (not logged); access logs go to stdout, errors to stderr (`docker logs`)
 
 ```bash
-docker build -t ticketflow-web .
-docker run -d --name ticketflow-web -p 8080:8080 -e API_URL=http://api:5050 ticketflow-web
+docker build -t ticketflow-web --build-arg VCS_REF=$(git rev-parse HEAD) .
+docker run -d --name ticketflow-web -p 8080:8080 -e BACKEND_URL=http://api:5050 ticketflow-web
 ```
 
-- **`API_URL`** (when the container starts): where `/api` goes, the backend's address **without a path**. Default
-  `http://api:5050`, the API service in the backend's Docker Compose setup. nginx looks the name up per request, so it
-  starts even when the API isn't up yet (`/api` answers 502 until it is). Use an IP address or a name Docker's DNS
-  knows (a container or service name), not one that is only in `/etc/hosts`.
-- **Build arguments** (baked into the JavaScript, public values only): `VITE_API_URL` (default `/api`; keep it),
-  and optionally `VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE`, e.g.
-  `docker build --build-arg VITE_SENTRY_RELEASE=$(git rev-parse --short HEAD) -t ticketflow-web .`
+| Setting                                                             | When                  | What it does                                                                                                                   |
+| ------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `BACKEND_URL`                                                       | container start       | Where `/api` goes: the backend's address **without a path**. Default `http://api:5050`. `API_URL`, the older name, still works |
+| `VITE_API_URL`                                                      | build (`--build-arg`) | How the browser calls the API. Default `/api`; keep it (one origin, see below)                                                 |
+| `VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE` | build                 | Optional error tracking (README "Error tracking")                                                                              |
+| `VCS_REF`                                                           | build                 | The commit, as the `org.opencontainers.image.revision` label                                                                   |
+
+Build arguments end up **in the JavaScript bundle**, so they are public: never put a secret there. `BACKEND_URL` is
+read when the container starts, so one image serves every environment.
+
+**How `/api` works.** The browser only ever talks to this container. nginx passes `/api/...` on to `BACKEND_URL`
+unchanged, with `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`, cookies and the
+`X-CSRF-Token` header. So the page and the API share one origin: the session cookies are first-party, no CORS is
+needed, and `SameSite` stays as strict as the backend sets it (see [Sessions](#sessions-cookies-and-csrf)).
+
+- The backend must **trust this proxy**, so rate limits and the audit log see the visitor's IP address, not nginx's.
+  It does in production (`app.set('trust proxy', 1)` in the backend's `src/app.js`: one proxy). With another proxy
+  or load balancer in front of this one, that number has to grow.
+- nginx looks `BACKEND_URL` up per request, so it starts even when the API isn't up yet (`/api` answers 502 until it
+  is). Use an IP address or a name Docker's DNS knows (a container or service name), not one only in `/etc/hosts`.
+- Uploads up to 60 MB pass: the API takes up to 5 attachments of 10 MB in one request and checks the real limits.
+  Uploads stream to the API (no temporary file in nginx). Timeouts: 5 s to connect, 60 s per request.
+- The app uses no websockets or server-sent events, so there are no upgrade headers.
+
+**Security headers**, on every answer (pages, files, 404s, `/healthz`):
+
+| Header                    | Value                                                                                                                                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.sentry.io; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` |
+| `X-Content-Type-Options`  | `nosniff`                                                                                                                                                                                                                                                                       |
+| `X-Frame-Options`         | `DENY`                                                                                                                                                                                                                                                                          |
+| `Referrer-Policy`         | `strict-origin-when-cross-origin`; `no-referrer` on `/set-password` and `/forgot-password`                                                                                                                                                                                      |
+| `Permissions-Policy`      | `camera=(), microphone=(), geolocation=()`                                                                                                                                                                                                                                      |
+
+`server_tokens off` keeps the nginx version out of the `Server` header.
+
+**Everything together:** [`docker-compose.example.yml`](docker-compose.example.yml) wires this image, the backend and
+MySQL together (`BACKEND_URL=http://api:5050`), with a one-off `migrate` service before the API starts. Copy it
+next to both repos, put the secrets it names into a `.env` beside it, and run `docker compose up -d --build`.
+
 - **Health check:** every 30 seconds the container asks itself for `/healthz`; `docker ps` shows `healthy`.
 - **HTTPS:** the image speaks plain HTTP on 8080. Put it behind something that terminates TLS (a load balancer or a
   reverse proxy) in production; the backend's cookies are `Secure` there.
 
-CI builds the image and checks its nginx config (`nginx -t`) on every pull request (the `docker` job), without pushing.
+**CI** (the `docker` job in `frontend-ci.yml`, every pull request, nothing pushed): hadolint, the build, `nginx -t`,
+the image size and labels, then the image runs against a stub backend
+([`docker/stub-backend.mjs`](docker/stub-backend.mjs)) and [`docker/verify.sh`](docker/verify.sh) checks it: non-root,
+healthy, the routes and their cache headers, gzip, the 404s, every security header, the `/api` proxy and what it
+forwards, the upload limit, and that no source, source map, `.env` or `node_modules` is in the image.
+[`docker/check-csp.mjs`](docker/check-csp.mjs) opens the app in Chromium with the real policy and fails on any
+violation. A last step checks that a source-only change reuses the `npm ci` layer.
 
 ## Project structure
 
@@ -327,6 +367,11 @@ Dockerfile               Production image: Vite build, then nginx on port 8080 (
 docker/
   default.conf.template  The nginx site: SPA routes, /api proxy, caching, gzip
   security-headers.conf  CSP and the other security headers
+  backend-url.envsh      Fills in BACKEND_URL (or the older API_URL) when the container starts
+  verify.sh              CI's checks of a running container
+  stub-backend.mjs       A stand-in backend for those checks
+  check-csp.mjs          Opens the app in Chromium and reports CSP violations
+docker-compose.example.yml  Frontend + backend + MySQL with Docker Compose
 public/
   favicon.svg            Browser tab icon
 src/
