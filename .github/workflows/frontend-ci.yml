@@ -1,4 +1,4 @@
-# Frontend CI: lint, unit tests and production build, as three parallel jobs.
+# Frontend CI: lint, unit tests, production build and the Docker image, as four parallel jobs.
 # Branch protection: require only the "ci-ok" check, which passes when all three do.
 # (End-to-end tests run separately in e2e.yml.)
 name: Frontend CI
@@ -93,19 +93,35 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # Builds the production image (Dockerfile: Vite build + nginx) without pushing it anywhere, so a broken Dockerfile,
+  # .dockerignore or nginx config turns CI red. nginx -t checks the config the container would really use.
+  docker:
+    name: docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the web image (no push)
+        run: docker build --tag ticketflow-web:ci .
+      - name: Check the nginx config
+        run: docker run --rm ticketflow-web:ci sh -c '/docker-entrypoint.sh nginx -t'
+      # The size, so a sudden jump shows up in the log
+      - name: Show the image size
+        run: docker image ls ticketflow-web:ci
+
   # The one check to require in branch protection: green only when every job above succeeded
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [lint, test, build]
+    needs: [lint, test, build, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: All jobs passed
         if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
-        run: echo "lint, test and build all passed"
+        run: echo "lint, test, build and docker all passed"
       - name: A job did not pass
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
         run: |
-          echo "Results: lint=${{ needs.lint.result }}, test=${{ needs.test.result }}, build=${{ needs.build.result }}"
+          echo "Results: lint=${{ needs.lint.result }}, test=${{ needs.test.result }}, build=${{ needs.build.result }}, docker=${{ needs.docker.result }}"
           exit 1

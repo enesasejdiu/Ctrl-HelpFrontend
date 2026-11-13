@@ -1,0 +1,83 @@
+# nginx site for the TicketFlow frontend image (Dockerfile; README "Docker").
+# A template: when the container starts, nginx's entrypoint replaces ${API_URL} and ${NGINX_LOCAL_RESOLVERS} with
+# their values and writes the result to /etc/nginx/conf.d/default.conf. nginx's own $variables are left alone.
+
+server {
+    listen 8080;
+    listen [::]:8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+
+    # Don't say which nginx version this is
+    server_tokens off;
+
+    # Attachments: up to 5 files of 10 MB in one upload, plus the multipart overhead. The backend checks the real limits.
+    client_max_body_size 60m;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    # The security headers. Repeated (include) in every location that adds a header of its own, because nginx drops
+    # the server's add_header lines in any location that has its own.
+    include /etc/nginx/snippets/security-headers.conf;
+
+    # ^~ on /assets/ and /api/: these prefixes win over the "file extension" rule further down, so /api/x.json still
+    # reaches the API.
+
+    # Built files have a content hash in their name, so a file never changes: cache it for good. A missing one is a
+    # real 404, never index.html (README "Hosting").
+    location ^~ /assets/ {
+        try_files $uri =404;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
+    # For the container's health check; not logged
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # The API, on the same origin as the page, so the session cookies are first-party and the page can read tf_csrf
+    # (README "Sessions"). Cookies and the X-CSRF-Token header pass through unchanged (nginx forwards every request
+    # header and Set-Cookie). The backend's address is looked up per request (resolver), so nginx starts even when the
+    # API isn't up yet and finds it again after it restarts with a new address.
+    location ^~ /api/ {
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+        set $api_url ${API_URL};
+        # proxy_pass with a variable and no path: the request goes on exactly as it came in (/api/...)
+        proxy_pass $api_url;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        # Uploads stream straight to the API instead of being written to a temporary file first
+        proxy_request_buffering off;
+        proxy_read_timeout 60s;
+    }
+
+    # Anything else with a file extension (favicon.svg, robots.txt, …): the file or a real 404
+    location ~ \.[a-zA-Z0-9]+$ {
+        try_files $uri =404;
+    }
+
+    # Every page address (/tickets, /tickets/42, a reload, a mistyped one): the app
+    location / {
+        try_files $uri /index.html;
+    }
+
+    # The app's page itself (also where "location /" ends up). Never cached, so a new deploy is picked up straight away.
+    location = /index.html {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+    }
+}

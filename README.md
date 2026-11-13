@@ -287,9 +287,46 @@ location /api/ {
 }
 ```
 
+### Docker
+
+The [`Dockerfile`](Dockerfile) builds a production image: Vite builds the app in a Node stage, and the final image is
+nginx (the unprivileged image: runs as the `nginx` user, never root) serving `dist/` on **port 8080**. Node, the
+source code, `node_modules` and `.env` files never get into it. The nginx site is
+[`docker/default.conf.template`](docker/default.conf.template); it follows the rules under [Hosting](#hosting):
+
+- every page address gets `index.html` (deep links and reloads work); a missing file is a real 404
+- `/api/` goes to the backend, with cookies and the `X-CSRF-Token` header passed through, so the page and the API
+  share one origin (see [Sessions](#sessions-cookies-and-csrf)). Uploads up to 60 MB (5 attachments of 10 MB)
+- `/assets/*` (hashed names) are cached for a year; `index.html` is never cached, so a deploy shows up straight away
+- gzip, and security headers on every answer ([`docker/security-headers.conf`](docker/security-headers.conf)):
+  a Content-Security-Policy (only this origin, Google Fonts and Sentry), `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
+
+```bash
+docker build -t ticketflow-web .
+docker run -d --name ticketflow-web -p 8080:8080 -e API_URL=http://api:5050 ticketflow-web
+```
+
+- **`API_URL`** (when the container starts): where `/api` goes, the backend's address **without a path**. Default
+  `http://api:5050`, the API service in the backend's Docker Compose setup. nginx looks the name up per request, so it
+  starts even when the API isn't up yet (`/api` answers 502 until it is). Use an IP address or a name Docker's DNS
+  knows (a container or service name), not one that is only in `/etc/hosts`.
+- **Build arguments** (baked into the JavaScript, public values only): `VITE_API_URL` (default `/api`; keep it),
+  and optionally `VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE`, e.g.
+  `docker build --build-arg VITE_SENTRY_RELEASE=$(git rev-parse --short HEAD) -t ticketflow-web .`
+- **Health check:** every 30 seconds the container asks itself for `/healthz`; `docker ps` shows `healthy`.
+- **HTTPS:** the image speaks plain HTTP on 8080. Put it behind something that terminates TLS (a load balancer or a
+  reverse proxy) in production; the backend's cookies are `Secure` there.
+
+CI builds the image and checks its nginx config (`nginx -t`) on every pull request (the `docker` job), without pushing.
+
 ## Project structure
 
 ```
+Dockerfile               Production image: Vite build, then nginx on port 8080 (README "Docker")
+docker/
+  default.conf.template  The nginx site: SPA routes, /api proxy, caching, gzip
+  security-headers.conf  CSP and the other security headers
 public/
   favicon.svg            Browser tab icon
 src/

@@ -146,3 +146,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Pagination on the ticket list and users page
 - [x] Log out everywhere button on the profile page
 - [x] Privacy page in the app
+- [x] Frontend Dockerfile and nginx config
