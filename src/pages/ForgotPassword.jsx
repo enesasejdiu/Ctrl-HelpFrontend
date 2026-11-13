@@ -62,8 +62,11 @@ export default function ForgotPassword() {
       } else if (response.status === 429) {
         const seconds = retryAfterSeconds(response)
         if (seconds) {
-          setNow(Date.now())
-          setUntil(Date.now() + seconds * 1000)
+          // One clock reading for both, so the first countdown shows exactly Retry-After (two readings a few ms apart
+          // made 15 minutes round up to "about 16 minutes")
+          const start = Date.now()
+          setNow(start)
+          setUntil(start + seconds * 1000)
         } else {
           setLimited(true)
         }
