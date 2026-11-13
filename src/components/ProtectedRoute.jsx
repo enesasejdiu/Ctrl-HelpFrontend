@@ -1,17 +1,22 @@
 // ProtectedRoute.jsx – guards pages that need a login.
 // Logged out → /login (remembering where you wanted to go, and with ?reason=session_expired when the session ran out
-// mid-way, so the login page can say so). With `roles`, other roles go back to /tickets.
+// mid-way, so the login page can say so; after "Log out everywhere" its notice goes along in the router state).
+// With `roles`, other roles go back to /tickets.
 // A user with a temporary password can only open /set-password until they have chosen their own.
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../context/auth'
 
 export default function ProtectedRoute({ roles, children }) {
-  const { user, sessionExpired } = useAuth()
+  const { user, sessionExpired, signOutNotice } = useAuth()
   const location = useLocation()
 
   if (!user) {
     return (
-      <Navigate to={sessionExpired ? '/login?reason=session_expired' : '/login'} replace state={{ from: location }} />
+      <Navigate
+        to={sessionExpired ? '/login?reason=session_expired' : '/login'}
+        replace
+        state={signOutNotice ? { from: location, notice: signOutNotice } : { from: location }}
+      />
     )
   }
   // The backend refuses every other request for this user, so other pages couldn't load anyway

@@ -1653,6 +1653,18 @@ fieldset.field {
   margin-top: 16px;
 }
 
+/* "Log out everywhere" sits under Change password, set apart by a line */
+.profile-logout-note {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.profile-logout-note + .profile-action {
+  margin-top: 10px;
+}
+
 @media (max-width: 760px) {
   .profile-grid {
     grid-template-columns: minmax(0, 1fr);
