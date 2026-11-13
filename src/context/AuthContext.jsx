@@ -19,6 +19,9 @@ export function AuthProvider({ children }) {
   // to /login?reason=session_expired and the login page can say why. Not set by logging out, nor by the startup check
   // finding no session (that's someone who simply wasn't logged in).
   const [sessionExpired, setSessionExpired] = useState(false)
+  // Why the user chose to sign out, when the login page should say so ('signedOutEverywhere'), else null. Set together
+  // with forgetting the user, so ProtectedRoute's redirect to /login can pass it on (see ProtectedRoute.jsx).
+  const [signOutNotice, setSignOutNotice] = useState(null)
   // The user as of the last render, and whether a logout is under way, for the 401 handler below (it runs outside
   // React's render, from an event)
   const userRef = useRef(null)
@@ -60,6 +63,8 @@ export function AuthProvider({ children }) {
 
   // The login page has told the user their session expired; later redirects to /login shouldn't repeat it
   const clearSessionExpired = useCallback(() => setSessionExpired(false), [])
+  // The same for the "signed out everywhere" message
+  const clearSignOutNotice = useCallback(() => setSignOutNotice(null), [])
 
   // Logs out on the backend (which clears the cookies), and forgets the user here even if that request fails
   const logout = useCallback(async () => {
@@ -71,6 +76,21 @@ export function AuthProvider({ children }) {
       // Offline or the server is down: still log out in this tab; the cookie expires by itself
     } finally {
       setUser(null)
+      loggingOut.current = false
+    }
+  }, [])
+
+  // "Log out everywhere": ends every session of this user on the backend (all browsers and devices, this one too),
+  // then forgets the user here. Unlike logout(), a failure throws and keeps the user logged in: pretending it worked
+  // would leave the other devices signed in.
+  const logoutEverywhere = useCallback(async () => {
+    loggingOut.current = true
+    setSessionExpired(false)
+    try {
+      await client.post('/auth/logout-all')
+      setSignOutNotice('signedOutEverywhere')
+      setUser(null)
+    } finally {
       loggingOut.current = false
     }
   }, [])
@@ -123,12 +143,26 @@ export function AuthProvider({ children }) {
       canManageUsers: user?.role === 'admin' || user?.role === 'hr',
       sessionExpired,
       clearSessionExpired,
+      signOutNotice,
+      clearSignOutNotice,
       login,
       changePassword,
       logout,
+      logoutEverywhere,
       updateUser,
     }),
-    [user, sessionExpired, clearSessionExpired, login, changePassword, logout, updateUser],
+    [
+      user,
+      sessionExpired,
+      clearSessionExpired,
+      signOutNotice,
+      clearSignOutNotice,
+      login,
+      changePassword,
+      logout,
+      logoutEverywhere,
+      updateUser,
+    ],
   )
 
   return (
