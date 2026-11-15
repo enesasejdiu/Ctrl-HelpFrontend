@@ -1,0 +1,6 @@
+# Files that run inside the Linux container keep LF line endings on every checkout, Windows included (git's
+# core.autocrlf would otherwise give them CRLF, and sh and nginx would read the \r as part of the text).
+Dockerfile text eol=lf
+docker/** text eol=lf
+*.sh text eol=lf
+*.envsh text eol=lf

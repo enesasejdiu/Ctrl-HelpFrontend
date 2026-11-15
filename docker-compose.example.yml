@@ -1,0 +1,102 @@
+# An example of the whole system with Docker Compose: the frontend (this repo), the backend (Ctrl-HelpBackend) and
+# MySQL, wired together. README "Docker" explains it. Copy it next to both repos and adjust:
+#
+#   parent/
+#     Ctrl-HelpFrontend/   (this repo)
+#     Ctrl-HelpBackend/
+#     docker-compose.yml   (this file, copied)
+#     .env                 (the secrets below; never commit it)
+#
+#   docker compose up -d --build     then open http://localhost:8080
+#
+# The browser only ever talks to "web" (port 8080). web sends /api/ on to "api" (BACKEND_URL), so the page and the API
+# share one origin: the session cookies are first-party and need no CORS. Only web's port is published; api and db
+# are reachable inside the Compose network only.
+#
+# Secrets come from .env next to this file (Compose reads it): DB_PASSWORD, DB_ROOT_PASSWORD and JWT_SECRET (at least
+# 32 random characters: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"). Compose refuses to
+# start while one is missing.
+#
+# HTTPS: the backend runs with NODE_ENV=production, which needs an https CLIENT_URL and sets Secure cookies, which
+# browsers only send over https (localhost aside). In production put a TLS proxy or load balancer in front of web
+# (port 8080) and set PUBLIC_URL to its address.
+
+services:
+  web:
+    build:
+      context: ./Ctrl-HelpFrontend
+    image: ticketflow-web
+    environment:
+      # Where nginx sends /api/: the api service below, by its Compose name, without a path
+      BACKEND_URL: http://api:5050
+    ports:
+      - '8080:8080'
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./Ctrl-HelpBackend
+    image: ticketflow-api
+    environment:
+      PORT: '5050'
+      DB_HOST: db
+      DB_PORT: '3306'
+      DB_USER: ticketflow
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      DB_NAME: ticketflow
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (at least 32 random characters)}
+      # The address people open (the TLS proxy in front of web). Used for CORS and for links in emails.
+      CLIENT_URL: ${PUBLIC_URL:-https://helpdesk.example.com}
+      APP_URL: ${PUBLIC_URL:-https://helpdesk.example.com}
+      MAIL_ENABLED: 'false'
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Applies new migrations, then exits; api starts only after it succeeded. Never seeds: no demo data in production.
+  migrate:
+    image: ticketflow-api
+    build:
+      context: ./Ctrl-HelpBackend
+    # Backs up first when the database already has tables (into the backups volume), like npm run db:migrate
+    command: ['node', 'scripts/migrate.js']
+    volumes:
+      - backups:/app/backups
+    environment:
+      DB_HOST: db
+      DB_PORT: '3306'
+      DB_USER: ticketflow
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      DB_NAME: ticketflow
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ticketflow
+      MYSQL_USER: ticketflow
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '--silent']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  uploads:
+  backups:

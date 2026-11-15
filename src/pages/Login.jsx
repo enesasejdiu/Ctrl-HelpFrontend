@@ -27,6 +27,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DEFAULT_PAGE = '/tickets'
 // The ?reason= values this page knows, and their message
 const REASONS = { session_expired: 'login.sessionExpired' }
+// Messages another page passes in the router state ({ notice }), so they can't be faked with a link
+const STATE_NOTICES = { passwordSet: 'login.passwordSet', signedOutEverywhere: 'login.signedOutEverywhere' }
 
 const DEMO_ACCOUNTS = [
   { label: 'Admin', email: 'admin@ticketflow.local' },
@@ -89,7 +91,7 @@ function LoginNotice({ notice, now }) {
 }
 
 export default function Login() {
-  const { user, login, clearSessionExpired } = useAuth()
+  const { user, login, clearSessionExpired, signOutNotice, clearSignOutNotice } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -102,10 +104,13 @@ export default function Login() {
   const [notice, setNotice] = useState(() => {
     const reason = searchParams.get('reason')
     if (reason && Object.hasOwn(REASONS, reason)) return { kind: 'reason', key: REASONS[reason] }
-    // Router state, so it can't be faked with a link
-    if (location.state?.notice === 'passwordSet') return { kind: 'reason', key: 'login.passwordSet' }
-    return null
+    const fromState = STATE_NOTICES[location.state?.notice]
+    return fromState ? { kind: 'reason', key: fromState } : null
   })
+  // Shown once: a later visit to a protected page while logged out shouldn't bring "signed out everywhere" back
+  useEffect(() => {
+    if (signOutNotice) clearSignOutNotice()
+  }, [signOutNotice, clearSignOutNotice])
   const [now, setNow] = useState(() => Date.now())
   // "Forgot password?" only when the backend can email a reset link (GET /auth/config); hidden until it says so
   const [emailEnabled, setEmailEnabled] = useState(false)

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Sourced by nginx's entrypoint before it fills in the templates (/docker-entrypoint.d/*.envsh run in the entrypoint's
+# own shell, so what is exported here reaches 20-envsubst-on-templates.sh).
+# BACKEND_URL: where /api goes, the backend's address without a path. API_URL is the older name and still works.
+# Default: http://api:5050, the API service in docker-compose.example.yml.
+if [ -z "${BACKEND_URL:-}" ]; then
+  BACKEND_URL="${API_URL:-http://api:5050}"
+fi
+export BACKEND_URL

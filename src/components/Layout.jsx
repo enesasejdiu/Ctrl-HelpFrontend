@@ -18,6 +18,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../context/auth'
 import RouteErrorBoundary from '../errors/RouteErrorBoundary'
 import { ROLE_LABELS } from '../utils/format'
+import AppFooter from './AppFooter'
 import Logo from './Logo'
 import { Avatar } from './Ui'
 
@@ -111,6 +112,7 @@ export default function Layout({ children }) {
         )}
         <RouteErrorBoundary>{children ?? <Outlet />}</RouteErrorBoundary>
       </main>
+      <AppFooter className="app-footer--page" />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 // AuthShell.jsx – split-screen frame for the login page:
 // a brand panel on the left (hidden on small screens) and the form card on the right.
 import { ChartColumn, Clock, ShieldCheck } from 'lucide-react'
+import AppFooter from './AppFooter'
 import Logo from './Logo'
 
 const FEATURES = [
@@ -60,6 +61,7 @@ export default function AuthShell({ title, subtitle, children, footer }) {
           {children}
           {footer && <p className="auth__footer">{footer}</p>}
         </div>
+        <AppFooter className="app-footer--auth" />
       </section>
     </div>
   )
