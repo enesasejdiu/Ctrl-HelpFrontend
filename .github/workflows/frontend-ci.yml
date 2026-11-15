@@ -96,21 +96,66 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # Builds the production image (Dockerfile: Vite build + nginx) without pushing it anywhere, so a broken Dockerfile,
-  # .dockerignore or nginx config turns CI red. nginx -t checks the config the container would really use.
+  # Builds the production image (Dockerfile: Vite build + nginx) without pushing it anywhere, then runs it against a
+  # stub backend and checks it like a browser and an operator would (docker/verify.sh, docker/check-csp.mjs), so a
+  # broken Dockerfile, .dockerignore, nginx config, header or Content-Security-Policy turns CI red.
   docker:
     name: docker
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Lint the Dockerfile (hadolint)
+        run: docker run --rm -i hadolint/hadolint:v2.12.0 < Dockerfile
       - name: Build the web image (no push)
-        run: docker build --tag ticketflow-web:ci .
+        run: docker build --tag ticketflow-web:ci --build-arg VCS_REF="$GITHUB_SHA" .
       - name: Check the nginx config
         run: docker run --rm ticketflow-web:ci sh -c '/docker-entrypoint.sh nginx -t'
-      # The size, so a sudden jump shows up in the log
-      - name: Show the image size
-        run: docker image ls ticketflow-web:ci
+      - name: Image size and labels
+        run: |
+          docker image ls ticketflow-web:ci
+          size=$(docker image inspect --format '{{.Size}}' ticketflow-web:ci)
+          echo "Image size: $((size / 1024 / 1024)) MB"
+          docker image inspect --format '{{json .Config.Labels}}' ticketflow-web:ci
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' ticketflow-web:ci)" = "$GITHUB_SHA"
+      - name: Start a stub backend and the web container
+        run: |
+          docker network create tf
+          docker run -d --name stub --network tf --network-alias api-stub -v "$PWD/docker:/stub:ro" \
+            node:22.22-alpine node /stub/stub-backend.mjs
+          docker run -d --name web --network tf -p 8080:8080 -e BACKEND_URL=http://api-stub:5050 ticketflow-web:ci
+          for i in $(seq 1 30); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' web)" = healthy ] && break
+            sleep 2
+          done
+          docker ps
+      - name: Check the running container (docker/verify.sh)
+        run: bash docker/verify.sh http://localhost:8080 web
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Open the app in Chromium with the real CSP (docker/check-csp.mjs)
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          node docker/check-csp.mjs http://localhost:8080
+      - name: The older API_URL name still works
+        run: |
+          docker run -d --name web-old --network tf -p 8081:8080 -e API_URL=http://api-stub:5050 ticketflow-web:ci
+          sleep 3
+          curl -sf http://localhost:8081/api/health | grep -q '"stub":true'
+      - name: A source-only change reuses the npm ci layer
+        run: |
+          echo "// cache check" >> src/main.jsx
+          docker build --progress=plain --tag ticketflow-web:ci-rebuild . 2>&1 | tee rebuild.log | grep -E "npm ci|CACHED" || true
+          grep -E "RUN npm ci" -A1 rebuild.log | grep -q CACHED
+          git checkout -- src/main.jsx
+      - name: Container logs
+        if: always()
+        run: |
+          docker logs web 2>&1 | tail -40 || true
+          docker logs stub 2>&1 | tail -10 || true
 
   # The one check to require in branch protection: green only when every job above succeeded
   ci-ok:
