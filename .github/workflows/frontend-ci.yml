@@ -37,7 +37,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -52,6 +52,9 @@ jobs:
           npx vitest run --coverage
           --reporter=default --reporter=github-actions
           --coverage.reporter=text --coverage.reporter=html --coverage.reporter=json-summary
+      # The paging tests (ticket list, Users page, helpers) 3 more times in a row: they must pass every time
+      - name: Repeat the paging tests (3 runs)
+        run: npm run test:repeat
       - name: Coverage summary
         if: always() && hashFiles('coverage/coverage-summary.json') != ''
         run: |
