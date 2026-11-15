@@ -1,0 +1,13 @@
+# Kept out of the Docker build context (the build stage copies the rest). Secrets (.env*) above all: the build gets
+# its VITE_ settings as --build-arg instead. Tests, reports and local build output aren't needed to build.
+node_modules
+dist
+.env*
+.git
+.github
+coverage
+e2e
+playwright-report
+test-results
+blob-report
+*.log

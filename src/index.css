@@ -352,6 +352,8 @@ a.topbar__profile:hover {
 
 .auth__panel {
   display: grid;
+  /* The card in the middle, the small footer at the bottom */
+  grid-template-rows: 1fr auto;
   place-items: center;
   padding: 48px 24px;
   background: var(--surface);
@@ -400,6 +402,106 @@ a.topbar__profile:hover {
 
 .auth__footer a,
 .auth__footer .link-button {
+  font-weight: 600;
+}
+
+/* ---------- Footer (every page) and Privacy page ---------- */
+.app-footer {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 24px 24px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.app-footer a {
+  color: var(--text-muted);
+  text-decoration: underline;
+}
+
+.app-footer a:hover {
+  color: var(--text);
+}
+
+.app-footer--page {
+  max-width: var(--page-width);
+  margin: -32px auto 0;
+  border-top: 1px solid var(--border);
+}
+
+/* Under the sign-in card, in the panel's own grid */
+.app-footer--auth {
+  align-self: end;
+  padding-bottom: 0;
+}
+
+.privacy {
+  min-height: 100vh;
+  background: var(--surface);
+}
+
+.privacy__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 24px 0;
+}
+
+.privacy__header .back-link {
+  margin: 0;
+}
+
+.privacy__main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+  line-height: 1.6;
+}
+
+.privacy__main h1 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.privacy__main h2 {
+  margin-top: 36px;
+  font-size: 19px;
+}
+
+.privacy__lead {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.privacy__list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.privacy__list dt {
+  font-weight: 600;
+}
+
+.privacy__list dd {
+  margin: 2px 0 0;
+}
+
+.privacy__main ul {
+  padding-left: 20px;
+}
+
+/* Parts only the company running TicketFlow can write: stand out until someone does */
+.privacy__todo {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: #fef3c7;
+  color: #92400e;
   font-weight: 600;
 }
 
@@ -1656,6 +1758,18 @@ fieldset.field {
 
 .profile-action {
   margin-top: 16px;
+}
+
+/* "Log out everywhere" sits under Change password, set apart by a line */
+.profile-logout-note {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.profile-logout-note + .profile-action {
+  margin-top: 10px;
 }
 
 @media (max-width: 760px) {

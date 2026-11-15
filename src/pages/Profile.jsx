@@ -1,9 +1,11 @@
-// Profile.jsx – your own account at /profile, for every role: your details (read-only, from GET /auth/me) and a link
-// to the Change password page. Opened from your name in the top bar. Admins and HR change details on the Users page.
-import { KeyRound } from 'lucide-react'
-import { useEffect, useState } from 'react'
+// Profile.jsx – your own account at /profile, for every role: your details (read-only, from GET /auth/me), a link
+// to the Change password page, and "Log out everywhere" (POST /auth/logout-all, after a confirm). Opened from your
+// name in the top bar. Admins and HR change details on the Users page.
+import { KeyRound, LoaderCircle, LogOut } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import client, { errorMessage } from '../api/client'
+import Modal from '../components/Modal'
 import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
 import { ROLE_LABELS, formatDate } from '../utils/format'
@@ -92,8 +94,82 @@ export default function Profile() {
               <KeyRound size={16} aria-hidden="true" />
               Change password
             </Link>
+            <LogoutEverywhere />
           </section>
         </div>
+      )}
+    </>
+  )
+}
+
+// "Log out everywhere": ends every session of this account, on every device, this one included, then goes to the
+// login page with a message. A lost or stolen device is the usual reason, so it asks first.
+function LogoutEverywhere() {
+  const { logoutEverywhere } = useAuth()
+  const buttonRef = useRef(null)
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function confirm() {
+    setBusy(true)
+    setError('')
+    try {
+      // Forgets the user; the login check then sends this tab to /login, with the message (ProtectedRoute.jsx)
+      await logoutEverywhere()
+    } catch (err) {
+      // Still logged in everywhere: say so, and let them try again
+      setError(errorMessage(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <p className="text-muted profile-logout-note">Lost a device, or signed in somewhere you shouldn't have?</p>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="btn btn--secondary profile-action"
+        onClick={() => {
+          setError('')
+          setConfirming(true)
+        }}
+      >
+        <LogOut size={16} aria-hidden="true" />
+        Log out everywhere
+      </button>
+      {confirming && (
+        <Modal
+          title="Log out everywhere?"
+          role="alertdialog"
+          onClose={busy ? undefined : () => setConfirming(false)}
+          returnFocusRef={buttonRef}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => setConfirming(false)}
+                disabled={busy}
+                data-autofocus
+              >
+                Cancel
+              </button>
+              <button type="button" className="btn btn--danger" onClick={confirm} disabled={busy}>
+                {busy ? (
+                  <LoaderCircle size={16} className="spin" aria-hidden="true" />
+                ) : (
+                  <LogOut size={16} aria-hidden="true" />
+                )}
+                {busy ? 'Logging out…' : 'Log out everywhere'}
+              </button>
+            </>
+          }
+        >
+          {error && <Alert>{error}</Alert>}
+          <p>This signs you out on all your devices, including this one.</p>
+        </Modal>
       )}
     </>
   )

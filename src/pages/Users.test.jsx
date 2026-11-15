@@ -1139,3 +1139,86 @@ describe('Users page: paging and sorting', () => {
     expect(within(alert).getByRole('button', { name: 'Reset sorting and pages' })).toBeInTheDocument()
   })
 })
+
+// ---- The test plan's paging rules on the Users page: labels on the last page, disabled buttons, aria-sort, a new
+// sort or size going back to page 1, and a slow old answer never replacing the current page ----
+describe('Users page: paging labels, buttons and races', () => {
+  const PEOPLE = [
+    admin,
+    ...Array.from({ length: 131 }, (_, i) =>
+      buildUser({ name: `Person ${String(i + 1).padStart(3, '0')}`, email: `p${i + 1}@ticketflow.local` }),
+    ),
+  ]
+  const pager = () => screen.getByRole('navigation', { name: 'User pages' })
+  const header = (name) => screen.getByRole('columnheader', { name: new RegExp(`^${name}`) })
+
+  it.each([
+    [{}, /^Showing 1–25 of 132/, 'Page 1 of 6', { previous: true, next: false }],
+    [{ route: '/admin/users?page=2' }, /^Showing 26–50 of 132/, 'Page 2 of 6', { previous: false, next: false }],
+    [{ route: '/admin/users?page=6' }, /^Showing 126–132 of 132/, 'Page 6 of 6', { previous: false, next: true }],
+    [
+      { route: '/admin/users?page=2&pageSize=100' },
+      /^Showing 101–132 of 132/,
+      'Page 2 of 2',
+      { previous: false, next: true },
+    ],
+  ])('%j: the range, the page and the buttons', async (options, range, pageLabel, disabled) => {
+    mockApi({ users: PEOPLE })
+    await renderUsers(admin, options)
+    expect(await screen.findByText(range)).toBeInTheDocument()
+    expect(within(pager()).getByText(pageLabel)).toBeInTheDocument()
+    const button = (name) => within(pager()).getByRole('button', { name })
+    expect({ previous: button('Previous').disabled, next: button('Next').disabled }).toEqual(disabled)
+  })
+
+  it('sortable headers start at aria-sort="none"; a sort on page 3 goes back to page 1', async () => {
+    mockApi({ users: PEOPLE })
+    const { user, router } = await renderUsers(admin, { route: '/admin/users?page=3' })
+    await screen.findByText(/^Showing 51–75 of 132/)
+    for (const name of ['Name', 'Email', 'Role']) expect(header(name)).toHaveAttribute('aria-sort', 'none')
+
+    await user.click(within(header('Email')).getByRole('button'))
+    await waitFor(() => expect(currentParams(router)).toEqual({ sort: 'email', order: 'asc' }))
+    expect(header('Email')).toHaveAttribute('aria-sort', 'ascending')
+    expect(header('Name')).toHaveAttribute('aria-sort', 'none')
+    expect(await screen.findByText(/^Showing 1–25 of 132/)).toBeInTheDocument()
+  })
+
+  it('the page size options are 25, 50 and 100, and a new size goes back to page 1', async () => {
+    mockApi({ users: PEOPLE })
+    const { user, router } = await renderUsers(admin, { route: '/admin/users?page=4' })
+    await screen.findByText(/^Showing 76–100 of 132/)
+    const size = within(pager()).getByLabelText('Per page')
+    expect([...size.options].map((o) => o.textContent)).toEqual(['25', '50', '100'])
+    await user.selectOptions(size, '50')
+    await waitFor(() => expect(currentParams(router)).toEqual({ pageSize: '50' }))
+    expect(await screen.findByText(/^Showing 1–50 of 132/)).toBeInTheDocument()
+  })
+
+  it('a slow answer for an old page is ignored', async () => {
+    const slow = deferred()
+    server.use(
+      http.get(`${API}/users`, async ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page'))
+        if (page === 1) await slow.promise
+        return HttpResponse.json({
+          items: PEOPLE.slice((page - 1) * 25, page * 25),
+          total: PEOPLE.length,
+          page,
+          pageSize: 25,
+        })
+      }),
+    )
+    const { router } = await renderUsers(admin, { route: '/admin/users?page=1' })
+    // Page 1 hangs; the user goes to page 2 meanwhile
+    await act(() => router.navigate('/admin/users?page=2'))
+    expect(await screen.findByText(/^Showing 26–50 of 132/)).toBeInTheDocument()
+    await act(async () => {
+      slow.resolve()
+      await slow.promise
+    })
+    expect(screen.getByText(/^Showing 26–50 of 132/)).toBeInTheDocument()
+    expect(screen.getByText('Person 025')).toBeInTheDocument()
+    expect(screen.queryByText('Person 001')).not.toBeInTheDocument()
+  })
+})

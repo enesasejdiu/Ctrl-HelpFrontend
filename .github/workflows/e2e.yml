@@ -11,7 +11,7 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     services:
       # MySQL 8.4 with its defaults (ONLY_FULL_GROUP_BY on), data kept in memory (tmpfs). Locally the tests run on
@@ -68,6 +68,10 @@ jobs:
 
       - name: Run e2e tests
         run: npm run e2e
+
+      # Paging and sorting against the real backend, 3 times in a row with no retries: they must pass every time
+      - name: Repeat the pagination e2e tests (3 runs, no retries)
+        run: npx playwright test e2e/pagination.spec.ts --project=chromium --repeat-each=3 --retries=0
 
       # The same app with email not set up on the backend: new and reset passwords are temporary ones
       - name: Run e2e tests (temporary-password mode)

@@ -4,7 +4,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { buildTicket, buildUser } from '../test/factories'
 import { currentParams, renderWithProviders } from '../test/render'
-import { API, server } from '../test/server'
+import { API, deferred, server } from '../test/server'
 import TicketList from './TicketList'
 
 const agent = buildUser({ name: 'Arben Krasniqi', role: 'agent' })
@@ -555,5 +555,150 @@ describe('TicketList paging and sorting', () => {
     await renderList()
     await screen.findByText('No tickets found.')
     expect(screen.queryByRole('navigation', { name: 'Ticket pages' })).not.toBeInTheDocument()
+  })
+})
+
+// ---- The test plan's paging rules: the labels on every kind of page (132 tickets), the disabled buttons, aria-sort on
+// every sortable column, and a slow answer for an old page never replacing the current one ----
+describe('TicketList paging: labels, buttons and races', () => {
+  // 132 tickets "T001" … "T132", newest last
+  const LOTS = Array.from({ length: 132 }, (_, i) =>
+    buildTicket({
+      title: `T${String(i + 1).padStart(3, '0')}`,
+      created_at: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(),
+    }),
+  )
+
+  it.each([
+    ['/tickets', 'Showing 1–25 of 132', 'Page 1 of 6', { previous: true, next: false }],
+    ['/tickets?page=2', 'Showing 26–50 of 132', 'Page 2 of 6', { previous: false, next: false }],
+    ['/tickets?page=6', 'Showing 126–132 of 132', 'Page 6 of 6', { previous: false, next: true }],
+    ['/tickets?page=2&pageSize=50', 'Showing 51–100 of 132', 'Page 2 of 3', { previous: false, next: false }],
+    ['/tickets?page=3&pageSize=50', 'Showing 101–132 of 132', 'Page 3 of 3', { previous: false, next: true }],
+    ['/tickets?pageSize=100&page=2', 'Showing 101–132 of 132', 'Page 2 of 2', { previous: false, next: true }],
+    ['/tickets?pageSize=100', 'Showing 1–100 of 132', 'Page 1 of 2', { previous: true, next: false }],
+  ])('%s: "%s", "%s"', async (route, range, pageLabel, disabled) => {
+    mockTickets(LOTS)
+    await renderList({ route })
+    expect(await screen.findByText(range)).toBeInTheDocument()
+    expect(within(pager()).getByText(pageLabel)).toBeInTheDocument()
+    const button = (name) => within(pager()).getByRole('button', { name })
+    expect({ previous: button('Previous').disabled, next: button('Next').disabled }).toEqual(disabled)
+  })
+
+  it('one page only: both buttons disabled, "Page 1 of 1"', async () => {
+    mockTickets(LOTS.slice(0, 7))
+    await renderList()
+    expect(await screen.findByText('Showing 1–7 of 7')).toBeInTheDocument()
+    expect(within(pager()).getByText('Page 1 of 1')).toBeInTheDocument()
+    expect(within(pager()).getByRole('button', { name: 'Previous' })).toBeDisabled()
+    expect(within(pager()).getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+
+  it('no results for a filter: "Showing 0 of 0", the empty state, and no pager', async () => {
+    mockTickets(LOTS)
+    await renderList({ route: '/tickets?q=nothing-matches-this' })
+    expect(await screen.findByText('Showing 0 of 0')).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Ticket pages' })).not.toBeInTheDocument()
+  })
+
+  it('every sortable column has aria-sort="none" until it is sorted, and only one is sorted at a time', async () => {
+    mockTickets(LOTS)
+    const { user } = await renderList()
+    await screen.findByText('Showing 1–25 of 132')
+    const sortable = screen.getAllByRole('columnheader').filter((th) => within(th).queryByRole('button'))
+    expect(sortable.length).toBeGreaterThanOrEqual(3)
+    for (const th of sortable) expect(th).toHaveAttribute('aria-sort', 'none')
+
+    for (const th of sortable) {
+      await user.click(within(th).getByRole('button'))
+      await waitFor(() => expect(th).not.toHaveAttribute('aria-sort', 'none'))
+      const sorted = screen
+        .getAllByRole('columnheader')
+        .filter((h) => h.hasAttribute('aria-sort') && h.getAttribute('aria-sort') !== 'none')
+      expect(sorted).toEqual([th])
+    }
+  })
+
+  it('the page size options are exactly 25, 50 and 100, and a new size goes back to page 1', async () => {
+    mockTickets(LOTS)
+    const { user, router } = await renderList({ route: '/tickets?page=4' })
+    await screen.findByText('Showing 76–100 of 132')
+    const size = within(pager()).getByLabelText('Per page')
+    expect([...size.options].map((o) => o.textContent)).toEqual(['25', '50', '100'])
+    await user.selectOptions(size, '100')
+    await waitFor(() => expect(currentParams(router)).toEqual({ pageSize: '100' }))
+    expect(await screen.findByText('Showing 1–100 of 132')).toBeInTheDocument()
+  })
+
+  it('a slow answer for page 1 that arrives after page 2 is ignored', async () => {
+    const slow = deferred()
+    server.use(
+      http.get(`${API}/tickets`, async ({ request }) => {
+        const params = new URL(request.url).searchParams
+        const page = Number(params.get('page'))
+        const body = { items: LOTS.slice((page - 1) * 25, page * 25), total: LOTS.length, page, pageSize: 25 }
+        if (page === 1 && !params.get('sort')) await slow.promise
+        return HttpResponse.json(body)
+      }),
+    )
+    const { user, router } = await renderList({ route: '/tickets?page=2' })
+    await screen.findByText('Showing 26–50 of 132')
+
+    // Back to page 1 (slow), then on to page 3 before page 1 has answered
+    await user.click(within(pager()).getByRole('button', { name: 'Previous' }))
+    await waitFor(() => expect(currentParams(router)).toEqual({}))
+    // While page 1 is loading the pager still shows the old page; jump with the URL instead of waiting for it
+    await act(() => router.navigate('/tickets?page=3'))
+    await screen.findByText('Showing 51–75 of 132')
+
+    await act(async () => {
+      slow.resolve()
+      await slow.promise
+    })
+    // Page 1's late answer changed nothing
+    await expectTitles(LOTS.slice(50, 75).map((t) => t.title))
+    expect(screen.getByText('Showing 51–75 of 132')).toBeInTheDocument()
+    expect(currentParams(router)).toEqual({ page: '3' })
+  })
+
+  it('a slow answer for an old sort is ignored too', async () => {
+    const slow = deferred()
+    server.use(
+      http.get(`${API}/tickets`, async ({ request }) => {
+        const params = new URL(request.url).searchParams
+        const list = [...LOTS]
+        if (params.get('order') === 'desc') list.reverse()
+        if (params.get('sort') === 'title' && params.get('order') === 'asc') await slow.promise
+        return HttpResponse.json({ items: list.slice(0, 25), total: list.length, page: 1, pageSize: 25 })
+      }),
+    )
+    const { user } = await renderList()
+    await screen.findByText('Showing 1–25 of 132')
+    const title = () => screen.getByRole('columnheader', { name: /^Title/ })
+
+    await user.click(within(title()).getByRole('button')) // asc: slow
+    await user.click(within(title()).getByRole('button')) // desc: fast
+    await waitFor(() => expect(shownTitles()[0]).toBe('T132'))
+    await act(async () => {
+      slow.resolve()
+      await slow.promise
+    })
+    expect(shownTitles()[0]).toBe('T132')
+    expect(title()).toHaveAttribute('aria-sort', 'descending')
+  })
+
+  it('the last page emptied by a delete elsewhere: the list moves to the new last page', async () => {
+    const data = [...LOTS.slice(0, 51)]
+    mockTickets(data)
+    const { router } = await renderList({ route: '/tickets?page=3' })
+    await screen.findByText('Showing 51–51 of 51')
+
+    // Ticket 51 is deleted (or closed and filtered out) by someone else; the next load of page 3 (here: after a sort
+    // that keeps the page, set through the URL) is empty
+    data.pop()
+    await act(() => router.navigate('/tickets?page=3&sort=created_at&order=asc'))
+    expect(await screen.findByText('Showing 26–50 of 50')).toBeInTheDocument()
+    expect(currentParams(router)).toEqual({ page: '2', sort: 'created_at', order: 'asc' })
   })
 })

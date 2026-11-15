@@ -18,6 +18,7 @@ import SetPasswordWithLink from './pages/SetPasswordWithLink'
 import Login from './pages/Login'
 import NewTicket from './pages/NewTicket'
 import NotFoundPage from './pages/NotFoundPage'
+import Privacy from './pages/Privacy'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import TicketDetail from './pages/TicketDetail'
@@ -48,6 +49,8 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+      {/* Open to everyone, logged in or not */}
+      <Route path="/privacy" element={<Privacy />} />
       <Route path="/set-password" element={<SetPasswordRoute />}>
         {/* After logging in with a temporary password, the only page until a new one is chosen */}
         <Route index element={<SetPassword />} />
