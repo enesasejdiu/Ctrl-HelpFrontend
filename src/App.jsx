@@ -20,6 +20,7 @@ import NewTicket from './pages/NewTicket'
 import NotFoundPage from './pages/NotFoundPage'
 import Privacy from './pages/Privacy'
 import Profile from './pages/Profile'
+import Settings from './pages/Settings'
 import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 import Users from './pages/Users'
@@ -80,6 +81,7 @@ function App() {
               }
             />
             <Route path="/admin/audit" element={<AuditLog />} />
+            <Route path="/admin/settings" element={<Settings />} />
           </Route>
 
           <Route element={<ProtectedRoute roles={['admin', 'hr']} />}>

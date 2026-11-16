@@ -144,6 +144,7 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Forgot password and Set password from link pages
 - [x] "Forgot password" v2: link only when email is set up (`GET /auth/config`), one confirmation for every answer, 429 countdown, 1-hour links that point back to /forgot-password when expired or used
 - [x] Pagination on the ticket list and users page
+- [x] Settings page (Admin): categories, priorities and target hours, company name in the top bar
 - [x] Satisfaction rating (1–5 stars) when the employee closes a ticket
 - [x] Log out everywhere button on the profile page
 - [x] Privacy page in the app
