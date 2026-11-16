@@ -2,7 +2,7 @@
 // (the uploader or an admin), the confirm dialog, adding files, and files that failed (handed over by New ticket, or
 // failed here) with "Try again". The API is a small in-memory backend (GET /tickets/42, POST
 // /tickets/42/attachments, DELETE /attachments/:id).
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import TicketDetail from '../pages/TicketDetail'
 import { buildTicket, buildUser } from '../test/factories'
@@ -231,5 +231,34 @@ describe('Ticket attachments', () => {
     await renderTicket(requester)
     await screen.findByRole('heading', { name: 'Attachments (18)' })
     expect(within(card()).getByLabelText(/Add files/)).toHaveAccessibleDescription(/2 files at most/)
+  })
+})
+
+describe('thumbnails and comment files', () => {
+  it('an image gets a thumbnail from the preview URL (?inline=1); a PDF keeps its icon', async () => {
+    mockBackend({ attachments: [attachment(7, 'screen.png', requester), attachment(8, 'invoice.pdf', agent)] })
+    await renderTicket(requester)
+    await screen.findByRole('heading', { name: 'Attachments (2)' })
+
+    const thumbnail = rowFor('screen.png').querySelector('img')
+    expect(thumbnail).toHaveAttribute('src', `${API}/attachments/7/download?inline=1`)
+    // Decorative: the file's name is right next to it
+    expect(thumbnail).toHaveAttribute('alt', '')
+    expect(rowFor('invoice.pdf').querySelector('img')).toBeNull()
+  })
+
+  it("a thumbnail that can't be loaded falls back to the icon", async () => {
+    mockBackend({ attachments: [attachment(7, 'screen.png', requester)] })
+    await renderTicket(requester)
+    await screen.findByRole('heading', { name: 'Attachments (1)' })
+    fireEvent.error(rowFor('screen.png').querySelector('img'))
+    await waitFor(() => expect(rowFor('screen.png').querySelector('img')).toBeNull())
+  })
+
+  it('a file that came with a comment says so in the list', async () => {
+    mockBackend({ attachments: [attachment(7, 'screen.png', requester, { comment_id: 3 })] })
+    await renderTicket(requester)
+    await screen.findByRole('heading', { name: 'Attachments (1)' })
+    expect(rowFor('screen.png')).toHaveTextContent('with a comment')
   })
 })

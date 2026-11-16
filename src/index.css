@@ -2720,6 +2720,41 @@ fieldset.field {
   color: var(--text-muted);
 }
 
+/* An image attachment's thumbnail (TicketAttachments.jsx), in place of the type icon */
+.attachment-thumb {
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted, transparent);
+}
+
+/* The files that came with a comment, under its text (TicketDetail.jsx) */
+.comment__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comment__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.comment-form__files {
+  margin-top: 8px;
+}
+
 .file-list__name,
 .upload-list__name,
 .attachment-list__name {

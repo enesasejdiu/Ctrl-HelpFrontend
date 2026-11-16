@@ -1,12 +1,13 @@
 // TicketAttachments.jsx – the "Attachments" card on a ticket's page.
-// Lists the files (icon, name, size, who added them and when) with a Download link, and a Delete button for whoever
+// Lists the files (a thumbnail for images, else an icon; name, size, who added them and when, and whether they came
+// with a comment) with a Download link, and a Delete button for whoever
 // uploaded a file or an admin (with a confirm dialog). Everyone who can see the ticket (the requester and staff) can
 // add files with the dropzone. Files that failed to upload, here or right after creating the ticket (New ticket passes
 // them as navigation state, `failedUploads`), are listed with "Try again".
 import { Download, LoaderCircle, RotateCcw, Trash2, Upload } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { deleteAttachment, downloadUrl, uploadFiles } from '../api/attachments'
+import { deleteAttachment, downloadUrl, previewUrl, uploadFiles } from '../api/attachments'
 import { errorMessage } from '../api/client'
 import { useAuth } from '../context/auth'
 import {
@@ -15,12 +16,38 @@ import {
   attachmentIcon,
   canDeleteAttachment,
   formatBytes,
+  hasThumbnail,
 } from '../utils/attachments'
 import { formatDate, timeAgo } from '../utils/format'
 import AttachmentDropzone from './AttachmentDropzone'
 import Modal from './Modal'
 import { Alert } from './Ui'
 import UploadStatusList from './UploadStatusList'
+
+// An image's thumbnail (the file itself, ?inline=1), or the icon for its type. Decorative: the name is next to it.
+// Falls back to the icon if the image can't be loaded.
+export function AttachmentThumbnail({ attachment, size = 20 }) {
+  const [broken, setBroken] = useState(false)
+  if (hasThumbnail(attachment.mime_type) && !broken) {
+    return (
+      <img
+        className="attachment-thumb"
+        src={previewUrl(attachment.id)}
+        alt=""
+        width={size * 2}
+        height={size * 2}
+        loading="lazy"
+        onError={() => setBroken(true)}
+      />
+    )
+  }
+  // attachmentIcon returns one of a few icon components defined once in lucide-react, not a new one per render
+  return createElement(attachmentIcon(attachment.mime_type), {
+    size,
+    'aria-hidden': 'true',
+    className: 'attachment-list__icon',
+  })
+}
 
 export default function TicketAttachments({ ticket, reload }) {
   const { user } = useAuth()
@@ -114,10 +141,9 @@ export default function TicketAttachments({ ticket, reload }) {
       ) : (
         <ul className="attachment-list">
           {attachments.map((attachment) => {
-            const Icon = attachmentIcon(attachment.mime_type)
             return (
               <li key={attachment.id} className="attachment-list__item">
-                <Icon size={20} aria-hidden="true" className="attachment-list__icon" />
+                <AttachmentThumbnail attachment={attachment} />
                 <div className="attachment-list__text">
                   <span className="attachment-list__name">{attachment.original_name}</span>
                   <span className="attachment-list__meta">
@@ -125,6 +151,7 @@ export default function TicketAttachments({ ticket, reload }) {
                     <time dateTime={attachment.created_at} title={formatDate(attachment.created_at)}>
                       {timeAgo(attachment.created_at)}
                     </time>
+                    {attachment.comment_id && ' · with a comment'}
                   </span>
                 </div>
                 <div className="attachment-list__actions">
