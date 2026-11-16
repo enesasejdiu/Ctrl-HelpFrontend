@@ -270,20 +270,27 @@ location /assets/ {
     add_header Cache-Control "public, max-age=31536000, immutable";
 }
 
-# Anything else with a file extension (favicon.svg, robots.txt, …): the file or 404
+# Anything else with a file extension (favicon.svg, robots.txt, …): the file or 404. No hash in these names: 1 hour.
 location ~ \.[a-zA-Z0-9]+$ {
     try_files $uri =404;
+    add_header Cache-Control "public, max-age=3600";
 }
 
-# Page addresses: the app. index.html must not be cached, so a new deploy is picked up.
+# Page addresses: the app
 location / {
     try_files $uri /index.html;
+}
+
+# index.html, also for every page address above (try_files ends here, so the header goes here, not in "location /"):
+# not cached, so a new deploy is picked up
+location = /index.html {
     add_header Cache-Control "no-cache";
 }
 
-# The API on the same origin (see "Sessions")
+# The API on the same origin (see "Sessions"). No path after the address: /api is kept, as the backend expects.
 location /api/ {
     proxy_pass http://127.0.0.1:5050;
+    client_max_body_size 11m;
 }
 ```
 
@@ -298,7 +305,8 @@ The nginx site is [`docker/default.conf.template`](docker/default.conf.template)
 - every page address gets `index.html` (deep links and reloads work); a missing file is a real 404, never the page
 - `/api/` goes to the backend (see below)
 - `/assets/*` (hashed names) are cached for a year (`immutable`); `index.html` is `no-cache`, so a deploy shows up
-  straight away
+  straight away (the browser revalidates with its ETag; no hard refresh needed); other files from `public/`
+  (`favicon.svg`, no hash in the name) for an hour
 - gzip for HTML, CSS, JavaScript, JSON, SVG and text
 - security headers on every answer ([`docker/security-headers.conf`](docker/security-headers.conf)), see below
 - `/healthz` answers `ok` (not logged); access logs go to stdout, errors to stderr (`docker logs`)
@@ -319,7 +327,8 @@ Build arguments end up **in the JavaScript bundle**, so they are public: never p
 read when the container starts, so one image serves every environment.
 
 **How `/api` works.** The browser only ever talks to this container. nginx passes `/api/...` on to `BACKEND_URL`
-unchanged, with `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`, cookies and the
+unchanged (the `/api` prefix is **kept**: the backend's routes are `/api/...`; an unknown one gets the backend's 404
+JSON, never `index.html`), with `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`, cookies and the
 `X-CSRF-Token` header. So the page and the API share one origin: the session cookies are first-party, no CORS is
 needed, and `SameSite` stays as strict as the backend sets it (see [Sessions](#sessions-cookies-and-csrf)).
 
@@ -328,8 +337,9 @@ needed, and `SameSite` stays as strict as the backend sets it (see [Sessions](#s
   or load balancer in front of this one, that number has to grow.
 - nginx looks `BACKEND_URL` up per request, so it starts even when the API isn't up yet (`/api` answers 502 until it
   is). Use an IP address or a name Docker's DNS knows (a container or service name), not one only in `/etc/hosts`.
-- Uploads up to 60 MB pass: the API takes up to 5 attachments of 10 MB in one request and checks the real limits.
-  Uploads stream to the API (no temporary file in nginx). Timeouts: 5 s to connect, 60 s per request.
+- Request bodies up to 11 MB pass; bigger ones get 413 from nginx. Attachments are 10 MB at most and the app uploads
+  them one per request; the API checks the real limits. Uploads stream to the API (no temporary file in nginx).
+  Timeouts: 5 s to connect, 60 s per request. nginx caches no API answer.
 - The app uses no websockets or server-sent events, so there are no upgrade headers.
 
 **Security headers**, on every answer (pages, files, 404s, `/healthz`):
@@ -355,8 +365,10 @@ next to both repos, put the secrets it names into a `.env` beside it, and run `d
 **CI** (the `docker` job in `frontend-ci.yml`, every pull request, nothing pushed): hadolint, the build, `nginx -t`,
 the image size and labels, then the image runs against a stub backend
 ([`docker/stub-backend.mjs`](docker/stub-backend.mjs)) and [`docker/verify.sh`](docker/verify.sh) checks it: non-root,
-healthy, the routes and their cache headers, gzip, the 404s, every security header, the `/api` proxy and what it
-forwards, the upload limit, and that no source, source map, `.env` or `node_modules` is in the image.
+healthy, the routes and their cache headers, gzip, the 404s (files and unknown API routes), every security header, the
+`/api` proxy and what it forwards (path, headers, cookies both ways), the upload limit (10 MB passes, 12 MB is 413),
+that a changed `index.html` reaches the browser without a hard refresh, and that no source, source map, `.env` or
+`node_modules` is in the image.
 [`docker/check-csp.mjs`](docker/check-csp.mjs) opens the app in Chromium with the real policy and fails on any
 violation. A last step checks that a source-only change reuses the `npm ci` layer.
 

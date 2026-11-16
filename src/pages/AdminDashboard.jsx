@@ -1,7 +1,9 @@
 // AdminDashboard.jsx – statistics for admins at /admin.
 // Everything comes from one request (GET /stats): stat cards on top, then three charts and two tables.
 // Resolution times are in hours, from when a ticket was created until it was resolved.
-import { AlertTriangle, CheckCircle2, Clock, Inbox, RefreshCw } from 'lucide-react'
+// Satisfaction is the average of the requesters' 1–5 star ratings; a backend without ratings sends no `ratings`,
+// and then the card and the table column are left out.
+import { AlertTriangle, CheckCircle2, Clock, Inbox, RefreshCw, Star } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import {
   Bar,
@@ -39,6 +41,10 @@ const TOOLTIP = {
 }
 const FINISHED = ['resolved', 'closed']
 const TOP_CATEGORIES = 8
+
+// 4.25 → "4.3"; no ratings yet → "—"
+const averageLabel = (average) => (average === null || average === undefined ? '—' : average.toFixed(1))
+const ratingsCount = (count) => `${count} ${count === 1 ? 'rating' : 'ratings'}`
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
@@ -118,13 +124,15 @@ export default function AdminDashboard() {
   const categoryData = stats.byCategory.slice(0, TOP_CATEGORIES)
   // "2026-W44" → "W44" for the x-axis; the tooltip shows the full week
   const trendData = stats.trend.map((w) => ({ ...w, label: w.week.split('-')[1] }))
+  const { ratings } = stats
+  const agentRating = (name) => ratings?.byAgent.find((agent) => agent.name === name)
 
   return (
     <>
       {header}
       {error && <Alert>{error}</Alert>}
 
-      <div className="stat-grid">
+      <div className={`stat-grid${ratings ? ' stat-grid--5' : ''}`}>
         <StatCard icon={Inbox} label="Total tickets" value={stats.total} />
         <StatCard icon={Clock} label="Still open" value={openCount} hint="Not resolved or closed yet" />
         <StatCard
@@ -140,6 +148,14 @@ export default function AdminDashboard() {
           value={formatHours(stats.avgResolutionHours)}
           hint={`Across ${stats.resolvedCount} resolved ${stats.resolvedCount === 1 ? 'ticket' : 'tickets'}`}
         />
+        {ratings && (
+          <StatCard
+            icon={Star}
+            label="Satisfaction"
+            value={ratings.count > 0 ? `${averageLabel(ratings.average)} / 5` : '—'}
+            hint={ratings.count > 0 ? `From ${ratingsCount(ratings.count)}` : 'No ratings yet'}
+          />
+        )}
       </div>
 
       <div className="dashboard-grid">
@@ -229,6 +245,7 @@ export default function AdminDashboard() {
                   <th className="table__num">Assigned</th>
                   <th className="table__num">Resolved</th>
                   <th className="table__num">Avg. time</th>
+                  {ratings && <th className="table__num">Satisfaction</th>}
                 </tr>
               </thead>
               <tbody>
@@ -243,11 +260,12 @@ export default function AdminDashboard() {
                     <td className="table__num">{agent.assigned}</td>
                     <td className="table__num">{agent.resolved}</td>
                     <td className="table__num">{formatHours(agent.avg_hours)}</td>
+                    {ratings && <SatisfactionCell rating={agentRating(agent.name)} />}
                   </tr>
                 ))}
                 {stats.byAgent.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="text-muted">
+                    <td colSpan={ratings ? 5 : 4} className="text-muted">
                       No active staff yet.
                     </td>
                   </tr>
@@ -307,6 +325,21 @@ function StatCard({ icon: Icon, label, value, hint, tone }) {
       <div className="stat-card__value">{value}</div>
       {hint && <div className="stat-card__hint">{hint}</div>}
     </div>
+  )
+}
+
+// An agent's average stars and how many ratings it's from: "4.5 (12)"; none yet: "—"
+function SatisfactionCell({ rating }) {
+  if (!rating?.count) return <td className="table__num text-muted">—</td>
+  return (
+    <td className="table__num">
+      {averageLabel(rating.average)}
+      <span className="text-muted" aria-hidden="true">
+        {' '}
+        ({rating.count})
+      </span>
+      <span className="sr-only"> from {ratingsCount(rating.count)}</span>
+    </td>
   )
 }
 

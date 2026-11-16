@@ -41,6 +41,11 @@ check "/ → Cache-Control: no-cache" header_is "$BASE/" 'cache-control: no-cach
 check "deep link /tickets/5 → 200" test "$(status "$BASE/tickets/5")" = 200
 check "deep link /tickets/5 is index.html" body_has "$BASE/tickets/5" '<div id="root">'
 check "deep link /tickets/5 → Cache-Control: no-cache" header_is "$BASE/tickets/5" 'cache-control: no-cache'
+for path in '/admin/users?page=2' '/admin/audit-log?user=3'; do
+  check "deep link $path → 200" test "$(status "$BASE$path")" = 200
+  check "deep link $path is index.html" body_has "$BASE$path" '<div id="root">'
+  check "deep link $path → Cache-Control: no-cache" header_is "$BASE$path" 'cache-control: no-cache'
+done
 
 echo "Assets"
 ASSET="$(curl -s "$BASE/" | grep -o '/assets/[^"]*\.js' | head -1)"
@@ -50,13 +55,18 @@ check "$ASSET → immutable for a year" header_is "$BASE$ASSET" 'cache-control: 
 check "$ASSET is gzipped when asked" header_is "$BASE$ASSET" 'content-encoding: gzip' -H 'Accept-Encoding: gzip'
 check "/assets/missing.js → 404 (not index.html)" test "$(status "$BASE/assets/missing.js")" = 404
 check "/missing.png → 404 (not index.html)" test "$(status "$BASE/missing.png")" = 404
+check "/favicon.ico → 404 (there is none; favicon.svg is the icon)" test "$(status "$BASE/favicon.ico")" = 404
+
+echo "Files without a hash (public/)"
+check "/favicon.svg → 200" test "$(status "$BASE/favicon.svg")" = 200
+check "/favicon.svg → cached for an hour" header_is "$BASE/favicon.svg" 'cache-control: public, max-age=3600'
 
 echo "Health"
 check "/healthz → 200" test "$(status "$BASE/healthz")" = 200
 check "/healthz says ok" body_has "$BASE/healthz" '^ok$'
 
 echo "Security headers"
-for path in / /tickets/5 "$ASSET" /assets/missing.js /healthz; do
+for path in / /tickets/5 "$ASSET" /assets/missing.js /favicon.svg /healthz; do
   check "$path: X-Content-Type-Options: nosniff" header_is "$BASE$path" 'x-content-type-options: nosniff'
   check "$path: X-Frame-Options: DENY" header_is "$BASE$path" 'x-frame-options: DENY'
   check "$path: Content-Security-Policy" sh -c "curl -s -o /dev/null -D - '$BASE$path' | grep -qi '^content-security-policy: default-src .self.'"
@@ -78,7 +88,12 @@ check "Host is forwarded (the name the browser used)" sh -c "echo '$ECHO' | grep
 check "X-Real-IP is set" sh -c "echo '$ECHO' | grep -q '\"x-real-ip\":\"'"
 check "X-Forwarded-For keeps the earlier hop and adds the client" sh -c "echo '$ECHO' | grep -q '\"x-forwarded-for\":\"203.0.113.9, '"
 check "X-Forwarded-Proto is set" sh -c "echo '$ECHO' | grep -q '\"x-forwarded-proto\":\"http\"'"
-check "cookies pass through" sh -c "curl -s -H 'Cookie: tf_session=abc' '$BASE/api/echo' | grep -q '\"cookie\":\"tf_session=abc\"'"
+check "cookies reach the backend" sh -c "curl -s -H 'Cookie: tf_session=abc' '$BASE/api/echo' | grep -q '\"cookie\":\"tf_session=abc\"'"
+check "the backend's Set-Cookie comes back unchanged" header_is "$BASE/api/echo" 'set-cookie: tf_stub=1; Path=/; HttpOnly; SameSite=Lax'
+check "/api/does-not-exist → 404 from the backend" test "$(status "$BASE/api/does-not-exist")" = 404
+check "/api/does-not-exist is the backend's JSON, not index.html" body_has "$BASE/api/does-not-exist" '"message":"Route not found'
+check "/api/does-not-exist → application/json" header_is "$BASE/api/does-not-exist" 'content-type: application/json'
+check "/api/x.json goes to the backend too (not the file rule)" body_has "$BASE/api/does-not-exist.json" '"message":"Route not found'
 # /api/ answers carry the API's own security headers only: nginx adds none of the page's (they used to arrive twice,
 # e.g. "X-Content-Type-Options: nosniff, nosniff"). The stub backend sends none, so none at all may arrive here.
 API_HEADERS="$(curl -s -o /dev/null -D - "$BASE/api/health" | tr -d '\r' | tr 'A-Z' 'a-z')"
@@ -86,10 +101,10 @@ for header in content-security-policy x-content-type-options x-frame-options ref
   check "/api/health: no $header added by nginx" sh -c "! printf '%s' \"$API_HEADERS\" | grep -q '^$header:'"
 done
 BIG="$(mktemp)"
-head -c $((11 * 1024 * 1024)) /dev/zero >"$BIG"
-check "an 11 MB upload reaches the backend (limit 60 MB)" test "$(status -X POST --data-binary "@$BIG" "$BASE/api/echo")" = 200
-head -c $((61 * 1024 * 1024)) /dev/zero >"$BIG"
-check "a 61 MB upload is refused by nginx (413)" test "$(status -X POST --data-binary "@$BIG" "$BASE/api/echo")" = 413
+head -c $((10 * 1024 * 1024)) /dev/zero >"$BIG"
+check "a 10 MB upload reaches the backend (limit 11 MB)" sh -c "curl -s -X POST --data-binary '@$BIG' '$BASE/api/echo' | grep -q '\"bytes\":10485760'"
+head -c $((12 * 1024 * 1024)) /dev/zero >"$BIG"
+check "a 12 MB upload is refused by nginx (413)" test "$(status -X POST --data-binary "@$BIG" "$BASE/api/echo")" = 413
 rm -f "$BIG"
 
 echo "Files in the image"
@@ -98,6 +113,16 @@ if [ -z "$FILES" ]; then pass "no node_modules, source maps, .env, package.json 
 check "no node binary" sh -c "! docker exec '$CONTAINER' sh -c 'command -v node'"
 echo "    served files:"
 docker exec "$CONTAINER" find /usr/share/nginx/html -type f | sort | sed 's/^/      /'
+
+# Last, because it changes the served index.html (an HTML comment at the end; harmless for the checks after this)
+echo "A new deploy is picked up without a hard refresh"
+ETAG="$(headers "$BASE/" | sed -n 's/^etag: //p')"
+echo "    index.html ETag: $ETAG"
+check "index.html has an ETag" test -n "$ETAG"
+check "unchanged index.html → 304 (the browser asks every time, cheaply)" test "$(status -H "If-None-Match: $ETAG" "$BASE/")" = 304
+docker exec -u 0 "$CONTAINER" sh -c 'echo "<!-- redeploy check -->" >> /usr/share/nginx/html/index.html'
+check "after a new build: the same request → 200 with the new page" test "$(status -H "If-None-Match: $ETAG" "$BASE/")" = 200
+check "after a new build: a deep link gets the new page too" body_has "$BASE/tickets/5" 'redeploy check'
 
 echo
 if [ "$failures" -eq 0 ]; then
