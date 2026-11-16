@@ -30,8 +30,9 @@ check "/api/health → 200 from the real backend" sh -c "curl -sf '$BASE/api/hea
 CODE="$(curl -s -o "$TMP/404.json" -w '%{http_code}' "$BASE/api/does-not-exist?x=1")"
 echo "    /api/does-not-exist → $CODE $(cat "$TMP/404.json")"
 check "/api/does-not-exist → 404" test "$CODE" = 404
-# The backend names the path it got: /api is still on it, so nginx kept the prefix (and the query string stayed off)
-check "the backend got /api/does-not-exist (prefix kept)" grep -q '"message":"Route not found: GET /api/does-not-exist"' "$TMP/404.json"
+# The backend names the path it got (with the query's keys, not its values): /api is still on it, so nginx kept the
+# prefix, and the query string arrived too
+check "the backend got /api/does-not-exist?x (prefix and query kept)" grep -q '"message":"Route not found: GET /api/does-not-exist?x"' "$TMP/404.json"
 
 echo "A session through nginx"
 # X-Forwarded-For from the client is a claim anyone can make: the backend must not take it as the visitor's address
