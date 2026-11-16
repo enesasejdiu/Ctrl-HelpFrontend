@@ -98,6 +98,99 @@ jobs:
           path: test-results/
           retention-days: 14
 
+  # A rehearsal of npm run e2e:staging (playwright.staging.config.ts), so the staging setup is known to work before
+  # it ever points at the shared server: a backend with email off (temporary passwords) on a throwaway database, and
+  # the frontend, stand in for staging on localhost. The staging run uses them only through the API, like staging:
+  # the seeded admin's login comes from STAGING_ADMIN_*, the run makes its own e2e-<runId>-… employee and agent, and
+  # the teardown cleans up (test-results/staging-cleanup.json). Then the throwaway database is dropped.
+  staging-rehearsal:
+    name: staging rehearsal (localhost)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: e2e-root
+        ports:
+          - 3306:3306
+        options: >-
+          --tmpfs /var/lib/mysql
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pe2e-root"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    env:
+      CI: 'true'
+      BACKEND_DIR: backend
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: '3306'
+      E2E_DB_USER: root
+      E2E_DB_PASSWORD: e2e-root
+      # Fixed for this job, so the backend, the frontend and the drop at the end agree (scripts/e2e-env.mjs)
+      E2E_DB_NAME: ticketflow_e2e_staging_rehearsal
+      E2E_API_PORT: '5181'
+      E2E_WEB_PORT: '5182'
+      E2E_PASSWORD_DELIVERY: temporary_password
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: enesasejdiu/Ctrl-HelpBackend
+          path: backend
+          token: ${{ secrets.BACKEND_REPO_TOKEN || github.token }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - run: |
+          npm ci
+          npm ci --prefix backend
+          npx playwright install --with-deps chromium
+
+      - name: Start the stand-in for staging (backend + frontend on localhost)
+        run: |
+          node scripts/e2e-backend.mjs start > backend.log 2>&1 &
+          API_PROXY_TARGET=http://localhost:5181 VITE_API_URL=/api VITE_SENTRY_DSN= npx vite --port 5182 --strictPort > frontend.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5182/api/health > /dev/null && break
+            sleep 2
+          done
+          curl -sf http://localhost:5182/api/health
+
+      - name: npm run e2e:staging against it
+        env:
+          STAGING_URL: http://localhost:5182
+          STAGING_ADMIN_EMAIL: admin@ticketflow.local
+          STAGING_ADMIN_PASSWORD: password123
+        run: npm run e2e:staging
+
+      - name: The cleanup report
+        if: always()
+        run: cat test-results/staging-cleanup.json || true
+
+      - name: Upload the staging report and traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: staging-rehearsal
+          path: |
+            playwright-report-staging/
+            test-results/staging/
+            backend.log
+            frontend.log
+          retention-days: 14
+
+      - name: Drop the throwaway database
+        if: always()
+        run: node scripts/e2e-backend.mjs drop
+
   # The frontend image's nginx in front of the REAL backend: the whole stack from docker-compose.example.yml (both
   # images built from source, the backend with NODE_ENV=production, MySQL), on a throwaway database with demo data,
   # checked by docker/verify-stack.sh (/api prefix kept, sessions and CSRF through the proxy, the visitor's IP in the

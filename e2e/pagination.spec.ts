@@ -1,3 +1,4 @@
+// @local-only: not in the staging run (playwright.staging.config.ts): guarded to a throwaway local database; makes 60 tickets that would stay on staging.
 // pagination.spec.ts – paging and sorting on the ticket list against the real backend.
 //
 // NEEDS THE BACKEND'S PAGINATION (GET /api/tickets?page=&pageSize=&sort=&order= answering { items, total, page,

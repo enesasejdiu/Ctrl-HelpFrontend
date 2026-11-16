@@ -1,0 +1,4 @@
+{
+  "//": "Hosts npm run e2e:staging may run against (scripts/staging-env.mjs). Only the shared staging server, never production. Add it here in a pull request.",
+  "hosts": []
+}

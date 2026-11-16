@@ -1,3 +1,4 @@
+// @local-only: not in the staging run (playwright.staging.config.ts): reads the reset emails from the local run's mail folder.
 // forgot-password.spec.ts – "Forgot password" from the sign-in page, against the real backend with email set up: the
 // same answer for any address, a one-time reset link (1 hour) by email, the current password still working until the
 // link is used, then only the new one, a "password changed" notice, and a used link that points back to
@@ -33,7 +34,7 @@ async function requestReset(page: Page, email: string) {
 test('a reset link by email; the old password works until the link sets a new one', async ({ page, api, uniq }) => {
   // Three sign-ins, a new password and two emails: more than the default 30 seconds on a busy machine
   test.slow()
-  const account = await api.createReadyEmployee(`Forgetful ${uniq}`, `forgetful.${uniq}@test.local`, 'OldPassword123')
+  const account = await api.createReadyEmployee(`Forgetful ${uniq}`, `forgetful.${uniq}@example.test`, 'OldPassword123')
   const before = sentMail().length
 
   // From the sign-in page, which takes the typed email along
@@ -93,8 +94,8 @@ test('a reset link by email; the old password works until the link sets a new on
 })
 
 test('an unknown address gets exactly the same answer as a real account, and no email', async ({ page, api, uniq }) => {
-  const account = await api.createReadyEmployee(`Known ${uniq}`, `known.${uniq}@test.local`)
-  const nobody = `nobody.${uniq}@test.local`
+  const account = await api.createReadyEmployee(`Known ${uniq}`, `known.${uniq}@example.test`)
+  const nobody = `nobody.${uniq}@example.test`
   const before = sentMail().length
 
   const known = await requestReset(page, account.email)

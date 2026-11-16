@@ -1,3 +1,4 @@
+// @local-only: not in the staging run (playwright.staging.config.ts): needs the test-only LOCKOUT_MINUTES=1; its wrong passwords count against staging's per-IP login limit.
 // lockout.spec.ts – account lockout end to end (@auth): 5 wrong passwords in a row lock the account, the login page says
 // so (with the time left) and blocks the button, the right password is refused while locked, and other accounts carry
 // on as normal.
@@ -75,7 +76,7 @@ async function isLoggedIn(page: Page) {
 
 test.describe('Account lockout', { tag: '@auth' }, () => {
   test('locks the account after 5 wrong passwords', async ({ page, api, uniq }) => {
-    const account = await api.createReadyEmployee(`Lockout ${uniq}`, `lockout.${uniq}@test.local`)
+    const account = await api.createReadyEmployee(`Lockout ${uniq}`, `lockout.${uniq}@example.test`)
     await page.goto('/login')
     await page.getByLabel('Work email').fill(account.email)
 
@@ -111,7 +112,7 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
   })
 
   test('the correct password is refused while the account is locked', async ({ page, api, uniq, playwright }) => {
-    const account = await api.createReadyEmployee(`Locked right ${uniq}`, `locked.right.${uniq}@test.local`)
+    const account = await api.createReadyEmployee(`Locked right ${uniq}`, `locked.right.${uniq}@example.test`)
     await lockThroughApi(playwright, account.email)
 
     // Straight to the API: the right password gets 423, not a session
@@ -135,8 +136,8 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
   })
 
   test('other accounts are not affected', async ({ page, api, uniq, playwright }) => {
-    const locked = await api.createReadyEmployee(`Locked A ${uniq}`, `locked.a.${uniq}@test.local`)
-    const other = await api.createReadyEmployee(`Free B ${uniq}`, `free.b.${uniq}@test.local`)
+    const locked = await api.createReadyEmployee(`Locked A ${uniq}`, `locked.a.${uniq}@example.test`)
+    const other = await api.createReadyEmployee(`Free B ${uniq}`, `free.b.${uniq}@example.test`)
     await lockThroughApi(playwright, locked.email)
 
     await page.goto('/login')
@@ -154,7 +155,7 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
     uniq,
     playwright,
   }) => {
-    const locked = await api.createReadyEmployee(`Locked C ${uniq}`, `locked.c.${uniq}@test.local`)
+    const locked = await api.createReadyEmployee(`Locked C ${uniq}`, `locked.c.${uniq}@example.test`)
     await lockThroughApi(playwright, locked.email)
 
     await page.goto('/login')
@@ -165,14 +166,14 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
     await expect(page.getByRole('button', { name: message('login.tryAgainIn', time) })).toBeDisabled()
 
     // The lock belongs to that account, so another email gets the button back and the message goes
-    await page.getByLabel('Work email').fill(`someone.else.${uniq}@test.local`)
+    await page.getByLabel('Work email').fill(`someone.else.${uniq}@example.test`)
     await expect(page.getByRole('button', { name: en['login.submit'] })).toBeEnabled()
     await expect(page.getByRole('alert')).toHaveCount(0)
     await expect(page.getByRole('timer')).toHaveCount(0)
   })
 
   test('the lock runs out and the correct password works again', async ({ page, api, uniq, playwright }) => {
-    const account = await api.createReadyEmployee(`Lock ends ${uniq}`, `lock.ends.${uniq}@test.local`)
+    const account = await api.createReadyEmployee(`Lock ends ${uniq}`, `lock.ends.${uniq}@example.test`)
     const minutes = await lockThroughApi(playwright, account.email)
     // The e2e backend locks for 1 minute (LOCKOUT_MINUTES in e2e/.env.test); anything longer would make this test wait
     expect(minutes, 'LOCKOUT_MINUTES=1 for the e2e backend').toBe(1)

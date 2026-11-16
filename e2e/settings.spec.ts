@@ -1,3 +1,4 @@
+// @local-only: not in the staging run (playwright.staging.config.ts): changes shared settings everyone on staging sees (company name, a priority's target hours).
 // settings.spec.ts – the admin Settings page against the real backend.
 //
 // NEEDS THE BACKEND'S SETTINGS API (GET/PATCH /api/settings, GET /api/settings/public, POST/PATCH/DELETE

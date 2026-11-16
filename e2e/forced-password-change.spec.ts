@@ -1,3 +1,4 @@
+// @local-only: not in the staging run (playwright.staging.config.ts): reads the set-password emails from the local run's mail folder.
 // forced-password-change.spec.ts – how people get their own password. A new account gets an emailed set-password
 // link (no password is shown to the admin); the link works once, and "Resend link" replaces it. An Admin/HR reset
 // ends the user's sessions and emails a reset link. Later anyone can change theirs from the top bar
@@ -82,7 +83,7 @@ test('a new account sets its own password with the emailed link, which works onl
 }) => {
   // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
   test.slow()
-  const email = `${uniq}@test.local`
+  const email = `${uniq}@example.test`
   await addUser(page, `New Starter ${uniq}`, email)
 
   // Nothing to sign in with yet: the usual message
@@ -124,7 +125,7 @@ test('a new account sets its own password with the emailed link, which works onl
 test('"Resend link" sends a new link; the old one stops working', async ({ page, browser, uniq }) => {
   // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
   test.slow()
-  const email = `${uniq}@test.local`
+  const email = `${uniq}@example.test`
   const name = `Resend Me ${uniq}`
   await addUser(page, name, email)
   const oldLink = await setPasswordLink(email)
@@ -154,7 +155,7 @@ test('a password reset during a session ends it; the user chooses a new password
 }) => {
   // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
   test.slow()
-  const email = `${uniq}@test.local`
+  const email = `${uniq}@example.test`
   const name = `Reset Me ${uniq}`
   const { context, page: user } = await newUserWithPassword(page, browser, name, email, 'FirstChoice123')
   const before = sentMail().length
@@ -196,7 +197,7 @@ test('a password reset during a session ends it; the user chooses a new password
 test('anyone can change their password from the top bar', async ({ page, browser, uniq }) => {
   // Two browsers (admin and user): slow in Firefox, like hr-flow.spec.ts, so triple the time
   test.slow()
-  const email = `${uniq}@test.local`
+  const email = `${uniq}@example.test`
   const { context, page: user } = await newUserWithPassword(page, browser, `Changer ${uniq}`, email, 'FirstChoice123')
 
   await user.getByRole('link', { name: 'Change password' }).click()

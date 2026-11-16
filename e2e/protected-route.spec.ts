@@ -1,6 +1,6 @@
 // protected-route.spec.ts – pages that need a login (or a role) send other visitors away.
 import { expect, test } from './support/fixtures'
-import { PASSWORD, USERS, authFile } from './support/users'
+import { account, authFile } from './support/users'
 
 test.describe('Protected routes', () => {
   test('a logged-out visitor is sent to /login, and back after signing in', async ({ page }) => {
@@ -9,8 +9,8 @@ test.describe('Protected routes', () => {
     await expect(page).toHaveURL('/login')
     await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
 
-    await page.getByLabel('Work email').fill(USERS.user.email)
-    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByLabel('Work email').fill(account('user').email)
+    await page.getByLabel('Password', { exact: true }).fill(account('user').password)
     await page.getByRole('button', { name: 'Sign in' }).click()
 
     await expect(page).toHaveURL('/tickets/new')

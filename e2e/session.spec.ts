@@ -3,7 +3,7 @@
 // the session cookie is httpOnly (not in document.cookie).
 import type { BrowserContext, Page } from '@playwright/test'
 import { expect, test } from './support/fixtures'
-import { PASSWORD, USERS } from './support/users'
+import { account } from './support/users'
 
 // What the page itself can see: web storage and the cookies JavaScript can read
 async function visibleToScripts(page: Page) {
@@ -31,8 +31,8 @@ test('log in, reload and stay logged in, log out; the token is never visible to 
   await page.goto('/login')
   await expectNoTokenVisible(page)
 
-  await page.getByLabel('Work email').fill(USERS.user.email)
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Work email').fill(account('user').email)
+  await page.getByLabel('Password', { exact: true }).fill(account('user').password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible()
 
@@ -64,8 +64,8 @@ test('a session that ends mid-way: back to /login saying so, and back to the pag
   context,
 }) => {
   await page.goto('/login')
-  await page.getByLabel('Work email').fill(USERS.user.email)
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Work email').fill(account('user').email)
+  await page.getByLabel('Password', { exact: true }).fill(account('user').password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible()
   await page.waitForLoadState('networkidle')
@@ -83,16 +83,16 @@ test('a session that ends mid-way: back to /login saying so, and back to the pag
   await expect(page.getByText('Your session has ended.')).toHaveCount(0)
 
   // Signing in again returns to the page the request failed on
-  await page.getByLabel('Work email').fill(USERS.user.email)
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Work email').fill(account('user').email)
+  await page.getByLabel('Password', { exact: true }).fill(account('user').password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL('/profile')
 })
 
 test('logging out yourself shows no session-expired message', async ({ page }) => {
   await page.goto('/login')
-  await page.getByLabel('Work email').fill(USERS.user.email)
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Work email').fill(account('user').email)
+  await page.getByLabel('Password', { exact: true }).fill(account('user').password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible()
 
@@ -108,8 +108,8 @@ test('a request that changes something is sent with the CSRF header and no Autho
   uniq,
 }) => {
   await page.goto('/login')
-  await page.getByLabel('Work email').fill(USERS.user.email)
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Work email').fill(account('user').email)
+  await page.getByLabel('Password', { exact: true }).fill(account('user').password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('heading', { name: 'My tickets' })).toBeVisible()
 
@@ -138,7 +138,7 @@ test("an admin resets a signed-in user's password: the user's next click lands o
   api,
   uniq,
 }) => {
-  const account = await api.createReadyEmployee(`Reset While Signed In ${uniq}`, `${uniq}@test.local`)
+  const account = await api.createReadyEmployee(`Reset While Signed In ${uniq}`, `${uniq}@example.test`)
 
   // The user, signed in in their own browser
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })

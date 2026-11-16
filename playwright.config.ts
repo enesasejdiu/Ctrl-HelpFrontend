@@ -5,6 +5,8 @@ import { defineConfig, devices } from '@playwright/test'
 import { API_PORT, API_URL, FRONTEND_PORT, FRONTEND_URL, PASSWORD_DELIVERY } from './scripts/e2e-env.mjs'
 
 const CI = !!process.env.CI
+// One prefix for everything this run creates (e2e-<runId>-…; e2e/support/target.ts); the workers inherit it
+process.env.E2E_RUN_ID ??= Date.now().toString(36)
 
 export default defineConfig({
   testDir: './e2e',
