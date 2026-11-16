@@ -20,14 +20,17 @@ server {
     # Don't say which nginx version this is
     server_tokens off;
 
-    # Attachments: up to 5 files of 10 MB in one upload, plus the multipart overhead. The backend checks the real limits.
-    client_max_body_size 60m;
+    # Attachments are 10 MB at most and the app uploads them one file per request (src/api/attachments.js), so 11 MB
+    # leaves room for the multipart overhead. Anything bigger is refused here (413) before it reaches the API. The
+    # backend still checks the real limits (and would take up to 5 files in one request from other clients).
+    client_max_body_size 11m;
 
+    # Compress text answers (text/html always is). No gzip_static: the Vite build doesn't write .gz files.
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
     gzip_proxied any;
-    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_types text/plain text/css text/javascript application/javascript application/json application/manifest+json image/svg+xml;
 
     # The security headers. Repeated (include) in every location that adds a header of its own, because nginx drops
     # the server's add_header lines in any location that has its own.
@@ -54,11 +57,14 @@ server {
     # The API, on the same origin as the page, so the session cookies are first-party and the page can read tf_csrf
     # (README "Sessions"). Cookies and the X-CSRF-Token header pass through unchanged (nginx forwards every request
     # header and Set-Cookie). The backend's address is looked up per request (resolver), so nginx starts even when the
-    # API isn't up yet and finds it again after it restarts with a new address.
+    # API isn't up yet and finds it again after it restarts with a new address. Never falls back to index.html: an
+    # unknown API route gets the backend's own 404 JSON. Nothing here is cached by nginx (there is no proxy_cache).
     location ^~ /api/ {
         resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
         set $api_url ${BACKEND_URL};
-        # proxy_pass with a variable and no path: the request goes on exactly as it came in (/api/...)
+        # The /api prefix is KEPT: the backend's routes are /api/... (app.js, routes/index.js). proxy_pass with a
+        # variable and no path passes the request on exactly as it came in, query string included. (Writing a path
+        # here, e.g. ${BACKEND_URL}/, would cut /api off.)
         proxy_pass $api_url;
 
         proxy_http_version 1.1;
@@ -77,17 +83,24 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # Anything else with a file extension (favicon.svg, robots.txt, …): the file or a real 404
+    # Anything else with a file extension (favicon.svg from public/, robots.txt, …): the file or a real 404, never
+    # index.html, so a missing file can't come back as HTML. These names have no hash, so they may change with a
+    # deploy: cached for an hour only.
     location ~ \.[a-zA-Z0-9]+$ {
         try_files $uri =404;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=3600" always;
     }
 
-    # Every page address (/tickets, /tickets/42, a reload, a mistyped one): the app
+    # Every page address (/tickets, /tickets/42, /admin/users?page=2, a reload, a mistyped one): the app, which then
+    # shows the page or its own "not found". (No $uri/: the build has no folders to serve an index from.)
     location / {
         try_files $uri /index.html;
     }
 
-    # The app's page itself (also where "location /" ends up). Never cached, so a new deploy is picked up straight away.
+    # The app's page itself (also where "location /" ends up). no-cache: the browser may keep it but asks every time
+    # (ETag / If-None-Match, a cheap 304 when nothing changed), so after a deploy it gets the new page, and with it the
+    # new /assets/ names, without a hard refresh. No service worker in the app, so nothing else needs this.
     location = /index.html {
         include /etc/nginx/snippets/security-headers.conf;
         add_header Cache-Control "no-cache" always;
