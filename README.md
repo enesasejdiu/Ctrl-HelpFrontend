@@ -372,6 +372,13 @@ that a changed `index.html` reaches the browser without a hard refresh, and that
 [`docker/check-csp.mjs`](docker/check-csp.mjs) opens the app in Chromium with the real policy and fails on any
 violation. A last step checks that a source-only change reuses the `npm ci` layer.
 
+The `stack` job in `e2e.yml` runs nginx in front of the **real** backend: it starts
+[`docker-compose.example.yml`](docker-compose.example.yml) (both images built from source, the backend in production
+mode, MySQL, throwaway secrets and database, demo data), and [`docker/verify-stack.sh`](docker/verify-stack.sh)
+checks that the backend gets `/api/...` with the prefix, that login, cookies and CSRF work through nginx, that the
+audit log records the visitor's IP address (not nginx's, not a made-up `X-Forwarded-For`), and that a 10 MB
+attachment is saved while 12 MB gets 413.
+
 ## Project structure
 
 ```

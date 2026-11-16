@@ -97,3 +97,57 @@ jobs:
           name: test-results
           path: test-results/
           retention-days: 14
+
+  # The frontend image's nginx in front of the REAL backend: the whole stack from docker-compose.example.yml (both
+  # images built from source, the backend with NODE_ENV=production, MySQL), on a throwaway database with demo data,
+  # checked by docker/verify-stack.sh (/api prefix kept, sessions and CSRF through the proxy, the visitor's IP in the
+  # audit log, the upload limit). Also proves the compose example itself still starts. Nothing is pushed anywhere.
+  stack:
+    name: stack (nginx + real backend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # The two repos side by side, as docker-compose.example.yml expects
+      - uses: actions/checkout@v7
+        with:
+          path: Ctrl-HelpFrontend
+      - uses: actions/checkout@v7
+        with:
+          repository: enesasejdiu/Ctrl-HelpBackend
+          path: Ctrl-HelpBackend
+          token: ${{ secrets.BACKEND_REPO_TOKEN || github.token }}
+
+      # Random values made for this run only; the stack and its database are thrown away at the end
+      - name: The compose file and throwaway secrets
+        run: |
+          cp Ctrl-HelpFrontend/docker-compose.example.yml docker-compose.yml
+          {
+            echo "DB_PASSWORD=$(openssl rand -hex 16)"
+            echo "DB_ROOT_PASSWORD=$(openssl rand -hex 16)"
+            echo "JWT_SECRET=$(openssl rand -hex 48)"
+          } > .env
+
+      - name: Start the stack (build both images, migrate, start)
+        run: |
+          docker compose -p stack up -d --build
+          for i in $(seq 1 90); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' stack-web-1 2>/dev/null)" = healthy ] && break
+            sleep 2
+          done
+          docker compose -p stack ps -a
+          test "$(docker inspect --format '{{.State.Health.Status}}' stack-web-1)" = healthy
+
+      # The demo users and tickets (the database is brand new and thrown away with the run)
+      - name: Demo data
+        run: docker compose -p stack exec -T api node scripts/seed.js
+
+      - name: Check nginx against the real backend (docker/verify-stack.sh)
+        run: bash Ctrl-HelpFrontend/docker/verify-stack.sh http://localhost:8080 stack-web-1
+
+      - name: Logs
+        if: always()
+        run: docker compose -p stack logs --no-color --tail 60 web api migrate || true
+
+      - name: Remove the stack and its data
+        if: always()
+        run: docker compose -p stack down -v || true
