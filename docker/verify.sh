@@ -79,6 +79,12 @@ check "X-Real-IP is set" sh -c "echo '$ECHO' | grep -q '\"x-real-ip\":\"'"
 check "X-Forwarded-For keeps the earlier hop and adds the client" sh -c "echo '$ECHO' | grep -q '\"x-forwarded-for\":\"203.0.113.9, '"
 check "X-Forwarded-Proto is set" sh -c "echo '$ECHO' | grep -q '\"x-forwarded-proto\":\"http\"'"
 check "cookies pass through" sh -c "curl -s -H 'Cookie: tf_session=abc' '$BASE/api/echo' | grep -q '\"cookie\":\"tf_session=abc\"'"
+# /api/ answers carry the API's own security headers only: nginx adds none of the page's (they used to arrive twice,
+# e.g. "X-Content-Type-Options: nosniff, nosniff"). The stub backend sends none, so none at all may arrive here.
+API_HEADERS="$(curl -s -o /dev/null -D - "$BASE/api/health" | tr -d '\r' | tr 'A-Z' 'a-z')"
+for header in content-security-policy x-content-type-options x-frame-options referrer-policy permissions-policy; do
+  check "/api/health: no $header added by nginx" sh -c "! printf '%s' \"$API_HEADERS\" | grep -q '^$header:'"
+done
 BIG="$(mktemp)"
 head -c $((11 * 1024 * 1024)) /dev/zero >"$BIG"
 check "an 11 MB upload reaches the backend (limit 60 MB)" test "$(status -X POST --data-binary "@$BIG" "$BASE/api/echo")" = 200
