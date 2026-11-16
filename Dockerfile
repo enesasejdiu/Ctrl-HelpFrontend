@@ -3,11 +3,13 @@
 # the backend. Node, the source code and node_modules never get into the final image.
 
 # Node: the project's version (.nvmrc, package.json "engines", CI), pinned to major.minor. nginx: an exact version.
-# Update them on purpose.
+# Update them on purpose. Both are tagged here; hadolint can't read an ARG's value, so it would report the FROM lines
+# below as untagged (DL3006). That one rule is switched off on those two lines only.
 ARG NODE_IMAGE=node:22.22-alpine
 ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:1.30.6-alpine3.24
 
 # ---- build: the static files ----
+# hadolint ignore=DL3006
 FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 # Only the package files first: this layer (npm ci) is reused until they change, so a source-only change rebuilds fast
@@ -28,6 +30,7 @@ RUN VITE_API_URL="$VITE_API_URL" \
     npm run build
 
 # ---- final image: nginx, as the unprivileged "nginx" user (uid 101), on port 8080 ----
+# hadolint ignore=DL3006
 FROM ${NGINX_IMAGE}
 
 # Which commit the image was built from: docker build --build-arg VCS_REF=$(git rev-parse HEAD)
