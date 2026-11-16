@@ -144,7 +144,7 @@ export class Api {
         const { csrf } = await logIn(http, created.user.email, created.temporaryPassword, `${email} (temporary)`)
         const changed = await http.post('auth/change-password', {
           headers: { 'X-CSRF-Token': csrf },
-          data: { current_password: created.temporaryPassword, new_password: password },
+          data: { currentPassword: created.temporaryPassword, newPassword: password },
         })
         expect(changed, `replace the temporary password of ${email}`).toBeOK()
       } else {

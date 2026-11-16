@@ -6,6 +6,7 @@ import { request } from '@playwright/test'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import globalTeardown from './global-teardown.staging'
 import { Api } from './support/fixtures'
 import { saveLogins } from './support/logins'
 import { API_URL, FRONTEND_URL, RUN_PREFIX, STAGING_ACCOUNTS_FILE, TEST_EMAIL_DOMAIN } from './support/target'
@@ -41,6 +42,11 @@ export default async function globalSetup() {
     fs.mkdirSync(path.dirname(file), { recursive: true })
     fs.writeFileSync(file, JSON.stringify(accounts), { mode: 0o600 })
     await saveLogins()
+  } catch (err) {
+    // Playwright skips the global teardown when the setup fails: clean up here, so a half-made account isn't left
+    // active on staging, then report the failure (the teardown signs in on its own)
+    await globalTeardown()
+    throw err
   } finally {
     await api.dispose()
   }
