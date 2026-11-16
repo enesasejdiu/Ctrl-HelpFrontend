@@ -94,6 +94,12 @@ check "/api/does-not-exist → 404 from the backend" test "$(status "$BASE/api/d
 check "/api/does-not-exist is the backend's JSON, not index.html" body_has "$BASE/api/does-not-exist" '"message":"Route not found'
 check "/api/does-not-exist → application/json" header_is "$BASE/api/does-not-exist" 'content-type: application/json'
 check "/api/x.json goes to the backend too (not the file rule)" body_has "$BASE/api/does-not-exist.json" '"message":"Route not found'
+# /api/ answers carry the API's own security headers only: nginx adds none of the page's (they used to arrive twice,
+# e.g. "X-Content-Type-Options: nosniff, nosniff"). The stub backend sends none, so none at all may arrive here.
+API_HEADERS="$(curl -s -o /dev/null -D - "$BASE/api/health" | tr -d '\r' | tr 'A-Z' 'a-z')"
+for header in content-security-policy x-content-type-options x-frame-options referrer-policy permissions-policy; do
+  check "/api/health: no $header added by nginx" sh -c "! printf '%s' \"$API_HEADERS\" | grep -q '^$header:'"
+done
 BIG="$(mktemp)"
 head -c $((10 * 1024 * 1024)) /dev/zero >"$BIG"
 check "a 10 MB upload reaches the backend (limit 11 MB)" sh -c "curl -s -X POST --data-binary '@$BIG' '$BASE/api/echo' | grep -q '\"bytes\":10485760'"

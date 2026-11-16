@@ -8,6 +8,28 @@
 map $request_uri $referrer_policy {
     default "strict-origin-when-cross-origin";
     ~^/(set|forgot)-password(/|\?|$) "no-referrer";
+    ~^/api/ "";
+}
+
+# The other security headers (security-headers.conf) are for this image's own answers: the page and its files. The
+# API sends its own, stricter ones (helmet: Content-Security-Policy default-src 'none', no-referrer, ...), and the
+# /api/ location inherits the server's add_header lines, so without this every API answer had each header twice
+# ("X-Content-Type-Options: nosniff, nosniff", two CSPs). An empty value means nginx doesn't add the header at all.
+map $request_uri $page_csp {
+    ~^/api/ "";
+    default "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.sentry.io; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+}
+map $request_uri $page_nosniff {
+    ~^/api/ "";
+    default "nosniff";
+}
+map $request_uri $page_frame_options {
+    ~^/api/ "";
+    default "DENY";
+}
+map $request_uri $page_permissions_policy {
+    ~^/api/ "";
+    default "camera=(), microphone=(), geolocation=()";
 }
 
 server {
