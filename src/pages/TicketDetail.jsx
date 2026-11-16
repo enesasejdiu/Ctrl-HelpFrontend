@@ -4,14 +4,18 @@
 // "Rate this ticket" stays on the page until they do. The rating then shows in the Details box for everyone.
 // The API has the final say on who may do what. After every action the page reloads the ticket,
 // because one change can trigger others (assigning also moves the status and adds history rows).
-import { ArrowLeft, Check, Lock, LoaderCircle, RotateCcw, Save, Send, Star, UserPlus } from 'lucide-react'
+import { ArrowLeft, Check, Lock, LoaderCircle, Paperclip, RotateCcw, Save, Send, Star, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { downloadUrl, uploadFiles } from '../api/attachments'
 import client, { errorMessage, isNotFound } from '../api/client'
+import AttachmentDropzone from '../components/AttachmentDropzone'
 import { OverdueBadge, PriorityBadge, StatusBadge } from '../components/Badges'
 import NotFound from '../components/NotFound'
 import RatingDialog, { RatingStars } from '../components/RatingDialog'
-import TicketAttachments from '../components/TicketAttachments'
+import TicketAttachments, { AttachmentThumbnail } from '../components/TicketAttachments'
+import UploadStatusList from '../components/UploadStatusList'
+import { MAX_FILES_PER_TICKET, MAX_FILES_PER_UPLOAD } from '../utils/attachments'
 import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
 import { t } from '../i18n'
@@ -146,8 +150,12 @@ function TicketPage({ id }) {
 
               <section className="card card--padded">
                 <h2 className="panel-title">Comments ({ticket.comments.length})</h2>
-                <CommentList comments={ticket.comments} />
-                <CommentForm ticketId={ticket.id} reload={load} />
+                <CommentList comments={ticket.comments} attachments={ticket.attachments ?? []} />
+                <CommentForm
+                  ticketId={ticket.id}
+                  room={Math.max(0, MAX_FILES_PER_TICKET - (ticket.attachments?.length ?? 0))}
+                  reload={load}
+                />
               </section>
             </div>
 
@@ -170,7 +178,8 @@ function ButtonIcon({ busy, icon: Icon }) {
   return busy ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Icon size={16} aria-hidden="true" />
 }
 
-function CommentList({ comments }) {
+// attachments: the ticket's files; each comment shows the ones that came with it (comment_id)
+function CommentList({ comments, attachments }) {
   if (comments.length === 0) {
     return <p className="comments__empty">No comments yet.</p>
   }
@@ -196,17 +205,46 @@ function CommentList({ comments }) {
             </span>
           </div>
           <p className="user-text">{comment.content}</p>
+          <CommentFiles files={attachments.filter((attachment) => attachment.comment_id === comment.id)} />
         </li>
       ))}
     </ul>
   )
 }
 
-function CommentForm({ ticketId, reload }) {
+// The files added with one comment, as download links (the Attachments card lists them too, with Delete)
+function CommentFiles({ files }) {
+  if (files.length === 0) return null
+  return (
+    <ul className="comment__files" aria-label="Files with this comment">
+      {files.map((file) => (
+        <li key={file.id}>
+          <a
+            className="comment__file"
+            href={downloadUrl(file.id)}
+            download={file.original_name}
+            aria-label={`Download ${file.original_name}`}
+          >
+            <AttachmentThumbnail attachment={file} size={14} />
+            {file.original_name}
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// room: how many more files the ticket can take (20 in all). Files chosen here are uploaded right after the comment is
+// saved, with its comment_id, so they show under it (and, with an internal note, are staff-only like the note).
+function CommentForm({ ticketId, room, reload }) {
   const { isStaff } = useAuth()
   const { busy, error, setError, run } = useAction(reload)
   const [content, setContent] = useState('')
   const [isInternal, setIsInternal] = useState(false)
+  const [attaching, setAttaching] = useState(false)
+  const [files, setFiles] = useState([])
+  const [uploads, setUploads] = useState(null) // UploadStatusList entries while the files upload
+  const [notAttached, setNotAttached] = useState([]) // messages for files that failed, after the comment was saved
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -214,20 +252,51 @@ function CommentForm({ ticketId, reload }) {
       setError('Comment cannot be empty')
       return
     }
-    const saved = await run(() =>
+    setNotAttached([])
+    const chosen = files
+    const saved = await run(async () => {
       // Employees never see the switch, and the backend ignores is_internal from them anyway
-      client.post(`/tickets/${ticketId}/comments`, { content: content.trim(), is_internal: isInternal }),
-    )
-    // The draft is kept after a failure, so nothing typed gets lost
+      const { data: comment } = await client.post(`/tickets/${ticketId}/comments`, {
+        content: content.trim(),
+        is_internal: isInternal,
+      })
+      if (chosen.length === 0) return
+      // The comment is saved; each file now succeeds or fails on its own, and a failed one doesn't undo the comment
+      setUploads(chosen.map((file) => ({ name: file.name, status: 'waiting' })))
+      const results = await uploadFiles(
+        ticketId,
+        chosen,
+        (index, change) =>
+          setUploads((current) => current.map((entry, i) => (i === index ? { ...entry, ...change } : entry))),
+        comment.id,
+      )
+      setUploads(null)
+      setNotAttached(results.filter((result) => result.error).map((result) => result.error))
+    })
+    // The draft (text and files) is kept after a failure, so nothing gets lost
     if (saved) {
       setContent('')
       setIsInternal(false)
+      setFiles([])
+      setAttaching(false)
     }
   }
 
   return (
     <form className="comment-form" onSubmit={handleSubmit} noValidate>
       {error && <Alert>{error}</Alert>}
+      {notAttached.length > 0 && (
+        <Alert tone="warning">
+          <p>
+            The comment was added, but {notAttached.length === 1 ? 'this file was' : 'these files were'} not attached:
+          </p>
+          <ul className="upload-failures">
+            {notAttached.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </Alert>
+      )}
       <textarea
         className="textarea"
         rows={3}
@@ -236,6 +305,24 @@ function CommentForm({ ticketId, reload }) {
         value={content}
         onChange={(e) => setContent(e.target.value)}
       />
+      {uploads ? (
+        <div className="comment-form__files">
+          <UploadStatusList uploads={uploads} label="Uploading the comment's files" />
+        </div>
+      ) : (
+        attaching &&
+        room > 0 && (
+          <div className="comment-form__files">
+            <AttachmentDropzone
+              label={isInternal ? 'Files (staff only, like the note)' : 'Files'}
+              files={files}
+              onChange={setFiles}
+              max={Math.min(MAX_FILES_PER_UPLOAD, room)}
+              disabled={busy}
+            />
+          </div>
+        )
+      )}
       <div className="comment-form__actions">
         {isStaff && (
           <label className="switch">
@@ -244,9 +331,16 @@ function CommentForm({ ticketId, reload }) {
             Internal note
           </label>
         )}
+        {!attaching && room > 0 && (
+          <button type="button" className="btn btn--secondary" onClick={() => setAttaching(true)} disabled={busy}>
+            <Paperclip size={16} aria-hidden="true" />
+            Attach files
+          </button>
+        )}
         <button type="submit" className="btn btn--primary" disabled={busy}>
           <ButtonIcon busy={busy} icon={Send} />
           {isInternal ? 'Add internal note' : 'Add comment'}
+          {files.length > 0 && ` + ${files.length === 1 ? '1 file' : `${files.length} files`}`}
         </button>
       </div>
     </form>

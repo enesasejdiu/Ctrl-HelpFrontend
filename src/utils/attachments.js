@@ -37,6 +37,10 @@ export function attachmentIcon(mimeType = '') {
   return File
 }
 
+// Whether the page shows a thumbnail: the image types the backend previews with ?inline=1
+const PREVIEW_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+export const hasThumbnail = (mimeType) => PREVIEW_TYPES.includes(mimeType)
+
 // Who may delete an attachment: whoever uploaded it, or an admin (the backend checks the same)
 export function canDeleteAttachment(user, attachment) {
   return Boolean(user) && (user.role === 'admin' || attachment.uploaded_by?.id === user.id)

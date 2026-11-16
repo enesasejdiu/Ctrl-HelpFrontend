@@ -4,10 +4,16 @@
 import client, { errorMessage } from './client'
 import { formatBytes } from '../utils/attachments'
 
-// A link straight to the file. The browser sends the session cookie with it, and the backend always answers with
+// A link straight to the file. The browser sends the session cookie with it, and the backend answers with
 // Content-Disposition: attachment, so it downloads instead of opening.
 export function downloadUrl(attachmentId) {
   return `${client.defaults.baseURL}/attachments/${attachmentId}/download`
+}
+
+// The same file for showing in the page (an image's thumbnail): ?inline=1, which the backend allows for images and
+// PDFs only, still sandboxed and never cached
+export function previewUrl(attachmentId) {
+  return `${downloadUrl(attachmentId)}?inline=1`
 }
 
 // What went wrong with one file, as a sentence that names it
@@ -20,9 +26,11 @@ export function uploadErrorMessage(file, err) {
   return message.includes(file.name) ? message : `${file.name}: ${message}`
 }
 
-// Uploads one file; onProgress(0–100) while it's sent. Resolves to the new attachment.
-export async function uploadFile(ticketId, file, onProgress) {
+// Uploads one file; onProgress(0–100) while it's sent. Resolves to the new attachment. With commentId the file
+// belongs to that comment (one on the same ticket).
+export async function uploadFile(ticketId, file, onProgress, commentId) {
   const form = new FormData()
+  if (commentId) form.append('comment_id', String(commentId))
   form.append('files', file, file.name)
   const { data } = await client.post(`/tickets/${ticketId}/attachments`, form, {
     onUploadProgress: (event) => {
@@ -34,13 +42,17 @@ export async function uploadFile(ticketId, file, onProgress) {
 
 // Uploads the files one after another. onChange(index, { status, progress, error }) reports each one
 // (status: 'uploading' | 'done' | 'failed'). Resolves to [{ file, attachment } | { file, error }], in order.
-export async function uploadFiles(ticketId, files, onChange) {
+// commentId: optional, the comment the files belong to.
+export async function uploadFiles(ticketId, files, onChange, commentId) {
   const results = []
   for (const [index, file] of files.entries()) {
     onChange?.(index, { status: 'uploading', progress: 0 })
     try {
-      const attachment = await uploadFile(ticketId, file, (progress) =>
-        onChange?.(index, { status: 'uploading', progress }),
+      const attachment = await uploadFile(
+        ticketId,
+        file,
+        (progress) => onChange?.(index, { status: 'uploading', progress }),
+        commentId,
       )
       onChange?.(index, { status: 'done', progress: 100 })
       results.push({ file, attachment })

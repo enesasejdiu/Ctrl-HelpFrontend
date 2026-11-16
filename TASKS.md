@@ -147,5 +147,6 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Settings page (Admin): categories, priorities and target hours, company name in the top bar
 - [x] Satisfaction rating (1–5 stars) when the employee closes a ticket
 - [x] Log out everywhere button on the profile page
+- [x] Attachments: image thumbnails (`?inline=1`), files with a comment (comment form, listed under the comment; staff-only with an internal note)
 - [x] Privacy page in the app
 - [x] Frontend Dockerfile and nginx config
