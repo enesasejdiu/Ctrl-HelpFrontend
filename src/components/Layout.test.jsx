@@ -30,7 +30,7 @@ describe('Layout top bar', () => {
     ['employee', ['Tickets', 'New ticket']],
     ['agent', ['Tickets', 'New ticket']],
     ['hr', ['Tickets', 'New ticket', 'Users', 'Departments']],
-    ['admin', ['Tickets', 'New ticket', 'Dashboard', 'Users', 'Departments', 'Audit log']],
+    ['admin', ['Tickets', 'New ticket', 'Dashboard', 'Users', 'Departments', 'Audit log', 'Settings']],
   ])('%s gets these navigation links', async (role, links) => {
     await renderApp(buildUser({ role }))
     expect(await navLinks()).toEqual(links)

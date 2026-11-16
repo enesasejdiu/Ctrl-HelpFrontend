@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   ScrollText,
+  Settings as SettingsIcon,
   Ticket,
   TicketPlus,
   Users,
@@ -18,12 +19,14 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../context/auth'
 import RouteErrorBoundary from '../errors/RouteErrorBoundary'
 import { ROLE_LABELS } from '../utils/format'
+import { useCompanyName } from '../settings/companyName'
 import AppFooter from './AppFooter'
 import Logo from './Logo'
 import { Avatar } from './Ui'
 
 // Used as a layout route (the page comes from <Outlet />) or around `children` (the "Page not found" page)
 export default function Layout({ children }) {
+  const companyName = useCompanyName()
   const { user, isAdmin, canManageUsers, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -43,6 +46,7 @@ export default function Layout({ children }) {
             ]
           : []),
         ...(isAdmin ? [{ to: '/admin/audit', label: 'Audit log', icon: ScrollText }] : []),
+        ...(isAdmin ? [{ to: '/admin/settings', label: 'Settings', icon: SettingsIcon }] : []),
       ]
 
   // Avatar, name and role; a link to /profile, except while the user must first set a password
@@ -65,7 +69,7 @@ export default function Layout({ children }) {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar__inner">
-          <Link to="/tickets" className="topbar__brand" aria-label="TicketFlow home">
+          <Link to="/tickets" className="topbar__brand" aria-label={`${companyName} home`}>
             <Logo />
           </Link>
 

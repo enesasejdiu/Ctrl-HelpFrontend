@@ -239,9 +239,10 @@ export default function TicketList() {
             aria-label="Category"
           >
             <option value="">All categories</option>
+            {/* Archived categories stay filterable: old tickets still use them */}
             {meta.categories.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {c.is_active === false ? `${c.name} (archived)` : c.name}
               </option>
             ))}
           </select>

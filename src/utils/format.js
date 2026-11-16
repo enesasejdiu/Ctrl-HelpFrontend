@@ -75,3 +75,10 @@ export function initials(name = '') {
     .map((part) => part[0].toUpperCase())
     .join('')
 }
+
+// A target time in hours as the Settings page shows it: "4 h", "24 h (1 day)", "36 h (1.5 days)", "72 h (3 days)"
+export function hoursLabel(hours) {
+  if (hours < 24) return `${hours} h`
+  const days = Math.round((hours / 24) * 10) / 10
+  return `${hours} h (${days} ${days === 1 ? 'day' : 'days'})`
+}

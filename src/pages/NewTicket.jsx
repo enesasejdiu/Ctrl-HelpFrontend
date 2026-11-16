@@ -144,11 +144,14 @@ export default function NewTicket() {
                 required
               >
                 <option value="">Choose a category…</option>
-                {meta.categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {/* Archived categories aren't offered for new tickets (they stay on old ones) */}
+                {meta.categories
+                  .filter((c) => c.is_active !== false)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
               </select>
               {category?.description && <span className="field__hint">{category.description}</span>}
             </div>

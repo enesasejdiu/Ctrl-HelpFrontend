@@ -233,6 +233,11 @@ a.topbar__profile:hover {
 }
 
 .logo__text {
+  /* The company name (Settings) can be long: one line, cut off with an ellipsis */
+  max-width: 18em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 700;
   font-size: 17px;
   letter-spacing: -0.02em;
@@ -2852,5 +2857,109 @@ fieldset.field {
   .pagination__range {
     width: 100%;
     text-align: center;
+  }
+}
+
+/* ---------- Settings page ---------- */
+.settings {
+  display: grid;
+  gap: 20px;
+}
+
+.settings__company {
+  max-width: 560px;
+}
+
+.settings__actions,
+.priority-settings__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.settings__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 0;
+}
+
+.settings__card-header .panel-title {
+  margin-bottom: 0;
+}
+
+.settings__hint {
+  padding: 6px 20px 14px;
+  font-size: 13px;
+}
+
+.card--padded .settings__hint {
+  padding: 0 0 14px;
+}
+
+.settings__description {
+  white-space: normal;
+  max-width: 420px;
+}
+
+.saved-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #047857;
+}
+
+.priority-settings {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.priority-settings__row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.priority-settings__row:last-child {
+  border-bottom: 0;
+}
+
+.priority-settings__form {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 260px) 1fr;
+  align-items: start;
+  gap: 16px;
+}
+
+.priority-settings__level {
+  padding-top: 28px;
+}
+
+.priority-settings__actions {
+  padding-top: 26px;
+}
+
+@media (max-width: 760px) {
+  .priority-settings__form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .priority-settings__level,
+  .priority-settings__actions {
+    padding-top: 0;
+  }
+
+  .priority-settings__actions {
+    justify-content: flex-start;
+  }
+
+  .settings__card-header {
+    flex-wrap: wrap;
   }
 }
