@@ -2140,6 +2140,66 @@ fieldset.field {
   }
 }
 
+/* ---------- Satisfaction rating ---------- */
+/* Amber stars: 3:1 or more against white, enough for a graphic; empty stars keep a grey outline */
+.star {
+  color: var(--border-strong);
+  transition: color 0.1s;
+}
+
+.star--on {
+  color: #d97706;
+  fill: currentColor;
+}
+
+.rating-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.rating-field legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.star-picker {
+  display: flex;
+  gap: 4px;
+}
+
+.star-picker__star {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* The radio itself is visually hidden, so its focus ring goes on the star around it */
+.star-picker__star:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.rating-stars {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.rating-comment {
+  margin: 8px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+
+.stat-grid--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1024px) {
   .stat-grid {
