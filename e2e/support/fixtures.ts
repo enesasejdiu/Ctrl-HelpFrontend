@@ -5,7 +5,7 @@
 // runs can't interfere. Locally the database is wiped and reseeded once per run, when the backend starts; on staging
 // nothing is ever reset, and global-teardown.staging.ts cleans up what the run made (by its e2e-<runId>- prefix).
 import { test as base, expect, type APIRequestContext } from '@playwright/test'
-import { API_URL, RUN_PREFIX, STAGING, TEST_EMAIL_DOMAIN } from './target'
+import { API_URL, DEPLOYED, RUN_PREFIX, STAGING, TEST_EMAIL_DOMAIN } from './target'
 import { account, type Role } from './users'
 
 // Categories and priorities by name, as the backend lists them (GET /categories, /priorities). Their ids are
@@ -182,7 +182,11 @@ export const test = base.extend<{ api: Api; uniq: string; testEmail: (label?: st
     // the test's saved login (test.use storageState) too, and with two tf_csrf cookies the header and the cookie sent
     // can disagree (403 CSRF_INVALID).
     const api = new Api(() =>
-      playwright.request.newContext({ baseURL: `${API_URL}/`, storageState: { cookies: [], origins: [] } }),
+      playwright.request.newContext({
+        baseURL: `${API_URL}/`,
+        storageState: { cookies: [], origins: [] },
+        ignoreHTTPSErrors: DEPLOYED, // a deployed stack's own certificate
+      }),
     )
     await use(api)
     await api.dispose()

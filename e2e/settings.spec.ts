@@ -5,7 +5,7 @@
 // /api/categories, PATCH /api/priorities/:id), which is Aulona's backend part and not merged yet. Until then
 // /api/settings/public is a 404 and this test SKIPS ITSELF (the check at the start); once that backend is merged it
 // runs without any change here.
-import { API_URL } from '../scripts/e2e-env.mjs'
+import { API_URL } from './support/target'
 import { expect, test } from './support/fixtures'
 import { authFile } from './support/users'
 

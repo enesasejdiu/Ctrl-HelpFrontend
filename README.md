@@ -229,6 +229,35 @@ Passwords are never printed.
 - **Local-only tests are excluded.** Files that only work against a local run are listed in
   `playwright.staging.config.ts` (`LOCAL_ONLY`, with the reason for each) and marked `@local-only` at their top.
 
+### End-to-end tests against a disposable deployed stack
+
+`npm run e2e:deployed` (`playwright.deployed.config.ts`) runs the **full** suite, in Chromium and Firefox, against an app
+that is already deployed and may be thrown away afterwards, e.g. the backend's local staging stack
+(`Ctrl-HelpBackend: deploy/staging-up.sh`, `docs/staging-check.md`). Unlike `npm run e2e:staging` (a shared server: its
+own accounts and cleanup, local-only specs left out), it uses the seed accounts and changes the stack's data, so
+**never point it at a real installation**. `npm run e2e` is unchanged.
+
+```bash
+# the stack must be seeded first (the seed accounts log in); from the backend's deploy/:
+docker compose -p ticketflow-staging --env-file staging.env \
+  -f docker-compose.yml -f docker-compose.https.caddy.yml -f docker-compose.staging.yml run --rm api node scripts/seed.js --force
+E2E_BASE_URL=https://ticketflow.localhost:8443 npm run e2e:deployed
+```
+
+- `E2E_BASE_URL`: the app's address. Hosts that look like production (`prod`, `live`, `www`) are refused.
+- Emails are read from the stack's **Mailpit** inbox (`E2E_MAILPIT_URL`, default `http://127.0.0.1:8025`), which the
+  global setup empties first; the specs use the same `sentMail()` / `setPasswordLink()` as with the local outbox.
+- The stack's own certificate is accepted (Caddy's local CA). Don't also trust an _older_ Caddy root of the same name
+  in the macOS keychain: Firefox then fails every page with `SEC_ERROR_UNKNOWN` (a different key under the same name).
+- Skipped, with the reason: `error-pages.spec.ts` (the `/__crash` pages exist only in the dev server) and "the lock
+  runs out" (production always locks for 15 minutes). `temporary-passwords.spec.ts` needs email off and isn't run.
+- Production's limits apply: **20 failed logins per address per 15 minutes**. The lockout tests alone make about 20,
+  so run them in their own window, restarting the stack's API in between (its counts are in memory):
+  `--grep-invert "Account lockout"`, then `--grep "Account lockout" --grep-invert "changing the email|lock runs out"`,
+  then `--grep "changing the email clears the lockout"`.
+- Reseed before each browser's run: like a local run's fresh database. Leftover users from earlier runs push new ones
+  off the first page of the users list, where some tests look for them.
+
 ### Dependency updates and security audit
 
 - **Dependabot** (`.github/dependabot.yml`) opens update PRs every Monday at 06:00 (Europe/Budapest), labelled

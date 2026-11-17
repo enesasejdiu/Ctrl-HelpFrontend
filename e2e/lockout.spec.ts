@@ -14,7 +14,7 @@
 // Every test makes its own employee (a unique email, password already set), so a locked account never gets in the way
 // of another test, a parallel run or --repeat-each. Run only these with: npx playwright test --grep @auth
 import type { Page, PlaywrightWorkerArgs, Response } from '@playwright/test'
-import { API_URL } from '../scripts/e2e-env.mjs'
+import { API_URL, DEPLOYED } from './support/target'
 import en from '../src/i18n/en.js'
 import { expect, test } from './support/fixtures'
 
@@ -53,7 +53,7 @@ async function submitPassword(page: Page, password: string) {
 // Locks an account through the API, checking each answer: 401 four times, then 423 on the 5th. Returns the lock's
 // length in minutes, as the backend reports it.
 async function lockThroughApi(playwright: PlaywrightWorkerArgs['playwright'], email: string) {
-  const http = await playwright.request.newContext({ baseURL: `${API_URL}/` })
+  const http = await playwright.request.newContext({ baseURL: `${API_URL}/`, ignoreHTTPSErrors: DEPLOYED })
   try {
     let minutes = 0
     for (let attempt = 1; attempt <= MAX_FAILED; attempt += 1) {
@@ -116,7 +116,7 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
     await lockThroughApi(playwright, account.email)
 
     // Straight to the API: the right password gets 423, not a session
-    const http = await playwright.request.newContext({ baseURL: `${API_URL}/` })
+    const http = await playwright.request.newContext({ baseURL: `${API_URL}/`, ignoreHTTPSErrors: DEPLOYED })
     const direct = await http.post('auth/login', { data: account })
     expect(direct.status()).toBe(423)
     expect(await direct.json()).toMatchObject({ code: 'ACCOUNT_LOCKED' })
@@ -173,6 +173,8 @@ test.describe('Account lockout', { tag: '@auth' }, () => {
   })
 
   test('the lock runs out and the correct password works again', async ({ page, api, uniq, playwright }) => {
+    // A deployed stack runs in production, where the lock is always 15 minutes: too long to wait for
+    test.skip(DEPLOYED, 'production locks accounts for 15 minutes; only the e2e backend shortens it to 1')
     const account = await api.createReadyEmployee(`Lock ends ${uniq}`, `lock.ends.${uniq}@example.test`)
     const minutes = await lockThroughApi(playwright, account.email)
     // The e2e backend locks for 1 minute (LOCKOUT_MINUTES in e2e/.env.test); anything longer would make this test wait

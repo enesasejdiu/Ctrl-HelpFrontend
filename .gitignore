@@ -17,6 +17,7 @@ coverage
 test-results/
 playwright-report/
 playwright-report-staging/
+playwright-report-deployed/
 blob-report/
 e2e/.auth/
 
