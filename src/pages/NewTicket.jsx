@@ -3,6 +3,7 @@
 // Files can be attached under the description. On submit the ticket is created first, then each file is uploaded on
 // its own, with progress. The user then lands on the new ticket's page; files that failed are passed along (navigation
 // state, `failedUploads`), so that page can show them with "Try again". The ticket exists either way.
+// While the title is typed, similar open tickets and help articles show under it (components/similar).
 import { ArrowLeft, LoaderCircle, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
@@ -10,6 +11,7 @@ import { uploadFiles } from '../api/attachments'
 import client, { errorMessage } from '../api/client'
 import AttachmentDropzone from '../components/AttachmentDropzone'
 import { PriorityBadge } from '../components/Badges'
+import SimilarSuggestions from '../components/similar/SimilarSuggestions'
 import UploadStatusList from '../components/UploadStatusList'
 import { Alert, PageHeader, Spinner } from '../components/Ui'
 import { targetLabel } from '../utils/format'
@@ -132,6 +134,8 @@ export default function NewTicket() {
                 Up to {TITLE_MAX} characters
               </span>
             </div>
+
+            <SimilarSuggestions title={form.title} />
 
             <div className="field">
               <label htmlFor="category">Category</label>

@@ -3559,3 +3559,129 @@ fieldset.field {
     flex: 1 1 auto;
   }
 }
+
+/* Similar tickets and articles under the New ticket title (components/similar/SimilarSuggestions.jsx). It opens by
+   growing from no height (grid rows 0fr → 1fr), so the fields below slide down instead of jumping. */
+.suggest {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: -4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  animation: suggest-open 0.2s ease-out;
+}
+
+@keyframes suggest-open {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+.suggest__inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 14px;
+}
+
+.suggest__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suggest__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.suggest__loading {
+  color: var(--text-faint);
+}
+
+.suggest__hint {
+  margin: 2px 0 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.suggest__group {
+  margin: 10px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.suggest__list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+/* The whole row is the link: at least 44px high, easy to tap on a phone */
+.suggest__link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  justify-content: center;
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.suggest__link:hover {
+  background: var(--surface);
+}
+
+.suggest__link:hover .suggest__name {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.suggest__link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.suggest__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.suggest__number {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.suggest__summary {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.suggest__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.suggest mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  color: inherit;
+  background: #fef08a;
+}

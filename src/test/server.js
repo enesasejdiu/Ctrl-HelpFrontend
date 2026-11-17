@@ -27,6 +27,8 @@ export const handlers = [
   // The sign-in page asks whether email is set up ("Forgot password?"); tests override it to test it hidden
   http.get(`${API}/auth/config`, () => HttpResponse.json({ email_enabled: true })),
   http.get(`${API}/departments`, () => HttpResponse.json(DEPARTMENTS)),
+  // The New ticket form asks for similar tickets and articles while the title is typed; none unless a test says so
+  http.get(`${API}/search/suggestions`, () => HttpResponse.json({ tickets: [], articles: [] })),
 ]
 
 export const server = setupServer(...handlers)

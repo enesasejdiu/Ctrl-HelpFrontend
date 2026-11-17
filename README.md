@@ -263,7 +263,7 @@ These accounts come from the backend's demo data. They all use the password `pas
 | `/set-password?token=…`     | Everyone (the emailed link)     | A one-time link for a new account or an Admin/HR reset (48 hours), or from "Forgot password" (1 hour, "Choose a new password"), when the backend has email set up. The token is taken out of the address bar at once (not kept in history or sent as a Referer; the page also sets `Referrer-Policy: no-referrer`), the link is checked (expired, used or replaced links say to ask an administrator or HR for a new one; an expired or used "Forgot password" link links back to `/forgot-password`), then sign-in opens with "Password set, please log in." |
 | `/set-password`             | Users with a temporary password | Choose your own password after a reset; every other page redirects here until it's done                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/tickets`                  | Logged-in users                 | Ticket list with search and filters; employees see their own tickets, staff see all of them                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `/tickets/new`              | Logged-in users                 | Report a problem                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `/tickets/new`              | Logged-in users                 | Report a problem; similar open tickets and help articles show under the title while it is typed (see "Similar tickets and articles")                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `/tickets/:id`              | Logged-in users                 | Ticket details, comments and history; staff manage the ticket, employees close or reopen theirs                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `/admin`                    | Admins                          | Dashboard with statistics, charts and performance tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `/admin/users`              | Admins and HR                   | Add and edit users, reset passwords, change roles, activate or deactivate accounts; HR: employees only. After Add user or a reset, the backend's `password_delivery` decides what you see: `email` → "A link to set the password was emailed to …" (and "Resend link" on rows still waiting), `temporary_password` → the temporary password, shown once                                                                                                                                                                                                       |
@@ -275,6 +275,24 @@ These accounts come from the backend's demo data. They all use the password `pas
 | `/kb/new`, `/kb/:slug/edit` | Admins and IT staff             | The article editor (see "Knowledge base")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Employees can only open their own tickets. `/` opens `/tickets`.
+
+### Similar tickets and articles
+
+While someone types a new ticket's title, "Is this the same problem?" shows matching open tickets (only ones they may
+see: their own, or all for staff) and published help articles under it, so an existing answer can be found before
+submitting (`src/components/similar/`, backend `GET /api/search/suggestions`).
+
+- **When it asks:** from 3 characters (trimmed), 300 ms after typing stops. A newer keystroke cancels the request
+  waiting or running (AbortController), and an answer for an older title is never shown.
+- **What it shows:** up to 5 tickets (`#number title`, status, "updated 2 days ago") and up to 5 articles (title and
+  summary), with the title's words marked (`<mark>`, always as text). Links open in a new tab, so the ticket being
+  written stays as it is.
+- **When it hides:** no results, an error or a 429 → no panel and no message; it never blocks typing or submitting.
+  "None of these, continue" hides it until the title changes by 3 or more words (`src/utils/titleChange.js`).
+- **Accessibility:** a polite live region says "3 similar items found"; the panel is a labelled region with a list per
+  group; every link is at least 44 px high. It opens by growing in height, so the fields below slide rather than jump.
+- **Search limits** (backend README): MySQL/MariaDB full-text search ignores words shorter than 3 characters and common
+  words like "the" or "is", so a title made only of those finds nothing.
 
 ### Knowledge base
 
@@ -466,8 +484,10 @@ src/
   api/
     client.js            Axios instance: sends the session cookies and the CSRF header, handles expired sessions, reads error messages
     kb.js                Knowledge-base API calls, and the server's per-field messages
+    search.js            GET /search/suggestions (similar tickets and articles)
   components/
     kb/                  Knowledge base pieces: article list, search form, highlighted text, Markdown view
+    similar/             "Is this the same problem?" under the New ticket title, and useSuggestions (when to ask)
     AuthShell.jsx        Split-screen frame for the login page
     Badges.jsx           Status, priority and overdue badges
     Layout.jsx           Top bar and navigation around every logged-in page
@@ -525,6 +545,7 @@ src/
     markdown.js          Article Markdown → sanitized HTML (markdown-it + DOMPurify) and its headings
     markdownEdit.js      The editor toolbar's formatting (bold, link, heading, lists, …)
     kb.js                Article field checks, and splitting text into marked/unmarked parts for search results
+    titleChange.js       How many words a title changed by (when dismissed suggestions come back)
   App.jsx                All pages and their routes
   router.jsx             The data router's root route (wraps App in the auth provider and an error boundary)
   index.css              All styles: design tokens, components and responsive rules
