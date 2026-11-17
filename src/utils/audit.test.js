@@ -16,6 +16,14 @@ const ACTIONS = [
   ['user_deactivated', 'User deactivated'],
   ['attachment_uploaded', 'File attached'],
   ['attachment_deleted', 'Attachment deleted'],
+  ['kb.article_created', 'Article written'],
+  ['kb.article_updated', 'Article edited'],
+  ['kb.article_published', 'Article published'],
+  ['kb.article_unpublished', 'Article unpublished'],
+  ['kb.article_deleted', 'Article deleted'],
+  ['kb.category_created', 'Help category added'],
+  ['kb.category_updated', 'Help category edited'],
+  ['kb.category_deleted', 'Help category deleted'],
 ]
 
 describe('actionLabel', () => {
@@ -65,6 +73,19 @@ describe('auditSummary', () => {
       { ticket_id: 7, file_name: 'notes.txt', size_bytes: 900 },
       'notes.txt (900 bytes) · ticket #7',
     ],
+    ['kb.article_created', { article_id: 3, slug: 'vpn-setup', title: 'VPN setup' }, 'VPN setup'],
+    ['kb.article_published', { article_id: 3, slug: 'vpn-setup', title: 'VPN setup' }, 'VPN setup'],
+    ['kb.article_unpublished', { article_id: 3, slug: 'vpn-setup', title: 'VPN setup' }, 'VPN setup'],
+    ['kb.article_deleted', { article_id: 3, slug: 'vpn-setup', title: 'VPN setup' }, 'VPN setup'],
+    [
+      'kb.article_updated',
+      { article_id: 3, title: 'VPN setup', fields: ['title', 'body', 'slug', 'category_id', 'summary'] },
+      'VPN setup · title, text, address, category, summary',
+    ],
+    ['kb.article_updated', { article_id: 3, title: 'VPN setup', fields: [] }, 'VPN setup'],
+    ['kb.category_created', { category_id: 2, name: 'Network' }, 'Network'],
+    ['kb.category_updated', { category_id: 2, name: 'Network', fields: ['name'] }, 'Network'],
+    ['kb.category_deleted', { category_id: 2, name: 'Network' }, 'Network'],
   ])('%s %j → "%s"', (action, details, summary) => {
     expect(auditSummary({ action, details })).toBe(summary)
   })

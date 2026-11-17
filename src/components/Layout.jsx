@@ -4,6 +4,7 @@
 // A one-off message passed in the navigation state ({ flash }) is shown above the page, e.g. "Password changed".
 // A page that crashes while rendering is replaced by an error message (RouteErrorBoundary); the bar keeps working.
 import {
+  BookOpen,
   Building2,
   Check,
   KeyRound,
@@ -18,6 +19,7 @@ import {
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../context/auth'
 import RouteErrorBoundary from '../errors/RouteErrorBoundary'
+import { t } from '../i18n'
 import { ROLE_LABELS } from '../utils/format'
 import { useCompanyName } from '../settings/companyName'
 import AppFooter from './AppFooter'
@@ -38,6 +40,8 @@ export default function Layout({ children }) {
         // `end` keeps "Tickets" from staying active on /tickets/new
         { to: '/tickets', label: 'Tickets', icon: Ticket, end: true },
         { to: '/tickets/new', label: 'New ticket', icon: TicketPlus },
+        // Help articles, for everyone (active on every /kb page)
+        { to: '/kb', label: t('kb.nav'), icon: BookOpen },
         ...(isAdmin ? [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }] : []),
         ...(canManageUsers
           ? [

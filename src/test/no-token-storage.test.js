@@ -19,6 +19,8 @@ function sourceFiles(dir = SRC) {
 const STORAGE_ALLOWED = ['context/legacySession.js']
 // Keeps one timestamp in sessionStorage, so a failed code download after a deploy reloads the page only once
 const CHUNK_RELOAD = 'errors/chunkReload.js'
+// Keeps a copy of a knowledge-base article being written in localStorage (article text only), for after a crash
+const KB_DRAFT_BACKUP = 'pages/kb/draftBackup.js'
 
 // Comments are left out, so explaining what the code doesn't do doesn't trip the check
 const code = (file) =>
@@ -38,7 +40,23 @@ describe('no token on the client', () => {
   })
 
   it('no code uses localStorage or sessionStorage (auth lives in an httpOnly cookie)', () => {
-    expect(offenders(/\b(localStorage|sessionStorage)\b/, [...STORAGE_ALLOWED, CHUNK_RELOAD])).toEqual([])
+    expect(offenders(/\b(localStorage|sessionStorage)\b/, [...STORAGE_ALLOWED, CHUNK_RELOAD, KB_DRAFT_BACKUP])).toEqual(
+      [],
+    )
+  })
+
+  it('the knowledge-base draft backup keeps only article drafts, under its own keys, in localStorage', () => {
+    const backup = code(path.join(SRC, KB_DRAFT_BACKUP))
+    // Nothing about the session, and never sessionStorage
+    expect(backup).not.toMatch(/token|user|session|cookie|auth|csrf|password/i)
+    // Every key it reads, writes or removes is built by keyFor(), from its own prefix
+    expect(backup.match(/localStorage\.\w+\(\s*[^)]*/g)).toEqual([
+      'localStorage.getItem(keyFor(id',
+      'localStorage.setItem(keyFor(id',
+      'localStorage.removeItem(keyFor(id',
+    ])
+    expect(backup).toMatch(/DRAFT_BACKUP_PREFIX = 'kb-editor-backup:'/)
+    expect(backup).toMatch(/const keyFor = \(id\) => `\$\{DRAFT_BACKUP_PREFIX\}\$\{id\}`/)
   })
 
   it('the chunk-reload guard keeps only its timestamp in sessionStorage, and nothing in localStorage', () => {

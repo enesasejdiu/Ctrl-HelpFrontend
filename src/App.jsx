@@ -1,7 +1,8 @@
 // App.jsx – all routes of TicketFlow.
 // Public: /login, /forgot-password, and /set-password?token=... (a one-time link emailed for a new account or a reset). Everything else
 // needs a login; /change-password has its own full-page frame, the rest renders inside <Layout>. /admin and /admin/audit are
-// admin-only; /admin/users and /admin/departments are for admins and HR.
+// admin-only; /admin/users and /admin/departments are for admins and HR. The knowledge base (/kb…) is for everyone;
+// /kb/manage, /kb/new and /kb/:slug/edit for staff.
 // A URL that matches no route shows "Page not found" (NotFoundPage), logged in or not; real routes keep their guards.
 // Development builds also have /__crash pages for trying the error screens (see pages/DevCrash.jsx).
 import { Suspense, lazy } from 'react'
@@ -29,6 +30,21 @@ import { useLinkTokenFromUrl } from './utils/linkToken'
 
 // The dashboard pulls in the chart library, so it's only downloaded when an admin opens it
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+
+// The knowledge base (the Markdown renderer and sanitizer come with it), downloaded when it's first opened
+const KbHome = lazy(() => import('./pages/kb/KbHome'))
+const KbCategory = lazy(() => import('./pages/kb/KbCategory'))
+const KbSearch = lazy(() => import('./pages/kb/KbSearch'))
+const KbArticle = lazy(() => import('./pages/kb/KbArticle'))
+const KbManage = lazy(() => import('./pages/kb/KbManage'))
+const KbEditor = lazy(() => import('./pages/kb/KbEditor'))
+
+// A lazily loaded page, with a spinner until its code has arrived
+const page = (Page) => (
+  <Suspense fallback={<Spinner label="Loading…" />}>
+    <Page />
+  </Suspense>
+)
 
 // /set-password is two pages. With ?token= it is the public page for an emailed set-password link; without, the
 // logged-in page for a temporary password (inside the Layout, like the other pages), whose child route is below.
@@ -68,6 +84,19 @@ function App() {
           <Route path="/tickets/new" element={<NewTicket />} />
           <Route path="/tickets/:id" element={<TicketDetail />} />
           <Route path="/profile" element={<Profile />} />
+
+          {/* Knowledge base: everyone reads; staff (agents and admins) write. Fixed paths outrank /kb/:slug, and the
+              backend never gives an article the slug "new", "manage" or "search" */}
+          <Route path="/kb" element={page(KbHome)} />
+          <Route path="/kb/search" element={page(KbSearch)} />
+          <Route path="/kb/c/:categorySlug" element={page(KbCategory)} />
+          <Route path="/kb/:slug" element={page(KbArticle)} />
+          <Route element={<ProtectedRoute roles={['admin', 'agent']} />}>
+            <Route path="/kb/manage" element={page(KbManage)} />
+            <Route path="/kb/new" element={page(KbEditor)} />
+            <Route path="/kb/:slug/edit" element={page(KbEditor)} />
+          </Route>
+
           {import.meta.env.DEV && <Route path="/__crash" element={<DevCrash />} />}
           {import.meta.env.DEV && <Route path="/__crash/chunk" element={<DevCrash kind="chunk" />} />}
 

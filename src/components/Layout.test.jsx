@@ -27,10 +27,13 @@ describe('Layout top bar', () => {
   })
 
   it.each([
-    ['employee', ['Tickets', 'New ticket']],
-    ['agent', ['Tickets', 'New ticket']],
-    ['hr', ['Tickets', 'New ticket', 'Users', 'Departments']],
-    ['admin', ['Tickets', 'New ticket', 'Dashboard', 'Users', 'Departments', 'Audit log', 'Settings']],
+    ['employee', ['Tickets', 'New ticket', 'Knowledge base']],
+    ['agent', ['Tickets', 'New ticket', 'Knowledge base']],
+    ['hr', ['Tickets', 'New ticket', 'Knowledge base', 'Users', 'Departments']],
+    [
+      'admin',
+      ['Tickets', 'New ticket', 'Knowledge base', 'Dashboard', 'Users', 'Departments', 'Audit log', 'Settings'],
+    ],
   ])('%s gets these navigation links', async (role, links) => {
     await renderApp(buildUser({ role }))
     expect(await navLinks()).toEqual(links)
