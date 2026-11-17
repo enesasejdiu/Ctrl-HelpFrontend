@@ -152,3 +152,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Frontend Dockerfile and nginx config
 - [x] Knowledge base: articles by category, search with highlighting, article page with a table of contents; staff editor (Markdown with toolbar and live preview, drafts, publish, 409 conflict dialog, unsaved-changes warning, local backup) and Manage page with categories
 - [x] Similar open tickets and help articles under the New ticket title while it is typed
+- [x] Canned responses: picker in the comment box (button or "/", placeholders, undoable insertion) and the management page
