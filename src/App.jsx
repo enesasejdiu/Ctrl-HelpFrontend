@@ -38,6 +38,7 @@ const KbSearch = lazy(() => import('./pages/kb/KbSearch'))
 const KbArticle = lazy(() => import('./pages/kb/KbArticle'))
 const KbManage = lazy(() => import('./pages/kb/KbManage'))
 const KbEditor = lazy(() => import('./pages/kb/KbEditor'))
+const CannedResponses = lazy(() => import('./pages/CannedResponses'))
 
 // A lazily loaded page, with a spinner until its code has arrived
 const page = (Page) => (
@@ -93,6 +94,7 @@ function App() {
           <Route path="/kb/:slug" element={page(KbArticle)} />
           <Route element={<ProtectedRoute roles={['admin', 'agent']} />}>
             <Route path="/kb/manage" element={page(KbManage)} />
+            <Route path="/settings/canned-responses" element={page(CannedResponses)} />
             <Route path="/kb/new" element={page(KbEditor)} />
             <Route path="/kb/:slug/edit" element={page(KbEditor)} />
           </Route>

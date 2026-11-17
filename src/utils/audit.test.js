@@ -24,6 +24,9 @@ const ACTIONS = [
   ['kb.category_created', 'Help category added'],
   ['kb.category_updated', 'Help category edited'],
   ['kb.category_deleted', 'Help category deleted'],
+  ['canned.shared_created', 'Shared reply added'],
+  ['canned.shared_updated', 'Shared reply edited'],
+  ['canned.shared_deleted', 'Shared reply deleted'],
 ]
 
 describe('actionLabel', () => {
@@ -86,6 +89,13 @@ describe('auditSummary', () => {
     ['kb.category_created', { category_id: 2, name: 'Network' }, 'Network'],
     ['kb.category_updated', { category_id: 2, name: 'Network', fields: ['name'] }, 'Network'],
     ['kb.category_deleted', { category_id: 2, name: 'Network' }, 'Network'],
+    ['canned.shared_created', { canned_response_id: 4, title: 'Password reset' }, 'Password reset'],
+    [
+      'canned.shared_updated',
+      { canned_response_id: 4, title: 'Password reset', fields: ['title', 'body'] },
+      'Password reset · title, text',
+    ],
+    ['canned.shared_deleted', { canned_response_id: 4, title: 'Password reset' }, 'Password reset'],
   ])('%s %j → "%s"', (action, details, summary) => {
     expect(auditSummary({ action, details })).toBe(summary)
   })

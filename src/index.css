@@ -3685,3 +3685,272 @@ fieldset.field {
   color: inherit;
   background: #fef08a;
 }
+
+/* Canned responses: the picker under the comment box (components/canned/CannedPicker.jsx), the management page's tabs
+   and table, and the placeholder chips in the dialog */
+.canned-picker {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.canned-picker__search {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.canned-picker__busy {
+  position: absolute;
+  top: 21px;
+  right: 22px;
+  color: var(--text-faint);
+}
+
+.canned-picker__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* List and preview side by side on wide screens; the list alone on phones */
+.canned-picker__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.canned-picker__list {
+  max-height: 260px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.canned-picker__list:empty {
+  display: none;
+}
+
+.canned-option {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.canned-option.is-active {
+  background: var(--primary-soft);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.canned-option__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.canned-option__shared {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.canned-option__body {
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canned-picker__preview {
+  display: none;
+  padding: 10px 14px;
+  border-left: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+@media (min-width: 720px) {
+  .canned-picker__body:has(.canned-picker__preview) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+
+  .canned-picker__preview {
+    display: block;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+}
+
+.canned-picker__preview-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.canned-picker__preview-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.canned-filled {
+  border-bottom: 2px solid var(--primary-ring);
+}
+
+.canned-unknown {
+  padding: 0 2px;
+  border-radius: 3px;
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.canned-picker__warning {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.canned-picker__warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.canned-picker__preview-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.canned-picker__state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--text-muted);
+}
+
+.canned-picker__footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+/* Tabs above a card (the management page's "Mine" / "Shared") */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs__tab {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tabs__tab:hover {
+  color: var(--text);
+}
+
+.tabs__tab.is-active {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+
+.tabs__tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.canned-notice:empty {
+  display: none;
+}
+
+.canned-notice {
+  margin: 0 16px;
+}
+
+.canned-table__title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* One line of the text; the full text is in the edit dialog */
+.canned-table__preview {
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canned-table__actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.canned-table__actions .btn + .btn {
+  margin-left: 6px;
+}
+
+.canned-placeholders {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.canned-placeholders__label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.canned-chip {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.canned-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.canned-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
