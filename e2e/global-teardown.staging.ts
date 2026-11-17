@@ -3,6 +3,7 @@
 //   attachments on this run's tickets   deleted (DELETE /attachments/:id)
 //   this run's tickets                  closed (the API can't delete tickets)
 //   this run's accounts                 deactivated (the API can't delete users), so nobody can sign in with them
+//   this run's departments              deleted, unless someone is still in one (the API refuses that)
 // Comments stay with their (closed) tickets. Nothing goes to staging's database directly.
 import { request } from '@playwright/test'
 import fs from 'node:fs'
@@ -10,12 +11,12 @@ import path from 'node:path'
 import { Api } from './support/fixtures'
 import { API_URL, RUN_PREFIX, STAGING_ACCOUNTS_FILE } from './support/target'
 
-type Row = { id: number; title?: string; email?: string; status?: string; is_active?: boolean }
+type Row = { id: number; title?: string; name?: string; email?: string; status?: string; is_active?: boolean }
 
 export default async function globalTeardown() {
   const api = new Api(() => request.newContext({ baseURL: `${API_URL}/` }))
   const left: string[] = []
-  const done = { attachmentsDeleted: 0, ticketsClosed: 0, usersDeactivated: 0 }
+  const done = { attachmentsDeleted: 0, ticketsClosed: 0, usersDeactivated: 0, departmentsDeleted: 0 }
   const attempt = async (what: string, action: () => Promise<unknown>) => {
     try {
       await action()
@@ -46,12 +47,21 @@ export default async function globalTeardown() {
     // The admin's own account is never touched, even if it happened to match
     const users: Row[] = await api.get('users', 'admin')
     const ours = users.filter((u) => u.email?.startsWith(RUN_PREFIX) && u.is_active !== false)
-    // The run's own employee/agent last: the admin session does the work, so order doesn't matter, but keep it tidy
+    // Also out of any department, so the run's departments below are empty and can be deleted
     for (const user of ours) {
       const off = await attempt(`user ${user.email}`, () =>
-        api.send('patch', `users/${user.id}`, 'admin', { is_active: false }),
+        api.send('patch', `users/${user.id}`, 'admin', { is_active: false, department_id: null }),
       )
       if (off) done.usersDeactivated += 1
+    }
+
+    // Departments a test made (named with the prefix) and didn't delete itself, e.g. because it failed half-way
+    const departments: Row[] = await api.get('departments', 'admin')
+    for (const department of departments.filter((d) => d.name?.startsWith(RUN_PREFIX))) {
+      const gone = await attempt(`department ${department.name}`, () =>
+        api.send('delete', `departments/${department.id}`, 'admin'),
+      )
+      if (gone) done.departmentsDeleted += 1
     }
   } catch (err) {
     left.push(`cleanup stopped: ${(err as Error).message.split('\n')[0]}`)
@@ -69,6 +79,6 @@ export default async function globalTeardown() {
   fs.mkdirSync('test-results', { recursive: true })
   fs.writeFileSync(path.join('test-results', 'staging-cleanup.json'), JSON.stringify(report, null, 2))
   console.log(
-    `[e2e:staging] cleanup ${RUN_PREFIX}: ${done.attachmentsDeleted} attachments deleted, ${done.ticketsClosed} tickets closed, ${done.usersDeactivated} accounts deactivated${left.length ? `; ${left.length} problem(s), see test-results/staging-cleanup.json` : ''}`,
+    `[e2e:staging] cleanup ${RUN_PREFIX}: ${done.attachmentsDeleted} attachments deleted, ${done.ticketsClosed} tickets closed, ${done.usersDeactivated} accounts deactivated, ${done.departmentsDeleted} departments deleted${left.length ? `; ${left.length} problem(s), see test-results/staging-cleanup.json` : ''}`,
   )
 }
