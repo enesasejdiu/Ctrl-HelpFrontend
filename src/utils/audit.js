@@ -19,6 +19,23 @@ const ACTION_LABELS = {
   user_deactivated: 'User deactivated',
   attachment_uploaded: 'File attached',
   attachment_deleted: 'Attachment deleted',
+  'kb.article_created': 'Article written',
+  'kb.article_updated': 'Article edited',
+  'kb.article_published': 'Article published',
+  'kb.article_unpublished': 'Article unpublished',
+  'kb.article_deleted': 'Article deleted',
+  'kb.category_created': 'Help category added',
+  'kb.category_updated': 'Help category edited',
+  'kb.category_deleted': 'Help category deleted',
+}
+
+// The knowledge-base article fields an edit can change, as people say them
+const ARTICLE_FIELD_LABELS = {
+  title: 'title',
+  slug: 'address',
+  summary: 'summary',
+  body: 'text',
+  category_id: 'category',
 }
 
 // Shown in the warning colour: someone failed to get in
@@ -86,6 +103,23 @@ export function auditSummary({ action, details }) {
       ]
         .filter(Boolean)
         .join(' · ')
+    case 'kb.article_created':
+    case 'kb.article_published':
+    case 'kb.article_unpublished':
+    case 'kb.article_deleted':
+      return d.title || ''
+    case 'kb.article_updated':
+      // "VPN setup · title, text"
+      return [
+        d.title,
+        Array.isArray(d.fields) && d.fields.map((field) => ARTICLE_FIELD_LABELS[field] || field).join(', '),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    case 'kb.category_created':
+    case 'kb.category_updated':
+    case 'kb.category_deleted':
+      return d.name || ''
     default:
       return ''
   }

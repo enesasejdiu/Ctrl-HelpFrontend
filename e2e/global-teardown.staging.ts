@@ -4,6 +4,7 @@
 //   this run's tickets                  closed (the API can't delete tickets)
 //   this run's accounts                 deactivated (the API can't delete users), so nobody can sign in with them
 //   this run's departments              deleted, unless someone is still in one (the API refuses that)
+//   this run's help categories          deleted, with their articles (kb.spec.ts deletes its own; this catches leftovers)
 // Comments stay with their (closed) tickets. Nothing goes to staging's database directly.
 import { request } from '@playwright/test'
 import fs from 'node:fs'
@@ -16,7 +17,14 @@ type Row = { id: number; title?: string; name?: string; email?: string; status?:
 export default async function globalTeardown() {
   const api = new Api(() => request.newContext({ baseURL: `${API_URL}/` }))
   const left: string[] = []
-  const done = { attachmentsDeleted: 0, ticketsClosed: 0, usersDeactivated: 0, departmentsDeleted: 0 }
+  const done = {
+    attachmentsDeleted: 0,
+    ticketsClosed: 0,
+    usersDeactivated: 0,
+    departmentsDeleted: 0,
+    kbArticlesDeleted: 0,
+    kbCategoriesDeleted: 0,
+  }
   const attempt = async (what: string, action: () => Promise<unknown>) => {
     try {
       await action()
@@ -63,6 +71,23 @@ export default async function globalTeardown() {
       )
       if (gone) done.departmentsDeleted += 1
     }
+
+    // Knowledge-base categories a test made (named with the prefix), with their articles (drafts too: staff get every
+    // status when none is asked for), e.g. when kb.spec.ts failed before its own cleanup
+    const kbCategories: (Row & { slug: string })[] = await api.get('kb/categories', 'admin')
+    for (const category of kbCategories.filter((c) => c.name?.startsWith(RUN_PREFIX))) {
+      const articles: Row[] = await api.get(`kb/articles?category=${encodeURIComponent(category.slug)}`, 'admin')
+      for (const article of articles) {
+        const gone = await attempt(`article ${article.title}`, () =>
+          api.send('delete', `kb/articles/${article.id}`, 'admin'),
+        )
+        if (gone) done.kbArticlesDeleted += 1
+      }
+      const gone = await attempt(`help category ${category.name}`, () =>
+        api.send('delete', `kb/categories/${category.id}`, 'admin'),
+      )
+      if (gone) done.kbCategoriesDeleted += 1
+    }
   } catch (err) {
     left.push(`cleanup stopped: ${(err as Error).message.split('\n')[0]}`)
   } finally {
@@ -79,6 +104,6 @@ export default async function globalTeardown() {
   fs.mkdirSync('test-results', { recursive: true })
   fs.writeFileSync(path.join('test-results', 'staging-cleanup.json'), JSON.stringify(report, null, 2))
   console.log(
-    `[e2e:staging] cleanup ${RUN_PREFIX}: ${done.attachmentsDeleted} attachments deleted, ${done.ticketsClosed} tickets closed, ${done.usersDeactivated} accounts deactivated, ${done.departmentsDeleted} departments deleted${left.length ? `; ${left.length} problem(s), see test-results/staging-cleanup.json` : ''}`,
+    `[e2e:staging] cleanup ${RUN_PREFIX}: ${done.attachmentsDeleted} attachments deleted, ${done.ticketsClosed} tickets closed, ${done.usersDeactivated} accounts deactivated, ${done.departmentsDeleted} departments deleted, ${done.kbArticlesDeleted} help articles and ${done.kbCategoriesDeleted} help categories deleted${left.length ? `; ${left.length} problem(s), see test-results/staging-cleanup.json` : ''}`,
   )
 }

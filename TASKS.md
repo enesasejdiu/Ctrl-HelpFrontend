@@ -150,3 +150,4 @@ Note: status labels and the date formatter live in `src/utils/format.js` (Badges
 - [x] Attachments: image thumbnails (`?inline=1`), files with a comment (comment form, listed under the comment; staff-only with an internal note)
 - [x] Privacy page in the app
 - [x] Frontend Dockerfile and nginx config
+- [x] Knowledge base: articles by category, search with highlighting, article page with a table of contents; staff editor (Markdown with toolbar and live preview, drafts, publish, 409 conflict dialog, unsaved-changes warning, local backup) and Manage page with categories
