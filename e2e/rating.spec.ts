@@ -4,7 +4,7 @@
 // NEEDS THE BACKEND'S RATINGS (POST /api/tickets/:id/rating, `rating` on GET /api/tickets/:id, `ratings` on
 // GET /api/stats), which are Aulona's backend part and not merged yet. Until then a ticket has no `rating` field and
 // this test SKIPS ITSELF (the check at the start); once that backend is merged it runs without any change here.
-import { API_URL } from '../scripts/e2e-env.mjs'
+import { API_URL } from './support/target'
 import { expect, test } from './support/fixtures'
 import { authFile } from './support/users'
 

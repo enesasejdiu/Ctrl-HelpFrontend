@@ -191,6 +191,43 @@ the backend's `.env` (for example MariaDB from XAMPP); only the name is differen
 `E2E_DB_USER` and `E2E_DB_PASSWORD` to use another server, as CI does with MySQL 8.4. The backend must be checked out
 next to this folder (`../Ctrl-HelpBackend`), or set `BACKEND_DIR`.
 
+### End-to-end tests against staging
+
+`npm run e2e:staging` (`playwright.staging.config.ts`) runs the suite against the shared staging server. It starts
+no servers and never touches a database. The tests use the deployed app and make their own data through its API.
+
+```bash
+# PowerShell: $env:STAGING_URL='https://…'; bash: export STAGING_URL=https://…  (never commit these)
+STAGING_URL=https://<staging host> STAGING_ADMIN_EMAIL=… STAGING_ADMIN_PASSWORD=… npm run e2e:staging
+```
+
+**Safety.** The run stops before its first request unless all of these hold:
+
+- `STAGING_URL` is `https://` and its host is listed in [`e2e/staging-hosts.json`](e2e/staging-hosts.json) (change
+  that list through a pull request);
+- the host doesn't look like production (`prod`, `production`, `live`, `www` in its name);
+- the staging admin's login is in the environment.
+
+`localhost` is always allowed, for a rehearsal: CI's "staging rehearsal" job runs it against a local stand-in.
+Passwords are never printed.
+
+**What it does:**
+
+- **Gentle on the server:** one worker, Chromium only. The lockout and login limits count per IP address, for
+  everyone behind it.
+- **Failures stay visible:** no retries, so flaky tests show up. Traces, screenshots and video are kept for each
+  failure, in `playwright-report-staging/` and `test-results/staging/`.
+- **Its own accounts:** the global setup (`e2e/global-setup.staging.ts`) creates `e2e-<runId>-employee@example.test`
+  and an agent through the API. Every test's names and emails start with `e2e-<runId>-` and use the reserved
+  `.test` domain, so no email reaches anyone. Categories and priorities are looked up by name.
+- **Cleanup afterwards** (`e2e/global-teardown.staging.ts`, also when tests fail): attachments are deleted, tickets
+  closed and accounts deactivated. Tickets and accounts can't be deleted through the API, so they stay, closed and
+  deactivated, with the prefix. The result is in `test-results/staging-cleanup.json`.
+- **Needs email off on staging.** The run's accounts get their password the temporary-password way. With email on,
+  their set-password links go to an inbox this run can't read, and the setup stops with a message saying so.
+- **Local-only tests are excluded.** Files that only work against a local run are listed in
+  `playwright.staging.config.ts` (`LOCAL_ONLY`, with the reason for each) and marked `@local-only` at their top.
+
 ### Dependency updates and security audit
 
 - **Dependabot** (`.github/dependabot.yml`) opens update PRs every Monday at 06:00 (Europe/Budapest), labelled

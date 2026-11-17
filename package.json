@@ -22,6 +22,7 @@
     "e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report",
     "e2e:temporary-passwords": "node scripts/e2e-temporary-passwords.mjs",
+    "e2e:staging": "playwright test --config playwright.staging.config.ts",
     "e2e:cleanup": "node scripts/e2e-backend.mjs cleanup"
   },
   "dependencies": {

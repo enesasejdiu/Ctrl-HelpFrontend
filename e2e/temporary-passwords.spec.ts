@@ -1,3 +1,4 @@
+// @local-only: not in the staging run (playwright.staging.config.ts): needs the backend started with email off, in a run of its own.
 // temporary-passwords.spec.ts – the app when the backend has no email set up (password_delivery
 // 'temporary_password'): a new account and an Admin/HR reset show a temporary password once, the user must replace it
 // on /set-password before anything else, there is no "Resend link", and the sign-in page has no "Forgot password?"
@@ -54,7 +55,7 @@ test('a new account gets a temporary password, which must be replaced before any
 }) => {
   // Two browsers signing in: slow in Firefox (like hr-flow.spec.ts), so triple the time
   test.slow()
-  const email = `${uniq}@test.local`
+  const email = `${uniq}@example.test`
   const name = `Temp Starter ${uniq}`
   const temporary = await addUser(page, name, email)
   // No email, so no "Resend link" and no "emailed" notice
@@ -78,7 +79,7 @@ test('a new account gets a temporary password, which must be replaced before any
 
 test('a reset shows a new temporary password and ends the user’s session', async ({ page, browser, uniq }) => {
   test.slow()
-  const email = `${uniq}@test.local`
+  const email = `${uniq}@example.test`
   const name = `Temp Reset ${uniq}`
   const first = await addUser(page, name, email)
   const { context, page: user } = await freshPage(browser)

@@ -5,7 +5,7 @@
 import fs from 'node:fs'
 import type { Browser } from '@playwright/test'
 import { expect, test } from './support/fixtures'
-import { PASSWORD, USERS, authFile } from './support/users'
+import { account, authFile } from './support/users'
 
 test.use({ storageState: authFile('user') })
 
@@ -14,12 +14,12 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n')
 const EXE = Buffer.from('MZ\x90\x00\x03\x00\x00\x00', 'latin1')
 
-async function signedInAs(browser: Browser, email: string) {
+async function signedInAs(browser: Browser, { email, password }: { email: string; password: string }) {
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] }, acceptDownloads: true })
   const page = await context.newPage()
   await page.goto('/login')
   await page.getByLabel('Work email').fill(email)
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+  await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL('/tickets')
   return { context, page }
@@ -65,7 +65,7 @@ test('employee attaches a PNG and a PDF, a .exe is refused, an agent downloads, 
   await expect(card.getByRole('heading', { name: 'Attachments (2)' })).toBeVisible()
 
   // 3. An agent opens the ticket and downloads the PDF: a download (not a page), with the exact bytes
-  const agent = await signedInAs(browser, USERS.agent.email)
+  const agent = await signedInAs(browser, account('agent'))
   await agent.page.goto(ticketPath)
   const agentCard = agent.page.getByRole('region', { name: /^Attachments/ })
   await expect(agentCard.getByRole('heading', { name: 'Attachments (2)' })).toBeVisible()

@@ -12,7 +12,7 @@ test('add a user in a department, then move them to another one and then to none
   await page.getByRole('button', { name: 'Add user' }).click()
   const add = page.getByRole('dialog', { name: 'Add user' })
   await add.getByLabel('Full name').fill(name)
-  await add.getByLabel('Email').fill(`${uniq}@test.local`)
+  await add.getByLabel('Email').fill(`${uniq}@example.test`)
   await add.getByLabel(/Department/).selectOption({ label: 'Sales' })
   await add.getByRole('button', { name: 'Create user' }).click()
   // No password dialog: the new user gets an emailed set-password link

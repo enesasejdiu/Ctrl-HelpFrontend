@@ -1,3 +1,4 @@
+// @local-only: not in the staging run (playwright.staging.config.ts): reads the set-password emails from the local run's mail folder.
 // hr-flow.spec.ts – the HR flow from start to finish, against the real backend on this run's throwaway database:
 // an admin creates an HR account → HR sets their own password with the emailed link → HR's navigation → HR adds an
 // employee (Employee only) and can't touch agents or admins → the employee sets a password with their link and
@@ -51,9 +52,9 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   // trace showed its last step starting at 27.8 s), so it gets triple the time (Playwright's test.slow())
   test.slow()
   const hrName = `HR Person ${uniq}`
-  const hrEmail = `hr.${uniq}@test.local`
+  const hrEmail = `hr.${uniq}@example.test`
   const employeeName = `New Employee ${uniq}`
-  const employeeEmail = `employee.${uniq}@test.local`
+  const employeeEmail = `employee.${uniq}@example.test`
   const ticketTitle = `${uniq} Monitor flickers`
 
   // 1. An admin creates the HR account; the HR person gets a set-password link by email

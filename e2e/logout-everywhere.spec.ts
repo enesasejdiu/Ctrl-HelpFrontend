@@ -19,7 +19,7 @@ async function signIn(browser: Browser, email: string, password: string) {
 test('log out everywhere in one browser: the other browser is signed out too', async ({ browser, api, uniq }) => {
   // Two browsers, like hr-flow.spec.ts: slow in Firefox, so triple the time
   test.slow()
-  const account = await api.createReadyEmployee(`Two Devices ${uniq}`, `${uniq}@test.local`)
+  const account = await api.createReadyEmployee(`Two Devices ${uniq}`, `${uniq}@example.test`)
   const laptop = await signIn(browser, account.email, account.password)
   const phone = await signIn(browser, account.email, account.password)
 

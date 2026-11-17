@@ -16,6 +16,7 @@ coverage
 # Playwright e2e output and saved logins (the e2e database is created and dropped on the server per run)
 test-results/
 playwright-report/
+playwright-report-staging/
 blob-report/
 e2e/.auth/
 

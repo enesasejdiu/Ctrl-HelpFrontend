@@ -7,7 +7,7 @@ test.use({ storageState: authFile('admin') })
 
 test('an admin changes a role, then sees "Role changed" at the top of the audit log', async ({ page, api, uniq }) => {
   const name = `Audit Person ${uniq}`
-  await api.createEmployee(name, `${uniq}@test.local`)
+  await api.createUser(name, `${uniq}@example.test`)
 
   await page.goto('/admin/users')
   const row = page.getByRole('row').filter({ hasText: name })
