@@ -236,6 +236,20 @@ const en = {
   'kb.error.bodyRequired': 'The article needs some text',
   'kb.error.bodyLong': 'The article can be at most {max} characters',
   'kb.error.categoryRequired': 'Choose a category',
+
+  // Similar tickets and articles under the New ticket title (components/similar/*)
+  'suggest.title': 'Is this the same problem?',
+  'suggest.hint': 'These might already have the answer. They open in a new tab, so your ticket stays as it is.',
+  'suggest.tickets': 'Similar open tickets',
+  'suggest.articles': 'Help articles',
+  'suggest.dismiss': 'None of these, continue',
+  'suggest.newTab': '(opens in a new tab)',
+  'suggest.found_one': '1 similar item found',
+  'suggest.found_other': '{count} similar items found',
+  'suggest.updatedToday': 'updated today',
+  'suggest.updatedDaysAgo_one': 'updated 1 day ago',
+  'suggest.updatedDaysAgo_other': 'updated {count} days ago',
+  'suggest.updatedOn': 'updated on {date}',
 }
 
 export default en
