@@ -18,6 +18,9 @@ test('rename the company, add and archive a category, and set High to 12 hours',
   api,
   uniq,
 }) => {
+  // Six page loads in two browsers (admin and a visitor): about 35 s in Firefox against the dev server, over the
+  // default 30 s, like rating.spec.ts and hr-flow.spec.ts, so triple the time
+  test.slow()
   const probe = await request.get(`${API_URL}/settings/public`)
   test.skip(probe.status() === 404, "The backend has no settings API yet (Aulona's settings PR); this test needs it")
 

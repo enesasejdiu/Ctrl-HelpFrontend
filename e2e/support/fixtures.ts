@@ -178,7 +178,12 @@ export class Api {
 
 export const test = base.extend<{ api: Api; uniq: string; testEmail: (label?: string) => string }>({
   api: async ({ playwright }, use) => {
-    const api = new Api(() => playwright.request.newContext({ baseURL: `${API_URL}/` }))
+    // An empty cookie jar: each API session must hold only the cookies of its own login. Without it the context takes
+    // the test's saved login (test.use storageState) too, and with two tf_csrf cookies the header and the cookie sent
+    // can disagree (403 CSRF_INVALID).
+    const api = new Api(() =>
+      playwright.request.newContext({ baseURL: `${API_URL}/`, storageState: { cookies: [], origins: [] } }),
+    )
     await use(api)
     await api.dispose()
   },

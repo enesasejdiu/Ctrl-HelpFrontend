@@ -157,16 +157,17 @@ jobs:
       - name: Start the stand-in for staging (backend + frontend on localhost)
         run: |
           node scripts/e2e-backend.mjs start > backend.log 2>&1 &
-          API_PROXY_TARGET=http://localhost:5181 VITE_API_URL=/api VITE_SENTRY_DSN= npx vite --port 5182 --strictPort > frontend.log 2>&1 &
+          # 127.0.0.1 exactly, like the local e2e run (scripts/e2e-env.mjs FRONTEND_HOST explains why)
+          API_PROXY_TARGET=http://localhost:5181 VITE_API_URL=/api VITE_SENTRY_DSN= npx vite --host 127.0.0.1 --port 5182 --strictPort > frontend.log 2>&1 &
           for i in $(seq 1 60); do
-            curl -sf http://localhost:5182/api/health > /dev/null && break
+            curl -sf http://127.0.0.1:5182/api/health > /dev/null && break
             sleep 2
           done
-          curl -sf http://localhost:5182/api/health
+          curl -sf http://127.0.0.1:5182/api/health
 
       - name: npm run e2e:staging against it
         env:
-          STAGING_URL: http://localhost:5182
+          STAGING_URL: http://127.0.0.1:5182
           STAGING_ADMIN_EMAIL: admin@ticketflow.local
           STAGING_ADMIN_PASSWORD: password123
         run: npm run e2e:staging

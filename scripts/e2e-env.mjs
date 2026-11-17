@@ -61,7 +61,11 @@ export const DB_NAME = assertE2eDbName(process.env.E2E_DB_NAME)
 export const API_PORT = Number(process.env.E2E_API_PORT)
 export const FRONTEND_PORT = Number(process.env.E2E_WEB_PORT)
 export const API_URL = `http://localhost:${API_PORT}/api`
-export const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`
+// 127.0.0.1, not localhost: localhost is both ::1 and 127.0.0.1, and the dev server would listen on only one of them
+// (::1 on Windows). Firefox then lost about 2 seconds on every new connection, enough to push longer tests past their
+// timeout. One explicit address for the server (playwright.config.ts: vite --host) and for the browser.
+export const FRONTEND_HOST = '127.0.0.1'
+export const FRONTEND_URL = `http://${FRONTEND_HOST}:${FRONTEND_PORT}`
 // Where this run's backend saves every email it sends (as .json files), so tests can open set-password links.
 // Removed with the database.
 // How this run's backend delivers new and reset passwords: 'email' (one-time links, the default) or
