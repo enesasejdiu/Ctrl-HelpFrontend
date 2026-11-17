@@ -4,7 +4,6 @@
 // NEEDS THE BACKEND'S RATINGS (POST /api/tickets/:id/rating, `rating` on GET /api/tickets/:id, `ratings` on
 // GET /api/stats), which are Aulona's backend part and not merged yet. Until then a ticket has no `rating` field and
 // this test SKIPS ITSELF (the check at the start); once that backend is merged it runs without any change here.
-import { API_URL } from './support/target'
 import { expect, test } from './support/fixtures'
 import { authFile } from './support/users'
 
@@ -19,7 +18,8 @@ test('close a resolved ticket, rate it 4 stars with the keyboard; staff see it; 
   // Two browsers (user and admin): slow in Firefox, like hr-flow.spec.ts, so triple the time
   test.slow()
   const rated = await api.createTicket({ title: `${uniq} rated ticket` })
-  const probe = await page.request.get(`${API_URL}/tickets/${rated.id}`)
+  // Through the page's own address (/api on the frontend), with the page's login cookies, like the app itself
+  const probe = await page.request.get(`/api/tickets/${rated.id}`)
   expect(probe).toBeOK()
   test.skip(
     !('rating' in (await probe.json())),
