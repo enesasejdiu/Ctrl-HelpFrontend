@@ -4,12 +4,25 @@
 // "Rate this ticket" stays on the page until they do. The rating then shows in the Details box for everyone.
 // The API has the final say on who may do what. After every action the page reloads the ticket,
 // because one change can trigger others (assigning also moves the status and adds history rows).
-import { ArrowLeft, Check, Lock, LoaderCircle, Paperclip, RotateCcw, Save, Send, Star, UserPlus } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  ArrowLeft,
+  Check,
+  Lock,
+  LoaderCircle,
+  MessageSquareText,
+  Paperclip,
+  RotateCcw,
+  Save,
+  Send,
+  Star,
+  UserPlus,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { downloadUrl, uploadFiles } from '../api/attachments'
 import client, { errorMessage, isNotFound } from '../api/client'
 import AttachmentDropzone from '../components/AttachmentDropzone'
+import CannedPicker from '../components/canned/CannedPicker'
 import { OverdueBadge, PriorityBadge, StatusBadge } from '../components/Badges'
 import NotFound from '../components/NotFound'
 import RatingDialog, { RatingStars } from '../components/RatingDialog'
@@ -19,7 +32,9 @@ import { MAX_FILES_PER_TICKET, MAX_FILES_PER_UPLOAD } from '../utils/attachments
 import { Alert, Avatar, PageHeader, Spinner } from '../components/Ui'
 import { useAuth } from '../context/auth'
 import { t } from '../i18n'
+import { useCompanyName } from '../settings/companyName'
 import { ROLE_LABELS, STATUSES, formatDate, statusLabel, targetLabel, timeAgo } from '../utils/format'
+import { placeholderValues } from '../utils/placeholders'
 
 const DONE_STATUSES = ['resolved', 'closed']
 const HISTORY_FIELDS = { status: 'status', priority: 'priority', assigned_to: 'assignee' }
@@ -152,7 +167,7 @@ function TicketPage({ id }) {
                 <h2 className="panel-title">Comments ({ticket.comments.length})</h2>
                 <CommentList comments={ticket.comments} attachments={ticket.attachments ?? []} />
                 <CommentForm
-                  ticketId={ticket.id}
+                  ticket={ticket}
                   room={Math.max(0, MAX_FILES_PER_TICKET - (ticket.attachments?.length ?? 0))}
                   reload={load}
                 />
@@ -236,8 +251,17 @@ function CommentFiles({ files }) {
 
 // room: how many more files the ticket can take (20 in all). Files chosen here are uploaded right after the comment is
 // saved, with its comment_id, so they show under it (and, with an internal note, are staff-only like the note).
-function CommentForm({ ticketId, room, reload }) {
-  const { isStaff } = useAuth()
+// Staff can insert a canned response (components/canned/CannedPicker.jsx): the button, or "/" in an empty comment.
+function CommentForm({ ticket, room, reload }) {
+  const ticketId = ticket.id
+  const { user, isStaff } = useAuth()
+  const companyName = useCompanyName()
+  const textareaRef = useRef(null)
+  const pickerButtonRef = useRef(null)
+  // null: closed; { slashAt }: open (slashAt: where the "/" that opened it is, or null for the button)
+  const [picker, setPicker] = useState(null)
+  const closePicker = useCallback(() => setPicker(null), [])
+  const values = useMemo(() => placeholderValues({ ticket, user, companyName }), [ticket, user, companyName])
   const { busy, error, setError, run } = useAction(reload)
   const [content, setContent] = useState('')
   const [isInternal, setIsInternal] = useState(false)
@@ -298,13 +322,27 @@ function CommentForm({ ticketId, room, reload }) {
         </Alert>
       )}
       <textarea
+        ref={textareaRef}
         className="textarea"
         rows={3}
         placeholder={isInternal ? 'Only IT staff can see this note…' : 'Write a comment…'}
         aria-label="Comment"
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => {
+          // "/" as the first character of an empty comment opens the canned responses (staff)
+          if (isStaff && content === '' && e.target.value === '/') setPicker({ slashAt: 0 })
+          setContent(e.target.value)
+        }}
       />
+      {picker && (
+        <CannedPicker
+          textareaRef={textareaRef}
+          values={values}
+          slashAt={picker.slashAt}
+          onClose={closePicker}
+          toggleRef={pickerButtonRef}
+        />
+      )}
       {uploads ? (
         <div className="comment-form__files">
           <UploadStatusList uploads={uploads} label="Uploading the comment's files" />
@@ -330,6 +368,22 @@ function CommentForm({ ticketId, room, reload }) {
             <span className="switch__track" aria-hidden="true" />
             Internal note
           </label>
+        )}
+        {isStaff && (
+          <button
+            ref={pickerButtonRef}
+            type="button"
+            className="btn btn--secondary"
+            aria-expanded={Boolean(picker)}
+            onClick={() => {
+              if (picker) textareaRef.current?.focus()
+              setPicker(picker ? null : { slashAt: null })
+            }}
+            disabled={busy}
+          >
+            <MessageSquareText size={16} aria-hidden="true" />
+            {t('canned.button')}
+          </button>
         )}
         {!attaching && room > 0 && (
           <button type="button" className="btn btn--secondary" onClick={() => setAttaching(true)} disabled={busy}>

@@ -27,6 +27,9 @@ const ACTION_LABELS = {
   'kb.category_created': 'Help category added',
   'kb.category_updated': 'Help category edited',
   'kb.category_deleted': 'Help category deleted',
+  'canned.shared_created': 'Shared reply added',
+  'canned.shared_updated': 'Shared reply edited',
+  'canned.shared_deleted': 'Shared reply deleted',
 }
 
 // The knowledge-base article fields an edit can change, as people say them
@@ -120,6 +123,17 @@ export function auditSummary({ action, details }) {
     case 'kb.category_updated':
     case 'kb.category_deleted':
       return d.name || ''
+    case 'canned.shared_created':
+    case 'canned.shared_deleted':
+      return d.title || ''
+    case 'canned.shared_updated':
+      // "Password reset · title, text"
+      return [
+        d.title,
+        Array.isArray(d.fields) && d.fields.map((field) => (field === 'body' ? 'text' : field)).join(', '),
+      ]
+        .filter(Boolean)
+        .join(' · ')
     default:
       return ''
   }
