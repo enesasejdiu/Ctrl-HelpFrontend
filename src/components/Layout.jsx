@@ -3,6 +3,8 @@
 // the bar shows only the logo and Log out (every page but /set-password is closed to them anyway).
 // A one-off message passed in the navigation state ({ flash }) is shown above the page, e.g. "Password changed".
 // A page that crashes while rendering is replaced by an error message (RouteErrorBoundary); the bar keeps working.
+// When the links don't fit next to the logo and the user box (an admin has eight), the bar shows them as icons only,
+// each still named for screen readers and in a tooltip (useCompactNav.js): links never slide under the user box.
 import {
   BookOpen,
   Building2,
@@ -16,6 +18,7 @@ import {
   TicketPlus,
   Users,
 } from 'lucide-react'
+import { useRef } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../context/auth'
 import RouteErrorBoundary from '../errors/RouteErrorBoundary'
@@ -24,6 +27,7 @@ import { ROLE_LABELS } from '../utils/format'
 import { useCompanyName } from '../settings/companyName'
 import AppFooter from './AppFooter'
 import Logo from './Logo'
+import { useCompactNav } from './useCompactNav'
 import { Avatar } from './Ui'
 
 // Used as a layout route (the page comes from <Outlet />) or around `children` (the "Page not found" page)
@@ -53,6 +57,9 @@ export default function Layout({ children }) {
         ...(isAdmin ? [{ to: '/admin/settings', label: 'Settings', icon: SettingsIcon }] : []),
       ]
 
+  const navRef = useRef(null)
+  const compact = useCompactNav(navRef, links.map((link) => link.to).join(' '))
+
   // Avatar, name and role; a link to /profile, except while the user must first set a password
   const who = (
     <>
@@ -77,11 +84,18 @@ export default function Layout({ children }) {
             <Logo />
           </Link>
 
-          <nav className="topbar__nav" aria-label="Main">
+          <nav ref={navRef} className={`topbar__nav${compact ? ' topbar__nav--compact' : ''}`} aria-label="Main">
             {links.map(({ to, label, icon: Icon, end }) => (
-              <NavLink key={to} to={to} end={end} className="nav-link">
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className="nav-link"
+                // Icons only: the name for screen readers, and a tooltip
+                {...(compact && { 'aria-label': label, title: label })}
+              >
                 <Icon size={16} aria-hidden="true" />
-                {label}
+                <span className="nav-link__label">{label}</span>
               </NavLink>
             ))}
           </nav>

@@ -92,3 +92,19 @@ test('rename the company, add and archive a category, and set High to 12 hours',
     }
   }
 })
+
+// The top bar's Settings link must be clickable at a common laptop width. It used to lie under the user box (the
+// admin's eight links didn't fit), so clicks landed on the user's name instead.
+test('the Settings link in the top bar opens the settings page at 1280 px', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/tickets')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await nav.getByRole('link', { name: 'Settings', exact: true }).click()
+  await expect(page).toHaveURL(/\/admin\/settings$/)
+  // Every link of the bar is inside the bar's own space, none under the user box
+  const user = await page.locator('.topbar__user').boundingBox()
+  for (const link of await nav.getByRole('link').all()) {
+    const box = await link.boundingBox()
+    expect(box!.x + box!.width).toBeLessThanOrEqual(user!.x)
+  }
+})
