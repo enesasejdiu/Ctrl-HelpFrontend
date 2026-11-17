@@ -3,8 +3,11 @@
 // failed code download reloads once and then shows the error screen instead of looping.
 import type { Page } from '@playwright/test'
 import { expect, test } from './support/fixtures'
+import { DEPLOYED } from './support/target'
 import { authFile } from './support/users'
 
+// The /__crash pages exist only in a development build (the Vite dev server); a deployed stack is a production build
+test.skip(DEPLOYED, 'needs the dev-only /__crash pages, which a production build does not have')
 const TITLE = 'Something went wrong'
 
 // The console lines the app's error logger writes ("[TicketFlow] render-route (reference 3FA91C0B, event …)")

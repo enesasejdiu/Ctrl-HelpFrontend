@@ -6,6 +6,7 @@
 // test SKIPS ITSELF (see the check at the start).
 // It writes 30 tickets, so it first makes sure it runs on this run's throwaway database and stops otherwise.
 import { assertE2eDbName, DB_NAME, DB_SERVER } from '../scripts/e2e-env.mjs'
+import { DEPLOYED } from './support/target'
 import { expect, test } from './support/fixtures'
 import { authFile } from './support/users'
 
@@ -24,9 +25,12 @@ test('30 tickets: page through them, sort by priority, and a filter goes back to
 
   // Only ever this run's throwaway database (ticketflow_e2e_<time>_<pid>), on a local server unless E2E_DB_HOST names
   // another one on purpose. Anything else: stop before writing a single ticket.
-  assertE2eDbName(DB_NAME)
-  if (!process.env.E2E_DB_HOST && !LOCAL_HOSTS.includes(DB_SERVER.host)) {
-    throw new Error(`Refusing to run: the e2e database server is "${DB_SERVER.host}", not a local one`)
+  // A deployed stack (npm run e2e:deployed) is disposable and has no run database of its own
+  if (!DEPLOYED) {
+    assertE2eDbName(DB_NAME)
+    if (!process.env.E2E_DB_HOST && !LOCAL_HOSTS.includes(DB_SERVER.host)) {
+      throw new Error(`Refusing to run: the e2e database server is "${DB_SERVER.host}", not a local one`)
+    }
   }
 
   const probe = await api.get('tickets?page=1&pageSize=25')
@@ -86,9 +90,12 @@ test('30 tickets: page through them, sort by priority, and a filter goes back to
 
 // Only ever this run's throwaway database, on a local server unless E2E_DB_HOST names another one on purpose
 function assertThrowawayDatabase() {
-  assertE2eDbName(DB_NAME)
-  if (!process.env.E2E_DB_HOST && !LOCAL_HOSTS.includes(DB_SERVER.host)) {
-    throw new Error(`Refusing to run: the e2e database server is "${DB_SERVER.host}", not a local one`)
+  // A deployed stack (npm run e2e:deployed) is disposable and has no run database of its own
+  if (!DEPLOYED) {
+    assertE2eDbName(DB_NAME)
+    if (!process.env.E2E_DB_HOST && !LOCAL_HOSTS.includes(DB_SERVER.host)) {
+      throw new Error(`Refusing to run: the e2e database server is "${DB_SERVER.host}", not a local one`)
+    }
   }
 }
 

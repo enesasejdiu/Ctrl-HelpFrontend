@@ -3,13 +3,14 @@
 import { request } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { FRONTEND_URL } from './target'
+import { DEPLOYED, FRONTEND_URL } from './target'
 import { account, authFile } from './users'
 
 export async function saveLogins() {
   for (const role of ['user', 'admin'] as const) {
     // A context per role, so each file gets only that role's cookies
-    const api = await request.newContext({ baseURL: `${FRONTEND_URL}/api/` })
+    // A deployed stack has its own (Caddy's local) certificate
+    const api = await request.newContext({ baseURL: `${FRONTEND_URL}/api/`, ignoreHTTPSErrors: DEPLOYED })
     const { email, password } = account(role)
     const response = await api.post('auth/login', { data: { email, password } })
     if (!response.ok()) {
