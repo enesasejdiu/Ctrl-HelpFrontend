@@ -71,9 +71,9 @@ test('HR adds an employee → the employee sets a password and creates a ticket;
   const { context: hrContext, page: hr } = await freshPage(browser)
   await setOwnPassword(hr, hrLink, hrEmail, 'HrOwnPassword1')
 
-  // 3. HR's navigation: Tickets, New ticket, Users, Departments and the profile link; no Dashboard
+  // 3. HR's navigation: Tickets, New ticket, Knowledge base, Users, Departments and the profile link; no Dashboard
   const nav = hr.getByRole('navigation', { name: 'Main' })
-  await expect(nav.getByRole('link')).toHaveText(['Tickets', 'New ticket', 'Users', 'Departments'])
+  await expect(nav.getByRole('link')).toHaveText(['Tickets', 'New ticket', 'Knowledge base', 'Users', 'Departments'])
   await expect(nav.getByRole('link', { name: 'Dashboard' })).toHaveCount(0)
   await expect(hr.getByRole('link', { name: `My profile (${hrName})` })).toBeVisible()
   await hr.getByRole('link', { name: `My profile (${hrName})` }).click()
