@@ -34,6 +34,9 @@
 
   --topbar-height: 64px;
   --page-width: 1280px;
+  /* The top bar may be wider than the page, so an admin's eight links keep their labels on a wide screen; below that
+     they turn into icons (Layout.jsx, useCompactNav.js) */
+  --topbar-width: 1600px;
 
   color-scheme: light;
 }
@@ -105,7 +108,7 @@ textarea {
 }
 
 .topbar__inner {
-  max-width: var(--page-width);
+  max-width: var(--topbar-width);
   margin: 0 auto;
   height: var(--topbar-height);
   padding: 0 24px;
@@ -124,6 +127,23 @@ textarea {
   gap: 4px;
   flex: 1;
   min-width: 0;
+  /* The last resort when even icons don't fit (a very narrow window): the links scroll sideways instead of sliding
+     under the user box. No scrollbar shown; a trackpad, touch or Tab still reach every link. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topbar__nav::-webkit-scrollbar {
+  display: none;
+}
+
+/* Icons only (Layout.jsx useCompactNav): the labels don't fit; each link keeps its name (aria-label, title) */
+.topbar__nav--compact .nav-link__label {
+  display: none;
+}
+
+.topbar__nav--compact .nav-link {
+  padding: 0 10px;
 }
 
 .nav-link {
